@@ -367,8 +367,10 @@
   /* ---------------- three-part error feedback ---------------- */
   const NUMC = ['①', '②', '③', '④', '⑤'];
 
-  function wxCard(you, why, rule, title) {
-    return '<div class="wx">' +
+  function wxCard(you, why, rule, title, opts) {
+    const o = opts || {};
+    const attr = o.atom === undefined ? '' : ' data-hi="' + o.atom + '"';
+    return '<div class="wx"' + attr + '>' +
       (title ? '<div class="wxTitle">' + title + '</div>' : '') +
       '<div class="wxRow"><div class="wxTag you">你的答案<em>YOUR ANSWER</em></div>' +
         '<div class="wxTxt"><span class="wxEn">' + you.en + '</span><span class="wxZh">' + you.zh + '</span></div></div>' +
@@ -376,6 +378,7 @@
         '<div class="wxTxt"><span class="wxEn">' + why.en + '</span><span class="wxZh">' + why.zh + '</span></div></div>' +
       '<div class="wxRow"><div class="wxTag rule">正確規則<em>THE RULE</em></div>' +
         '<div class="wxTxt"><span class="wxEn">' + rule.en + '</span><span class="wxZh">' + rule.zh + '</span></div></div>' +
+      (o.tapHint ? '<div class="wxTap">' + o.tapHint + '</div>' : '') +
       '</div>';
   }
 
@@ -654,7 +657,7 @@
   function openDotCross(node) {
     dcq = {
       node, q: DC[node.dc], marks: {}, charges: {}, bracket: false,
-      tool: 'dot', tries: 0, hintUsed: false, hintSlot: null, solved: false
+      tool: 'dot', tries: 0, hintUsed: false, hintSlot: null, solved: false, hiAtom: -1
     };
     const q = dcq.q;
     $('dcTitle').textContent = q.compound + ' — Dot-and-cross diagram';
@@ -664,16 +667,12 @@
     $('dcFeedback').className = 'dcFeedback';
     $('dcFeedback').innerHTML = '';
     $('dcCheckBtn').textContent = '檢查 Check';
-    $('dcHow').innerHTML = q.type === 'ionic'
-      ? '做法：① 揀 <b>•</b> ② 逐個小點點 <b>2 下</b>（一對電子）③ 按 <b>[ ]</b> 加方括號 ④ 揀電荷（Na<b>+</b>、Cl<b>−</b>）⑤ 按「檢查」'
-      : '做法：① 揀 <b>•</b> ② 孤對：同一個小點點 <b>2 下</b> ③ 鍵對：先點 <b>•</b> 再點 <b>×</b> ④ 按「檢查」';
     $('dcToolbar').className = 'dcToolbar' + (q.type === 'ionic' ? ' ionic' : '');
     $('dcToolbar').innerHTML =
       '<button class="toolBtn active" data-tool="dot">• Dot</button>' +
       '<button class="toolBtn" data-tool="cross">× Cross</button>' +
       '<button class="toolBtn" data-tool="erase">⌫ Erase</button>' +
       '<span class="toolSep"></span>' +
-      '<span style="font-size:12px;color:#8fb2a6">每對電子要放 2 粒（孤對：同款；鍵對：一•一×）</span>' +
       '<button class="toolBtn ionOnly" id="dcBracketBtn">[ ] 方括號</button>';
     $('dcToolbar').querySelectorAll('[data-tool]').forEach(b => {
       b.addEventListener('click', () => {
@@ -735,6 +734,57 @@
     return slots;
   }
 
+  function dcState() {
+    const q = dcq.q;
+    const slots = dcq.slots || [];
+    let filled = 0;
+    slots.forEach((s, si) => { if ((dcq.marks[si] || []).length >= 2) filled++; });
+    const ionic = q.type === 'ionic';
+    const chargesOk = !ionic || q.atoms.every((a, i) => (dcq.charges[i] || 0) === a.charge);
+    return { filled, total: slots.length, ionic, chargesOk, bracket: !!dcq.bracket };
+  }
+
+  // 即時檢查清單：每一步的完成狀態由實際作答推算，並指出「而家做邊樣」
+  function renderDCHelp() {
+    if (!dcq) return;
+    const st = dcState();
+    const steps = [{ txt: '填滿圖上所有電子位', note: st.filled + ' / ' + st.total + ' 對', done: st.total > 0 && st.filled === st.total }];
+    if (st.ionic) {
+      steps.push({ txt: '用 [ ] 包住每一粒離子', done: st.bracket });
+      steps.push({ txt: '設定每粒離子嘅電荷', done: st.chargesOk });
+    }
+    steps.push({ txt: '撳「檢查 Check」睇結果', done: false, act: true });
+
+    const firstTodo = steps.findIndex(s => !s.done);
+    $('dcSteps').innerHTML = steps.map((s, i) => {
+      const cls = s.done ? 'done' : (i === firstTodo ? 'doing' : 'todo');
+      return '<li class="dcStep ' + cls + '">' +
+        '<span class="dcStepNum">' + (s.done ? '✓' : (i + 1)) + '</span>' +
+        '<span class="dcStepTxt">' + s.txt + (s.note ? '<em>' + s.note + '</em>' : '') + '</span>' +
+        '</li>';
+    }).join('');
+
+    const graded = steps.length - 1;
+    const doneCount = steps.slice(0, graded).filter(s => s.done).length;
+    $('dcHowProg').textContent = doneCount + ' / ' + graded + ' 完成';
+
+    let msg;
+    if (firstTodo < 0 || steps[firstTodo].act) {
+      msg = '全部做完喇 — 撳右下角 <b>「檢查 Check」</b>。';
+    } else if (firstTodo === 0) {
+      const left = st.total - st.filled;
+      msg = '撳圖上面嘅 <b>虛線小圈 2 下</b>：第 1 下放 •，第 2 下再放一粒。' +
+        '孤對用 <b>••</b>，鍵對用 <b>• + ×</b>。仲有 <b>' + left + '</b> 對未放。';
+    } else if (!st.bracket) {
+      msg = '撳上面嘅 <b>[ ] 方括號</b> 按鈕，將每一粒離子都包住（表示電子屬於邊粒離子）。';
+    } else if (!st.chargesOk) {
+      msg = '喺下面揀電荷：<b>金屬離子帶正電</b>（失去電子），<b>非金屬離子帶負電</b>（得到電子）。';
+    } else {
+      msg = '撳右下角 <b>「檢查 Check」</b> 睇下有冇做啱。';
+    }
+    $('dcNow').innerHTML = msg;
+  }
+
   function renderDC() {
     const q = dcq.q;
     const slots = dcSlots(q);
@@ -755,13 +805,17 @@
           svg += '<text x="' + (a.x + a.r + 12) + '" y="' + (a.y - a.r - 4) + '" font-family="sans-serif" font-size="26" font-weight="700" fill="#ffd27a">' + lbl + '</text>';
         }
       }
+      if (dcq.hiAtom === i) {
+        svg += '<circle class="dcHi" cx="' + a.x + '" cy="' + a.y + '" r="' + (a.r + 30) + '" fill="none" stroke="#ffd27a" stroke-width="2.5" stroke-dasharray="7 5"/>';
+      }
     });
 
     slots.forEach((s, si) => {
       const marks = dcq.marks[si] || [];
-      svg += '<circle class="slot ' + (dcq.hintSlot === si ? 'slotHint' : '') + '" data-si="' + si + '" data-kind="' + s.kind + '" data-atom="' + (s.atom !== undefined ? s.atom : '') + '" cx="' + s.x + '" cy="' + s.y + '" r="' + (s.kind === 'bond' ? 23 : 18) + '" stroke="rgba(255,255,255,.18)" stroke-width="1"/>';
-      if (marks.length === 0) {
-        svg += '<circle cx="' + s.x + '" cy="' + s.y + '" r="1.8" fill="rgba(255,255,255,.25)"/>';
+      const empty = marks.length === 0;
+      svg += '<circle class="slot ' + (dcq.hintSlot === si ? 'slotHint' : '') + '" data-si="' + si + '" data-kind="' + s.kind + '" data-atom="' + (s.atom !== undefined ? s.atom : '') + '" cx="' + s.x + '" cy="' + s.y + '" r="' + (s.kind === 'bond' ? 24 : 20) + '" stroke="' + (empty ? 'rgba(143,240,200,.5)' : 'rgba(255,255,255,.2)') + '" stroke-width="' + (empty ? 1.4 : 1) + '"' + (empty ? ' stroke-dasharray="4 4"' : '') + '/>';
+      if (empty) {
+        svg += '<circle cx="' + s.x + '" cy="' + s.y + '" r="2" fill="rgba(143,240,200,.45)"/>';
       }
       marks.forEach((m, mi) => {
         const ox = marks.length === 1 ? 0 : (mi === 0 ? -8 : 8);
@@ -775,14 +829,22 @@
     if (q.type === 'ionic') {
       const need2 = atoms.some(a => Math.abs(a.charge) === 2);
       const list = need2 ? [0, 1, -1, 2, -2] : [0, 1, -1];
-      extra = '<div style="margin-top:12px;display:flex;gap:18px;flex-wrap:wrap">' +
+      extra = '<div class="dcCharges">' +
         atoms.map((a, i) =>
-          '<div style="display:flex;align-items:center;gap:5px"><span style="font-size:12.5px;color:#9fc0b6">' + a.sym + ' 電荷:</span>' +
+          '<div class="dcChRow"><span class="dcChLab">' + a.sym + ' 電荷</span>' +
           list.map(v =>
-            '<button class="toolBtn" data-ch="' + i + ':' + v + '" style="min-width:34px;height:30px;padding:0 7px;font-size:12.5px' +
-            ((dcq.charges[i] || 0) === v ? ';background:rgba(95,208,168,.25);border-color:#5fd0a8;color:#c9ffe8' : '') + '">' +
+            '<button class="toolBtn dcChBtn' + ((dcq.charges[i] || 0) === v ? ' on' : '') + '" data-ch="' + i + ':' + v + '">' +
             (v === 0 ? '0' : v === 1 ? '+' : v === -1 ? '−' : v === 2 ? '2+' : '2−') + '</button>').join('') +
           '</div>').join('') + '</div>';
+
+      // 解釋「為甚麼某些離子外面沒有小圈」——這是最常見的困惑
+      const bare = atoms.filter(a => a.lonePairs === 0).map(a => a.sym);
+      const withE = atoms.filter(a => a.lonePairs > 0).map(a => a.sym);
+      if (bare.length && withE.length) {
+        extra += '<div class="dcNote">' + bare.join('、') +
+          ' 嘅最外層電子已經轉移走，所以圓圈外面<b>冇小圈</b>要放；電子只需放喺 ' +
+          withE.join('、') + ' 外面。</div>';
+      }
     }
     $('dcStage').innerHTML = svg + extra;
 
@@ -800,9 +862,12 @@
       b.addEventListener('click', () => {
         const parts = b.dataset.ch.split(':');
         dcq.charges[Number(parts[0])] = Number(parts[1]);
+        dcq.hiAtom = -1;
         renderDC();
       });
     });
+
+    renderDCHelp();
   }
 
   function checkDC() {
@@ -833,6 +898,7 @@
       if (a.lonePairs > 0 && loneCount[i] !== a.lonePairs * 2) {
         const need = a.lonePairs * 2;
         errs.push({
+          atom: i,
           title: a.sym + ' 的孤對電子 · Lone pairs',
           you: { en: a.sym + ' currently has ' + loneCount[i] + ' lone-pair electron(s) drawn.',
                  zh: a.sym + ' 而家畫咗 ' + loneCount[i] + ' 粒孤對電子。' },
@@ -892,6 +958,7 @@
         const ch = dcq.charges[i] || 0;
         if (ch !== a.charge) {
           errs.push({
+            atom: i,
             title: a.sym + ' 的電荷 · Charge',
             you: { en: a.sym + ' is labelled ' + fmtC(ch) + '.', zh: a.sym + ' 標成 ' + fmtC(ch) + '。' },
             why: { en: a.sym + ' must be ' + fmtC(a.charge) + ': it has ' +
@@ -924,12 +991,12 @@
 
     if (ok) {
       dcq.solved = true;
-      fb.innerHTML = '<div class="ok">✓ 完全正確！電子數目、位置同電荷全部啱。</div>' +
-        '<div style="color:#8fb2a6;font-size:12px;margin-top:6px">' +
-        (q.type === 'ionic'
-          ? '離子化合物：電子完全轉移，陽離子失去電子、陰離子達到完整最外層，離子有方括號同電荷。'
-          : '共價化合物：每對共用電子都係 1 點 + 1 叉；孤對電子留喺所屬原子，唔係共用。') +
-        '</div>';
+      fb.innerHTML = '<div class="fbBanner ok"><span class="fbIcon">✓</span><div>' +
+        '<b>完全正確！</b>' +
+        '<em>' + (q.type === 'ionic'
+          ? '電子完全轉移：陽離子失去電子、陰離子達到完整最外層，離子有方括號同電荷。'
+          : '每對共用電子都係 1 點 + 1 叉；孤對電子留喺所屬原子，唔係共用。') + '</em>' +
+        '</div></div>';
       correctCount++;
       nodeCorrect.set(dcq.node.id, true);
       done.add(dcq.node.id);
@@ -940,11 +1007,28 @@
       updateHUD();
     } else {
       const MAXW = 2;
-      fb.innerHTML = '<div class="bad">✗ 仲有 ' + errs.length + ' 個問題 · ' + errs.length + ' issue' + (errs.length > 1 ? 's' : '') + '</div>' +
-        errs.slice(0, MAXW).map((e, i) => wxCard(e.you, e.why, e.rule, NUMC[i] + ' ' + e.title)).join('') +
+      fb.innerHTML = '<div class="fbBanner bad"><span class="fbIcon">✗</span><div>' +
+        '<b>仲有 ' + errs.length + ' 樣未做啱</b>' +
+        '<em>唔緊要，逐張卡睇：你畫咗乜、為何唔啱、正確規則。<b>撳卡片</b>會喺圖上用黃圈指出位置。</em>' +
+        '</div></div>' +
+        errs.slice(0, MAXW).map((e, i) => wxCard(e.you, e.why, e.rule, NUMC[i] + ' ' + e.title,
+          { atom: e.atom, tapHint: e.atom === undefined ? '' : '撳一下 → 喺圖上用<b>黃圈</b>指出位置' })).join('') +
         (errs.length > MAXW ? '<div class="wxRest"><b>另外 ' + (errs.length - MAXW) + ' 項要改：</b>' +
           errs.slice(MAXW).map(e => e.title.split(' · ')[0]).join('、') + '</div>' : '') +
-        (dcq.tries >= 3 ? '<div style="color:#ffb0a0;margin-top:10px">已到 3 次上限 — 撳「提示」睇正確做法，或者離開去問 NPC 溫習概念。</div>' : '');
+        (dcq.tries >= 3 ? '<div class="wxRest" style="border-color:rgba(255,220,120,.4);background:rgba(255,220,120,.08);color:#ffe8b0">' +
+          '已經試咗 3 次 — 撳「提示 Hint」會直接指出下一個要放電子嘅位置。</div>' : '');
+
+      // 撳卡片 → 喺圖上圈出對應原子
+      fb.querySelectorAll('.wx[data-hi]').forEach(el => {
+        el.addEventListener('click', () => {
+          const i = Number(el.dataset.hi);
+          dcq.hiAtom = (dcq.hiAtom === i) ? -1 : i;
+          renderDC();
+          if (dcq.hiAtom >= 0) {
+            try { $('dcStage').scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { }
+          }
+        });
+      });
       setTimeout(() => { try { fb.scrollIntoView({ block: 'start' }); } catch (e) { } }, 30);
       logEvent({ type: 'dotcross', compound: q.compound, correct: false, attempt: dcq.tries, errors: errs.length, hintUsed: dcq.hintUsed });
     }
@@ -974,16 +1058,37 @@
     if (!dcq) return;
     dcq.hintUsed = true;
     const q = dcq.q;
+    const fb = $('dcFeedback');
     let target = -1;
     dcq.slots.forEach((s, si) => {
       if (target === -1 && (dcq.marks[si] || []).length < 2) target = si;
     });
     dcq.hintSlot = target;
+    dcq.hiAtom = -1;
     renderDC();
-    const fb = $('dcFeedback');
     fb.className = 'dcFeedback show';
-    fb.innerHTML = '<div style="color:#ffdc78">提示：' + q.hint.en + '</div>' +
-      '<div style="color:#8fb2a6;font-size:12px;margin-top:4px">' + q.hint.zh + '</div>';
+
+    if (target >= 0) {
+      const s = dcq.slots[target];
+      const owner = s.kind === 'lone'
+        ? q.atoms[s.atom].sym + ' 嘅孤對'
+        : q.atoms[s.a].sym + ' — ' + q.atoms[s.b].sym + ' 嘅鍵對';
+      fb.innerHTML =
+        '<div class="hintBox"><b>①</b> 搵圖上<b>發光嘅小圈</b>（' + owner + '）<br>' +
+        '<b>②</b> 撳個圈 <b>2 下</b>，放一對電子<br>' +
+        '<b>③</b> ' + (s.kind === 'lone' ? '孤對用<b>同一款</b>符號（兩點 ••）' : '鍵對要<b>一 • 一 ×</b>') + '</div>' +
+        '<div class="fbSub">' + q.hint.zh + '</div>';
+    } else if (q.type === 'ionic' && !dcq.bracket) {
+      fb.innerHTML = '<div class="hintBox">電子放齊喇 — 而家撳上面嘅 <b>[ ] 方括號</b>，將每一粒離子包住。</div>';
+    } else if (q.type === 'ionic' && q.atoms.some((a, i) => (dcq.charges[i] || 0) !== a.charge)) {
+      fb.innerHTML = '<div class="hintBox">最後一步：喺下面揀電荷。<br>' +
+        '<b>金屬</b>失電子 → 帶<b>正</b>電；<b>非金屬</b>得電子 → 帶<b>負</b>電。<br>' +
+        '電荷數字要等於佢失去／得到嘅電子數目。</div>';
+    } else {
+      fb.innerHTML = '<div class="hintBox">圖已經畫齊 — 撳右下角 <b>「檢查 Check」</b> 睇下有冇做啱。</div>' +
+        '<div class="fbSub">' + q.hint.zh + '</div>';
+    }
+    try { $('dcStage').scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { }
   });
 
   /* ================= VOCAB ================= */
