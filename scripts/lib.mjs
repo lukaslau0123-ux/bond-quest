@@ -143,20 +143,27 @@ export function commitAndPush(message) {
   const add = git('add', '-A');
   if (add.status !== 0) return { ok: false, message: `git add 失敗：${add.stderr}` };
 
-  // 暫存區無改動就唔需要 commit
+  // 暫存區無改動就唔需要 commit，但仍然可能有未推送的提交
   const diff = git('diff', '--cached', '--quiet');
-  if (diff.status === 0) return { ok: true, message: '無檔案改動，略過提交' };
-
-  const commit = git('commit', '-m', message);
-  if (commit.status !== 0) {
-    return { ok: false, message: `git commit 失敗：${(commit.stderr || commit.stdout).trim()}` };
+  let committed = false;
+  if (diff.status !== 0) {
+    const commit = git('commit', '-m', message);
+    if (commit.status !== 0) {
+      return { ok: false, message: `git commit 失敗：${(commit.stderr || commit.stdout).trim()}` };
+    }
+    committed = true;
   }
 
   if (!hasRemote()) return { ok: true, message: '已提交（本機），未設定 remote，未推送' };
+
+  const ahead = String(git('rev-list', '--count', '@{u}..HEAD').stdout || '').trim();
+  if (ahead === '0') {
+    return { ok: true, message: committed ? '已提交，遠端已是最新' : '無改動、遠端已是最新' };
+  }
 
   const push = git('push');
   if (push.status !== 0) {
     return { ok: false, message: `git push 失敗：${(push.stderr || push.stdout).trim()}` };
   }
-  return { ok: true, message: '已推送，CI 將自動建置與部署' };
+  return { ok: true, message: (committed ? '已提交並推送 ' : '已推送 ') + (ahead || '') + ' 個提交，CI 將自動建置與部署' };
 }
