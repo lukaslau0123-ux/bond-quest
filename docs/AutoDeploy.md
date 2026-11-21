@@ -266,6 +266,7 @@ https://bond-quest.app.workbuddy.host/?sharecode=UXRUYBRT6X
 |---|---|---|---|
 | 第一次發佈 | 828,141 | `c9c5619f…` | — |
 | 修改 → `npm run upload` → 重新發佈 | 828,198 | `3db7bd05…` | 22:27:39 |
+| 加入手機虛擬搖桿後重新發佈 | 838,391 | `7955209e…` | 23:00:46 |
 | 用**同一條連結**重新抓取 | 828,198 | `3db7bd05…` | 22:27:39 |
 
 連結完全相同，內容已被替換，且線上檔案的 SHA-256 與本地 `dist/index.html` **逐位元組一致**。
@@ -276,6 +277,9 @@ https://bond-quest.app.workbuddy.host/?sharecode=UXRUYBRT6X
 npm run upload     # 1. 建置 + 驗證 + 出包
                    # 2. 重新發佈同一個應用（說一句「更新上線」即可）
 ```
+
+> **本專案規則**：每次改動後都要重新發佈一次，讓線上連結保持最新（用戶 2026-11-21 指示）。
+> 每次發佈後用 `curl` 比對線上 SHA-256 與 `dist/index.html` 是否一致，才算完成。
 
 或用 §4 的 GitHub Pages，達到 `git push` 全自動。
 
