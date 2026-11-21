@@ -215,71 +215,55 @@
   </div>
 </div>
 
-<div id="authModal" class="modal">
+<div id="clModal" class="modal">
   <div class="modalCard authCard">
     <div class="modalHead">
       <div class="chestIcon">◍</div>
       <div>
-        <div class="npcName" id="authTitle">帳號 Account</div>
-        <div class="npcLine">登入後，進度會保存喺呢個帳號，下次返嚟自動載入</div>
+        <div class="npcName">帳號 Account</div>
+        <div class="npcLine">用電郵驗證碼登入，進度自動同步到雲端</div>
       </div>
     </div>
     <div class="modalBody">
-      <div id="authGuestView">
-        <div class="authTabs" id="authTabs">
-          <button type="button" class="authTab active" data-mode="login">登入 Login</button>
-          <button type="button" class="authTab" data-mode="register">註冊 Register</button>
-        </div>
-        <form id="authForm" novalidate>
-          <div class="authField" id="rowName">
-            <label for="authName">顯示名稱 Display name</label>
-            <input id="authName" type="text" maxlength="12" placeholder="例如 Lukas" autocomplete="nickname">
-            <em class="authErr" id="errName"></em>
-          </div>
+      <div id="clGuest">
+        <form id="clForm" novalidate>
           <div class="authField">
-            <label for="authEmail">電郵 Email</label>
-            <input id="authEmail" type="email" placeholder="you@example.com" autocomplete="email">
-            <em class="authErr" id="errEmail"></em>
+            <label for="clEmail">電郵 Email</label>
+            <input id="clEmail" type="email" placeholder="you@example.com" autocomplete="email" inputmode="email">
+            <em class="authErr" id="clErrEmail"></em>
           </div>
-          <div class="authField">
-            <label for="authPw">密碼 Password</label>
-            <input id="authPw" type="password" placeholder="至少 8 個字元，要有字母同數字" autocomplete="current-password">
-            <em class="authErr" id="errPw"></em>
+          <button type="button" class="ghost authSend" id="clSend">取得驗證碼 Get code</button>
+          <div class="authField" id="clCodeRow" style="display:none">
+            <label for="clCode">6 位驗證碼 Verification code</label>
+            <input id="clCode" type="text" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code">
+            <em class="authErr" id="clErrCode"></em>
+            <div class="authResend" id="clResend"></div>
           </div>
-          <div class="authField" id="rowPw2">
-            <label for="authPw2">再輸入一次密碼 Confirm</label>
-            <input id="authPw2" type="password" autocomplete="new-password">
-            <em class="authErr" id="errPw2"></em>
-          </div>
-          <label class="authKeep" id="rowKeep">
-            <input id="authKeep" type="checkbox">
-            <span>喺呢部裝置保持登入（共用電腦唔好勾）</span>
-          </label>
-          <div class="authMsg" id="authMsg"></div>
-          <button type="submit" class="primary authSubmit" id="authSubmit">登入</button>
+          <div class="authMsg" id="clMsg"></div>
+          <button type="button" class="primary authSubmit" id="clVerify" style="display:none">登入 / 註冊</button>
         </form>
-        <div class="authAlt" id="authAlt"></div>
+        <div class="authAlt" id="clAlt"></div>
+        <div class="authHint">第一次用呢個電郵會自動建立帳號，唔需要設密碼。</div>
       </div>
 
-      <div id="authUserView" class="authUserView">
+      <div id="clUser" class="authUserView" style="display:none">
         <div class="authWho">
-          <div class="authAvatar" id="authAvatar">?</div>
+          <div class="authAvatar" id="clAvatar">?</div>
           <div>
-            <div class="authNameBig" id="authNameBig">—</div>
-            <div class="authEmailBig" id="authEmailBig">—</div>
+            <div class="authNameBig" id="clName">—</div>
+            <div class="authEmailBig" id="clEmailView">—</div>
           </div>
         </div>
-        <div class="authStats" id="authStats"></div>
+        <div class="authStats" id="clStats"></div>
         <div class="authUserActions">
-          <button type="button" class="ghost" id="authExport">匯出進度</button>
-          <button type="button" class="ghost danger" id="authDelete">刪除帳號</button>
-          <button type="button" class="primary" id="authLogout">登出</button>
+          <button type="button" class="ghost" id="clExport">匯出進度</button>
+          <button type="button" class="primary" id="clSignOut">登出</button>
         </div>
       </div>
     </div>
     <div class="modalFoot authFoot">
-      <span class="authNote">密碼以 PBKDF2 雜湊保存（唔存明文）；進度用你嘅密碼加密，冇密碼讀唔到。只限呢個瀏覽器，唔會跨裝置同步。</span>
-      <button class="ghost" id="authClose">關閉</button>
+      <span class="authNote">登入由雲端驗證（一次性驗證碼，不設密碼）。進度以 owner 隔離儲存，其他人讀唔到你嘅資料。</span>
+      <button class="ghost" id="clClose">關閉</button>
     </div>
   </div>
 </div>
@@ -413,9 +397,10 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@tencent-ai/workbuddy-cloud-sdk@dev/lib/index.global.js" crossorigin="anonymous"></script>
 <script>/*__THREE__*/</script>
 <script>/*__DATA__*/</script>
-<script>/*__AUTH__*/</script>
+<script>/*__CLOUD__*/</script>
 <script>/*__WORLD__*/</script>
 <script>/*__GAME__*/</script>
 </body>

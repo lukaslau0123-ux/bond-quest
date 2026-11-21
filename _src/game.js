@@ -80,7 +80,7 @@
   function persist() {
     try { localStorage.setItem(KEY, JSON.stringify(SESSION)); }
     catch (e) { storeOk = false; }
-    try { AUTH.save(); } catch (e) { }
+    try { CLOUD.save(); } catch (e) { }
   }
   function logEvent(ev) {
     ev.t = Math.round(activeTime);
@@ -1256,7 +1256,7 @@
   }
   function saveBeaconCfg() {
     try { localStorage.setItem('bq_beacon_v1', JSON.stringify(WORLD.BEACON_CFG)); } catch (e) { }
-    try { AUTH.save(); } catch (e) { }
+    try { CLOUD.save(); } catch (e) { }
   }
   function renderBeaconCfg() {
     const c = WORLD.BEACON_CFG;
@@ -1364,7 +1364,7 @@
     syncPaused();
     if (state === STATE.WORLD) { WORLD.setLocked(false); WORLD.relock(); }
     try { localStorage.setItem('bq_coach_v1', '1'); } catch (e) { }
-    try { AUTH.save(); } catch (e) { }
+    try { CLOUD.save(); } catch (e) { }
   }
 
   $('coachNext').addEventListener('click', () => {
@@ -1395,7 +1395,7 @@
   }
   function saveWaypoints() {
     try { localStorage.setItem(WP_KEY, JSON.stringify([...unlockedWp])); } catch (e) { }
-    try { AUTH.save(); } catch (e) { }
+    try { CLOUD.save(); } catch (e) { }
   }
   function applyWaypoints() {
     WAYPOINTS.forEach(w => WORLD.setWaypointState(w.id, unlockedWp.has(w.id)));
@@ -2208,7 +2208,7 @@
   window.addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
     if (k === 'escape') {
-      if (AUTH.isOpen()) { AUTH.close(); return; }
+      if (CLOUD.isOpen()) { CLOUD.close(); return; }
       if (coachOn) { coachEnd(); return; }
       if (wpOpen) { closeWpList(); return; }
       if (beaconOpen) { closeBeacon(); return; }
@@ -2272,7 +2272,7 @@
     WORLD.setBeacon(trackedNode());
 
     // ---- 帳號系統 ----
-    $('authBtn').addEventListener('click', () => AUTH.open());
+    $('authBtn').addEventListener('click', () => CLOUD.open());
     // 帳號視窗打開時凍結角色，避免打字時 WASD 令角色亂走
     document.addEventListener('bq:auth-open', () => { WORLD.setLocked(true); });
     document.addEventListener('bq:auth-close', () => {
@@ -2280,7 +2280,7 @@
       if (state === STATE.WORLD) WORLD.setLocked(false);
     });
     document.addEventListener('bq:toast', (e) => { if (e.detail && e.detail.msg) toast(e.detail.msg, 3200); });
-    AUTH.init({ snapshot: snapshotProgress, apply: applyProgress }).catch((err) => {
+    CLOUD.init({ snapshot: snapshotProgress, apply: applyProgress }).catch((err) => {
       console.warn('account init failed', err);
     });
 
