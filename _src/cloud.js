@@ -82,6 +82,9 @@ const CLOUD = (function () {
   }
 
   /* ---------------- session ---------------- */
+  function readGuest() {
+    try { return JSON.parse(localStorage.getItem(GUEST_KEY) || 'null'); } catch (e) { return null; }
+  }
   function userOf(s) {
     const u = (s && s.user) || null;
     if (!u) return null;
@@ -432,12 +435,13 @@ const CLOUD = (function () {
     if (ready) return ready;
 
     ready = (async function () {
+      // 非雲端網域／SDK 未載入：帳號停用，但訪客進度仍然要還原
       if (!onPublishedOrigin()) {
-        return { user: null, payload: null, blocked: 'origin' };
+        return { user: null, payload: readGuest(), blocked: 'origin' };
       }
       const lib = (typeof WorkBuddyCloud !== 'undefined') ? WorkBuddyCloud : null;
       if (!lib || typeof lib.createWorkBuddyCloud !== 'function') {
-        return { user: null, payload: null, blocked: 'sdk' };
+        return { user: null, payload: readGuest(), blocked: 'sdk' };
       }
       try {
         sdk = lib.createWorkBuddyCloud({
@@ -446,11 +450,11 @@ const CLOUD = (function () {
           publishableKey: CFG.publishableKey
         });
       } catch (e) {
-        return { user: null, payload: null, blocked: 'init' };
+        return { user: null, payload: readGuest(), blocked: 'init' };
       }
 
       const { data, error } = await sdk.auth.getSession();
-      if (error) return { user: null, payload: null, blocked: 'session' };
+      if (error) return { user: null, payload: readGuest(), blocked: 'session' };
 
       if (data) {
         setSession(data);
@@ -464,9 +468,7 @@ const CLOUD = (function () {
       }
 
       // 訪客：載入本機進度
-      let guest = null;
-      try { guest = JSON.parse(localStorage.getItem(GUEST_KEY) || 'null'); } catch (e) { }
-      return { user: null, payload: guest };
+      return { user: null, payload: readGuest() };
     })();
 
     const r = await ready;
