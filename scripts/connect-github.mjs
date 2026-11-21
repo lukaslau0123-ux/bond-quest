@@ -17,11 +17,23 @@ const user = args[0];
 const repo = args[1] || 'bond-quest';
 
 if (!user) {
-  console.error('用法：npm run connect -- <你的GitHub用戶名> [repo名]');
+  console.error('');
+  console.error('缺少 GitHub 用戶名。');
+  console.error('');
+  console.error('正確寫法（注意 -- 後面有一個空格，不能連著寫）：');
+  console.error('  npm run connect -- lukaslau0123-ux');
+  console.error('                    ^ 這個空格不能省');
+  console.error('');
+  console.error('或者繞過 npm 直接執行：');
+  console.error('  node scripts/connect-github.mjs lukaslau0123-ux');
+  console.error('');
+  console.error('如果 remote 已經設定好（git remote -v 有 origin），其實只需：');
+  console.error('  git push -u origin main');
   process.exit(1);
 }
 if (!/^[A-Za-z0-9-]{1,39}$/.test(user)) {
-  console.error(`用戶名格式不正確：${user}`);
+  console.error(`用戶名格式不正確：「${user}」`);
+  console.error('GitHub 用戶名只含英文、數字與連字號，例如 lukaslau0123-ux');
   process.exit(1);
 }
 if (!isRepo()) {
