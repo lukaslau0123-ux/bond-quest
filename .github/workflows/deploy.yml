@@ -1,0 +1,84 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+      - 'logs/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: 建置與驗證
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 建置
+        run: python build.py
+
+      - name: 守門檢查
+        run: node scripts/verify.mjs
+
+      - name: 加入 .nojekyll
+        run: touch site/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: 失敗通知
+        if: failure()
+        env:
+          HOOK: ${{ secrets.DEPLOY_WEBHOOK }}
+        run: |
+          echo "❌ 建置或驗證失敗，本次不會部署。"
+          if [ -n "$HOOK" ]; then
+            curl -sS -X POST "$HOOK" \
+              -H 'Content-Type: application/json' \
+              -d "{\"text\":\"❌ Bond Quest 部署失敗（build/verify）：${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+              || echo "webhook 發送失敗（不影響結論）"
+          fi
+
+  deploy:
+    name: 部署到 GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: 失敗通知
+        if: failure()
+        env:
+          HOOK: ${{ secrets.DEPLOY_WEBHOOK }}
+        run: |
+          echo "❌ Pages 部署步驟失敗。"
+          if [ -n "$HOOK" ]; then
+            curl -sS -X POST "$HOOK" \
+              -H 'Content-Type: application/json' \
+              -d "{\"text\":\"❌ Bond Quest 部署失敗（deploy-pages）：${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\"}" \
+              || true
+          fi

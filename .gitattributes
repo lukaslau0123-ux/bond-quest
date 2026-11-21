@@ -1,0 +1,14 @@
+# 統一換行，避免 Windows / CI 差異造成的無謂 diff
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
+
+_src/*.js text eol=lf
+_src/*.css text eol=lf
+_src/*.html text eol=lf
+scripts/*.mjs text eol=lf
+.github/workflows/*.yml text eol=lf
+build.py text eol=lf

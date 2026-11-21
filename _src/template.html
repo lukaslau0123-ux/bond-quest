@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bond Quest — Chemical Bonding Open World</title>
+<style>/*__CSS__*/</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<div id="vignette"></div>
+<div id="tpFade"></div>
+
+<div id="hud">
+  <div id="topbar">
+    <div class="pill" id="zoneLabel">Ionic Plains</div>
+    <div class="pill" id="counterPill"><b id="counterNum">0</b> / <b id="counterTotal">9</b></div>
+    <div class="pill" id="timerPill">00:00</div>
+    <div class="spacer"></div>
+    <button class="iconBtn" id="mapBtn" title="大地圖 Map (M)">▦</button>
+    <button class="iconBtn" id="helpBtn" title="遊戲說明 How to play">?</button>
+    <button class="iconBtn" id="glossaryBtn" title="Glossary 詞彙表">Aa</button>
+    <button class="iconBtn" id="exportBtn" title="Export data 匯出數據">↓</button>
+  </div>
+
+  <div id="questPanel">
+    <div class="qpHead">
+      <span class="qpTitle">任務 MISSION</span>
+      <span class="qpProg"><b id="qpDone">0</b>/<b id="qpTotal">9</b></span>
+      <button class="qpIcon" id="qpBeaconBtn" title="目標標記設定">◈</button>
+      <button class="qpFold" id="qpFoldBtn" title="收起任務面板 Collapse" aria-label="收起任務面板" aria-expanded="true">
+        <span class="qpFoldChev">‹</span><em>收起</em>
+      </button>
+    </div>
+
+    <div class="qpCur">
+      <div class="qpTag" id="qpTag">目前目標 · CURRENT</div>
+      <div class="qpName" id="qpName">—</div>
+      <div class="qpDesc" id="qpDesc">—</div>
+      <div class="qpMeta">
+        <span class="qpArrow" id="qpArrow">▲</span>
+        <span class="qpDist" id="qpDist">—</span>
+        <span class="qpBear" id="qpBear"></span>
+      </div>
+      <div class="qpBar"><i id="qpBarFill" style="width:0%"></i></div>
+      <div class="qpStep" id="qpStep"></div>
+    </div>
+
+    <button class="qpToggle" id="qpToggle">任務清單 Quest list <span id="qpCaret">▾</span></button>
+    <div class="qpList" id="qpList"></div>
+
+    <div class="qpBtnRow">
+      <button class="qpMapBtn" id="qpMapBtn">地圖 <kbd>M</kbd></button>
+      <button class="qpMapBtn" id="qpWpBtn">傳送 <kbd>T</kbd></button>
+    </div>
+  </div>
+
+  <button id="qpTab" class="qpTab" aria-label="展開任務面板 Expand" aria-expanded="false">
+    <span class="qpTabIcon">▤</span>
+    <span class="qpTabText">任務</span>
+    <span class="qpTabProg"><b id="qpTabDone">0</b>/<b id="qpTabTotal">9</b></span>
+    <span class="qpTabArrow">›</span>
+  </button>
+
+  <canvas id="minimap" width="360" height="360"></canvas>
+
+  <div id="prompt">按 <kbd>E</kbd> 互動</div>
+  <div id="controlsHint">WASD 移動 · 空白鍵跳躍 · 滑鼠轉視角 · E 互動 · M 地圖 · T 傳送 · H 說明</div>
+  <div id="lockHint">點擊畫面鎖定滑鼠</div>
+</div>
+
+<div id="toastWrap"></div>
+
+<div id="startScreen" class="screen show">
+  <div class="startCard">
+    <div class="startScroll">
+    <div class="kicker">F4E Interdisciplinary Project</div>
+    <h1>Bond Quest</h1>
+    <p class="sub">化學鍵 3D 開放世界溫習遊戲<span class="en">An open-world revision game about chemical bonding</span></p>
+
+    <div id="startIntro"></div>
+
+    <div class="startMeta">
+      <span>建議遊玩 8 分鐘</span>
+      <span>數據只存本機，不收集個人資料</span>
+    </div>
+    </div>
+    <div class="startFoot">
+      <button id="startBtn" class="primary">開始探索 · Start exploring</button>
+    </div>
+  </div>
+</div>
+
+<div id="helpModal" class="modal">
+  <div class="modalCard">
+    <div class="kicker">How to play</div>
+    <h2 class="helpTitle">遊戲說明 · Game guide</h2>
+    <div id="helpBody" class="modalBody"></div>
+    <div class="modalFoot">
+      <button class="ghost" id="helpCoachBtn">重看新手引導</button>
+      <button class="primary" id="helpCloseBtn">明白，開始玩</button>
+    </div>
+  </div>
+</div>
+
+<div id="bigMapModal" class="modal">
+  <div class="modalCard mapCard">
+    <div class="mapTop">
+      <div>
+        <div class="kicker">World map</div>
+        <div class="mapTitle">大地圖 · 拖曳平移、滾輪縮放</div>
+      </div>
+      <div class="mapTools">
+        <button class="toolBtn" id="mapZoomOut" title="縮小">−</button>
+        <span class="mapZoomVal" id="mapZoomVal">100%</span>
+        <button class="toolBtn" id="mapZoomIn" title="放大">+</button>
+        <button class="toolBtn" id="mapReset" title="重設視角">重設</button>
+      </div>
+    </div>
+    <div class="mapWrap" id="mapWrap">
+      <canvas id="bigMap" width="960" height="620"></canvas>
+      <div class="mapHint" id="mapHint">拖曳平移 · 滾輪縮放 · 點擊錨點傳送 · 點擊其他標記設為目標</div>
+      <div id="tpPop" class="tpPop">
+        <div class="tpName" id="tpName">—</div>
+        <div class="tpMeta" id="tpMeta"></div>
+        <div class="tpBtns">
+          <button class="ghost" id="tpCancel">取消</button>
+          <button class="primary" id="tpGo">傳送</button>
+        </div>
+      </div>
+    </div>
+    <div class="mapLegend">
+      <span><i class="lg lg-npc"></i>NPC 分類題</span>
+      <span><i class="lg lg-chest"></i>寶箱 點叉圖</span>
+      <span><i class="lg lg-cry"></i>詞彙晶體</span>
+      <span><i class="lg lg-done"></i>已完成</span>
+      <span><i class="lg lg-lock"></i>未解鎖</span>
+      <span><i class="lg lg-guild"></i>公會</span>
+      <span><i class="lg lg-shop"></i>商店</span>
+      <span><i class="lg lg-wp"></i>傳送錨點</span>
+      <span><i class="lg lg-you"></i>你</span>
+      <span class="lgSep"></span>
+      <span><i class="lg lg-zA"></i>離子平原</span>
+      <span><i class="lg lg-zB"></i>共價森林</span>
+      <span><i class="lg lg-zC"></i>金屬山脈</span>
+      <span><i class="lg lg-zD"></i>晶體洞窟</span>
+    </div>
+    <div class="modalFoot">
+      <button class="ghost" id="mapWpBtn">傳送錨點 <kbd>T</kbd></button>
+      <button class="ghost" id="mapCloseBtn">關閉 Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="dialogModal" class="modal">
+  <div class="modalCard">
+    <div class="modalHead">
+      <div class="npcAvatar" id="npcAvatar">?</div>
+      <div>
+        <div class="npcName" id="npcName">Guide</div>
+        <div class="npcLine" id="npcLine"></div>
+      </div>
+    </div>
+    <div class="modalBody">
+      <div id="stepDots" class="stepDots"></div>
+      <div id="dialogBody"></div>
+    </div>
+    <div class="modalFoot">
+      <button class="ghost" id="dialogHintBtn">提示 Hint</button>
+      <button class="ghost" id="dialogCloseBtn">離開 Leave</button>
+    </div>
+  </div>
+</div>
+
+<div id="dotcrossModal" class="modal wide">
+  <div class="modalCard">
+    <div class="modalHead">
+      <div class="chestIcon">▣</div>
+      <div>
+        <div class="npcName" id="dcTitle">Dot-and-cross diagram</div>
+        <div class="npcLine" id="dcSub"></div>
+      </div>
+    </div>
+    <div class="modalBody">
+      <div id="dcToolbar" class="dcToolbar"></div>
+      <div id="dcHow" class="dcHow"></div>
+      <div id="dcStage" class="dcStage"></div>
+      <div id="dcFeedback" class="dcFeedback"></div>
+    </div>
+    <div class="modalFoot">
+      <button class="ghost" id="dcHintBtn">提示 Hint</button>
+      <button class="ghost" id="dcResetBtn">重設 Reset</button>
+      <button class="ghost" id="dcCloseBtn">離開 Leave</button>
+      <button class="primary" id="dcCheckBtn">檢查 Check</button>
+    </div>
+  </div>
+</div>
+
+<div id="vocabModal" class="modal">
+  <div class="modalCard">
+    <div class="kicker">Glossary unlock</div>
+    <div class="modalBody">
+      <div id="vocabTerm" class="vocabTerm"></div>
+      <div id="vocabZh" class="vocabZh"></div>
+      <div id="vocabDef" class="vocabDef"></div>
+    </div>
+    <div class="modalFoot">
+      <button class="primary" id="vocabCollectBtn">收集 Collect</button>
+    </div>
+  </div>
+</div>
+
+<div id="summaryModal" class="modal">
+  <div class="modalCard">
+    <div class="kicker">Session complete</div>
+    <h2 id="sumTitle">探索完成</h2>
+    <div class="modalBody">
+      <div id="sumStats" class="sumStats"></div>
+      <div id="sumBars" class="sumBars"></div>
+      <div id="sumWeak" class="sumWeak"></div>
+      <div id="sumFootNote" class="sumFootNote"></div>
+    </div>
+    <div class="modalFoot">
+      <button class="ghost" id="sumGlossaryBtn">詞彙表 Glossary</button>
+      <button class="ghost" id="sumExportBtn">匯出數據 Export</button>
+      <button class="primary" id="sumCloseBtn">繼續探索 Keep exploring</button>
+    </div>
+  </div>
+</div>
+
+
+<div id="guildModal" class="modal">
+  <div class="modalCard">
+    <div class="kicker">Adventurers' Guild</div>
+    <h2 class="helpTitle">冒險者公會 · 委託板</h2>
+    <div class="modalBody">
+      <div id="guildBody" class="guildBody"></div>
+    </div>
+    <div class="modalFoot">
+      <button class="ghost" id="guildMapBtn">喺地圖睇</button>
+      <button class="primary" id="guildCloseBtn">離開</button>
+    </div>
+  </div>
+</div>
+
+<div id="shopModal" class="modal">
+  <div class="modalCard">
+    <div class="kicker">Chem Supply Shop</div>
+    <h2 class="helpTitle">化學商店</h2>
+    <div class="modalBody">
+      <div class="shopWallet">你有 <b id="shopShards">0</b> 粒結晶</div>
+      <div id="shopItems" class="shopItems"></div>
+      <div class="shopNote">結晶＝你喺世界採集到嘅詞彙晶體。用嚟換提示同解鎖。</div>
+    </div>
+    <div class="modalFoot">
+      <button class="primary" id="shopCloseBtn">離開</button>
+    </div>
+  </div>
+</div>
+
+
+<div id="beaconModal" class="modal">
+  <div class="modalCard">
+    <div class="kicker">Objective marker</div>
+    <h2 class="helpTitle">目標標記設定</h2>
+    <div class="modalBody">
+      <div class="bcRow"><label>標記大小</label><input type="range" id="bcSize" min="0.4" max="2.5" step="0.1"><span class="bcVal" id="bcSizeV"></span></div>
+      <div class="bcRow"><label>光柱高度</label><input type="range" id="bcHeight" min="14" max="80" step="2"><span class="bcVal" id="bcHeightV"></span></div>
+      <div class="bcRow"><label>光柱粗細</label><input type="range" id="bcRadius" min="0.8" max="6" step="0.2"><span class="bcVal" id="bcRadiusV"></span></div>
+      <div class="bcRow"><label>可見距離</label><input type="range" id="bcDist" min="50" max="300" step="10"><span class="bcVal" id="bcDistV"></span></div>
+      <div class="bcRow"><label>持續時間</label>
+        <select id="bcDur"><option value="0">一直顯示</option><option value="10">10 秒</option><option value="30">30 秒</option><option value="60">60 秒</option></select>
+        <span class="bcVal"></span></div>
+      <div class="bcRow"><label>顯示條件</label>
+        <select id="bcCond"><option value="all">所有目標</option><option value="main">只顯示主線</option></select>
+        <span class="bcVal"></span></div>
+      <div class="bcRow"><label>穿透顯示</label>
+        <div class="bcCheck"><input type="checkbox" id="bcThrough"><span>被地形遮擋時仍半透明顯示</span></div>
+        <span class="bcVal"></span></div>
+      <div class="bcNote">提示：標記會自動跟住「目前目標」。想換目標，喺任務清單或公會委託板揀另一個。</div>
+    </div>
+    <div class="modalFoot">
+      <button class="ghost" id="bcReset">重設</button>
+      <button class="primary" id="bcClose">完成</button>
+    </div>
+  </div>
+</div>
+
+
+<div id="wpModal" class="modal">
+  <div class="modalCard">
+    <div class="kicker">Teleport waypoints</div>
+    <h2 class="helpTitle">傳送錨點</h2>
+    <div class="modalBody">
+      <div class="wpHead">
+        <div class="wpHint">行到錨點旁邊按 <kbd>E</kbd> 啟動。啟動後可以喺呢度或者地圖直接傳送。</div>
+        <div class="wpProg"><b id="wpDone">1</b> / <b id="wpTotal">7</b></div>
+      </div>
+      <div id="wpList" class="wpList"></div>
+    </div>
+    <div class="modalFoot">
+      <button class="ghost" id="wpMapBtn">喺地圖睇</button>
+      <button class="primary" id="wpCloseBtn">離開</button>
+    </div>
+  </div>
+</div>
+
+<div id="glossaryDrawer">
+  <div class="drawerHead">
+    <div>Glossary 詞彙表</div>
+    <button class="iconBtn" id="glossaryCloseBtn">×</button>
+  </div>
+  <div id="glossaryList" class="glossaryList"></div>
+</div>
+
+
+<div id="coachHole"></div>
+<div id="coachCard">
+  <div class="coachStep" id="coachStep">1 / 4</div>
+  <div class="coachTitle" id="coachTitle"></div>
+  <div class="coachText" id="coachText"></div>
+  <div class="coachFoot">
+    <button class="ghost" id="coachSkip">跳過</button>
+    <button class="primary" id="coachNext">下一步</button>
+  </div>
+</div>
+
+<script>/*__THREE__*/</script>
+<script>/*__DATA__*/</script>
+<script>/*__WORLD__*/</script>
+<script>/*__GAME__*/</script>
+</body>
+</html>

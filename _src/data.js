@@ -1,0 +1,283 @@
+/* ============================================================
+   Bond Quest — data layer
+   All chemistry content verified against F4 syllabus conventions.
+   ============================================================ */
+
+const ZONES = {
+  A: { key:'A', en:'Ionic Plains',       zh:'離子平原', cx:-60, cz:-60,
+       fog:0xa9cadb, sky:0xd6ebf5, skyTop:0x3f7fb4, skyBot:0xd9ecf6, ground:[0.26,0.33,0.31] },
+  B: { key:'B', en:'Covalent Forest',    zh:'共價森林', cx: 60, cz:-60,
+       fog:0x8dbf9a, sky:0xc9e6d2, skyTop:0x2f6a4a, skyBot:0xcbe8d4, ground:[0.12,0.28,0.16] },
+  C: { key:'C', en:'Metallic Mountains', zh:'金屬山脈', cx:-60, cz: 60,
+       fog:0xa3aab5, sky:0xc4c9d2, skyTop:0x535c6b, skyBot:0xc9ced6, ground:[0.26,0.25,0.24] },
+  D: { key:'D', en:'Crystal Cavern',     zh:'晶體洞窟', cx: 60, cz: 60,
+       fog:0x3b2f57, sky:0x322547, skyTop:0x1d1533, skyBot:0x5c4a86, ground:[0.10,0.08,0.19] }
+};
+
+/* ---------- classification compounds ----------
+   comp:  composition step  1 = metal+non-metal, 2 = non-metal+non-metal, 3 = metal only
+   ebeh:  electron behaviour 1 = transfer, 2 = sharing, 3 = delocalised
+   bond:  bond type 1 = ionic, 2 = covalent, 3 = metallic
+   trap:  optional misconception distractor on a given step
+*/
+const COMPOUNDS = [
+  { id:'nacl', f:'NaCl', zh:'氯化鈉', comp:1, ebeh:1, bond:1, tier:1,
+    trap:{ step:1, en:'NaCl is made of molecules, so it is covalent.', zh:'NaCl 由分子組成，所以係共價鍵。',
+      why:{ en:'NaCl is not molecular — it is a giant ionic lattice of Na⁺ and Cl⁻ ions. The formula only shows the ratio 1:1, not a molecule.',
+            zh:'NaCl 唔係分子，而係 Na⁺ 同 Cl⁻ 組成嘅巨型離子晶格。化學式只表示 1:1 比例，唔係一個分子。' } } },
+
+  { id:'na2o', f:'Na₂O', zh:'氧化鈉', comp:1, ebeh:1, bond:1, tier:1 },
+
+  { id:'h2', f:'H₂', zh:'氫氣', comp:2, ebeh:2, bond:2, tier:1 },
+
+  { id:'fe', f:'Fe', zh:'鐵', comp:3, ebeh:3, bond:3, tier:1 },
+
+  { id:'o2', f:'O₂', zh:'氧氣', comp:2, ebeh:2, bond:2, tier:2,
+    trap:{ step:3, en:'O₂ has two separate weak single bonds.', zh:'O₂ 有兩條分開嘅弱單鍵。',
+      why:{ en:'O=O is ONE double bond — a single region of shared electron density. A double bond is shorter and stronger than a single bond, not two weak bonds.',
+            zh:'O=O 係一條雙鍵，即一處共用電子密度。雙鍵比單鍵更短更強，唔係兩條弱單鍵。' } } },
+
+  { id:'na', f:'Na', zh:'鈉', comp:3, ebeh:3, bond:3, tier:1 },
+
+  { id:'mgcl2', f:'MgCl₂', zh:'氯化鎂', comp:1, ebeh:1, bond:1, tier:2 },
+
+  { id:'cao', f:'CaO', zh:'氧化鈣', comp:1, ebeh:1, bond:1, tier:2 },
+
+  { id:'h2o', f:'H₂O', zh:'水', comp:2, ebeh:2, bond:2, tier:2 },
+
+  { id:'co2', f:'CO₂', zh:'二氧化碳', comp:2, ebeh:2, bond:2, tier:2,
+    trap:{ step:2, en:'CO₂ conducts electricity because it has shared electrons.', zh:'CO₂ 有共用電子，所以導電。',
+      why:{ en:'Shared electrons in a covalent bond are localised between the two atoms. CO₂ has no free electrons and no ions, so it does NOT conduct.',
+            zh:'共價鍵嘅共用電子被局限喺兩粒原子之間。CO₂ 冇自由電子亦冇離子，所以唔導電。' } } },
+
+  { id:'ch4', f:'CH₄', zh:'甲烷', comp:2, ebeh:2, bond:2, tier:2 },
+
+  { id:'cl2', f:'Cl₂', zh:'氯氣', comp:2, ebeh:2, bond:2, tier:2 },
+
+  { id:'hcl', f:'HCl', zh:'氯化氫', comp:2, ebeh:2, bond:2, tier:2 },
+
+  { id:'cu', f:'Cu', zh:'銅', comp:3, ebeh:3, bond:3, tier:2,
+    trap:{ step:2, en:'Electrons are transferred from Cu atoms to other atoms.', zh:'電子由 Cu 原子轉移去其他原子。',
+      why:{ en:'In metallic bonding the valence electrons are delocalised into a "sea of electrons" that attracts the positive metal ions. They are NOT transferred to another atom.',
+            zh:'金屬鍵入面，價電子會離域成「電子海」，吸引正金屬離子，而唔係轉移去另一粒原子。' } } },
+
+  { id:'al', f:'Al', zh:'鋁', comp:3, ebeh:3, bond:3, tier:2 },
+
+  { id:'zn', f:'Zn', zh:'鋅', comp:3, ebeh:3, bond:3, tier:2 },
+
+  { id:'nh3', f:'NH₃', zh:'氨', comp:2, ebeh:2, bond:2, tier:3,
+    trap:{ step:2, en:'The lone pair on N is shared with the three H atoms.', zh:'N 上面嘅孤對電子同 3 個 H 共用。',
+      why:{ en:'A lone pair belongs to ONE atom only and is not shared. Only a bond pair is shared between two atoms. In NH₃, N has 3 bond pairs and 1 lone pair.',
+            zh:'孤對電子只屬於一粒原子，唔會共用。只有鍵對先係兩粒原子共用。NH₃ 入面 N 有 3 對鍵對同 1 對孤對。' } } },
+
+  { id:'bf3', f:'BF₃', zh:'三氟化硼', comp:2, ebeh:2, bond:2, tier:3,
+    trap:{ step:3, en:'B in BF₃ has a full octet and one lone pair.', zh:'BF₃ 入面 B 有完整八隅體同一對孤對電子。',
+      why:{ en:'Boron has only 3 valence electrons. In BF₃ it forms 3 bond pairs (6 electrons) and has NO lone pair — it is electron-deficient.',
+            zh:'硼只有 3 粒價電子。BF₃ 入面 B 形成 3 對鍵對（6 粒電子），冇孤對電子，屬缺電子。' } } },
+
+  { id:'bcl3', f:'BCl₃', zh:'三氯化硼', comp:2, ebeh:2, bond:2, tier:3 },
+
+  { id:'so2', f:'SO₂', zh:'二氧化硫', comp:2, ebeh:2, bond:2, tier:3 },
+
+  { id:'ph3', f:'PH₃', zh:'磷化氫', comp:2, ebeh:2, bond:2, tier:3 },
+
+  { id:'mg3n2', f:'Mg₃N₂', zh:'氮化鎂', comp:1, ebeh:1, bond:1, tier:3 },
+
+  { id:'nh4cl', f:'NH₄Cl', zh:'氯化銨', comp:2, ebeh:1, bond:1, tier:3,
+    note:{ en:'Tricky one: every element is a non-metal, yet NH₄Cl is IONIC. The NH₄⁺ ion is a polyatomic cation, so electron transfer happens between NH₄⁺ and Cl⁻.',
+           zh:'陷阱題：全部元素都係非金屬，但 NH₄Cl 係離子化合物。NH₄⁺ 係多原子陽離子，電子轉移發生喺 NH₄⁺ 同 Cl⁻ 之間。' } },
+
+  { id:'diamond', f:'diamond', zh:'鑽石', comp:2, ebeh:2, bond:2, tier:3,
+    note:{ en:'Giant covalent structure: each C atom shares 4 pairs with 4 neighbours — very high melting point, does not conduct.',
+           zh:'巨型共價結構：每粒 C 同 4 個鄰居共用 4 對電子 — 熔點極高、唔導電。' } },
+
+  { id:'graphite', f:'graphite', zh:'石墨', comp:2, ebeh:2, bond:2, tier:3,
+    note:{ en:'Giant covalent but layered: each C bonds to 3 others; the 4th electron is delocalised between layers — so graphite conducts.',
+           zh:'巨型共價但分層：每粒 C 同 3 個鄰居成鍵；第 4 粒電子喺層與層之間離域 — 所以石墨導電。' } },
+
+  { id:'c60', f:'C₆₀', zh:'富勒烯', comp:2, ebeh:2, bond:2, tier:3,
+    note:{ en:'Simple molecular: C₆₀ molecules are held by weak forces between molecules — low melting point.',
+           zh:'簡單分子：C₆₀ 分子之間只靠微弱作用力 — 熔點低。' } },
+
+  { id:'au', f:'Au', zh:'金', comp:3, ebeh:3, bond:3, tier:3 }
+];
+
+/* ---------- dot-and-cross questions ----------
+   atoms: {sym, x, y, r, charge, lonePairs, bondPairs}
+   bonds: {a, b, pairs}
+*/
+const DOTCROSS = [
+  { id:'dc-nacl', compound:'NaCl', type:'ionic', tier:1,
+    atoms:[
+      { sym:'Na', x:250, y:250, r:78, charge:1,  lonePairs:0, bondPairs:0 },
+      { sym:'Cl', x:540, y:250, r:78, charge:-1, lonePairs:4, bondPairs:0 }
+    ], bonds:[],
+    hint:{ en:'Na loses its 1 outer electron → Na⁺ (no outer electrons). Cl gains 1 → Cl⁻ with 8 outer electrons (4 lone pairs).',
+           zh:'Na 失去 1 粒最外層電子 → Na⁺（冇最外層電子）。Cl 得到 1 粒 → Cl⁻，有 8 粒最外層電子（4 對孤對）。' } },
+
+  { id:'dc-mgo', compound:'MgO', type:'ionic', tier:2,
+    atoms:[
+      { sym:'Mg', x:250, y:250, r:78, charge:2,  lonePairs:0, bondPairs:0 },
+      { sym:'O',  x:540, y:250, r:78, charge:-2, lonePairs:4, bondPairs:0 }
+    ], bonds:[],
+    hint:{ en:'Mg loses 2 outer electrons → Mg²⁺. O gains 2 → O²⁻ with 8 outer electrons.',
+           zh:'Mg 失去 2 粒最外層電子 → Mg²⁺。O 得到 2 粒 → O²⁻，有 8 粒最外層電子。' } },
+
+  { id:'dc-h2', compound:'H₂', type:'covalent', tier:1,
+    atoms:[
+      { sym:'H', x:300, y:250, r:64, lonePairs:0, bondPairs:1 },
+      { sym:'H', x:480, y:250, r:64, lonePairs:0, bondPairs:1 }
+    ], bonds:[{a:0,b:1,pairs:1}],
+    hint:{ en:'Each H has 1 electron. They share one pair (1 dot + 1 cross) so each H has a full outer shell of 2.',
+           zh:'每粒 H 有 1 粒電子。佢哋共用一對（1 點 + 1 叉），令每粒 H 都有 2 粒電子嘅完整最外層。' } },
+
+  { id:'dc-cl2', compound:'Cl₂', type:'covalent', tier:2,
+    atoms:[
+      { sym:'Cl', x:250, y:250, r:78, lonePairs:3, bondPairs:1 },
+      { sym:'Cl', x:540, y:250, r:78, lonePairs:3, bondPairs:1 }
+    ], bonds:[{a:0,b:1,pairs:1}],
+    hint:{ en:'Each Cl has 7 outer electrons: 3 lone pairs plus 1 shared pair. Total 8 around each Cl.',
+           zh:'每粒 Cl 有 7 粒最外層電子：3 對孤對加 1 對共用。每粒 Cl 周圍共 8 粒。' } },
+
+  { id:'dc-hcl', compound:'HCl', type:'covalent', tier:2,
+    atoms:[
+      { sym:'H',  x:300, y:250, r:64, lonePairs:0, bondPairs:1 },
+      { sym:'Cl', x:510, y:250, r:78, lonePairs:3, bondPairs:1 }
+    ], bonds:[{a:0,b:1,pairs:1}],
+    hint:{ en:'H shares its 1 electron; Cl shares 1 of its 7. Cl keeps 3 lone pairs.',
+           zh:'H 共用佢 1 粒電子；Cl 共用 7 粒中嘅 1 粒。Cl 保留 3 對孤對。' } },
+
+  { id:'dc-h2o', compound:'H₂O', type:'covalent', tier:2,
+    atoms:[
+      { sym:'O', x:400, y:220, r:76, lonePairs:2, bondPairs:2 },
+      { sym:'H', x:230, y:340, r:58, lonePairs:0, bondPairs:1 },
+      { sym:'H', x:570, y:340, r:58, lonePairs:0, bondPairs:1 }
+    ], bonds:[{a:0,b:1,pairs:1},{a:0,b:2,pairs:1}],
+    hint:{ en:'O has 6 outer electrons: 2 lone pairs + 2 bond pairs (one to each H). Each H shares 1 pair.',
+           zh:'O 有 6 粒最外層電子：2 對孤對 + 2 對鍵對（各連一粒 H）。每粒 H 共用 1 對。' } },
+
+  { id:'dc-nh3', compound:'NH₃', type:'covalent', tier:3,
+    atoms:[
+      { sym:'N', x:400, y:210, r:76, lonePairs:1, bondPairs:3 },
+      { sym:'H', x:220, y:330, r:56, lonePairs:0, bondPairs:1 },
+      { sym:'H', x:580, y:330, r:56, lonePairs:0, bondPairs:1 },
+      { sym:'H', x:400, y:400, r:56, lonePairs:0, bondPairs:1 }
+    ], bonds:[{a:0,b:1,pairs:1},{a:0,b:2,pairs:1},{a:0,b:3,pairs:1}],
+    hint:{ en:'N has 5 outer electrons: 3 bond pairs + 1 lone pair. Only the bond pairs are shared.',
+           zh:'N 有 5 粒最外層電子：3 對鍵對 + 1 對孤對。只有鍵對係共用。' } },
+
+  { id:'dc-ch4', compound:'CH₄', type:'covalent', tier:3,
+    atoms:[
+      { sym:'C', x:400, y:220, r:74, lonePairs:0, bondPairs:4 },
+      { sym:'H', x:240, y:200, r:54, lonePairs:0, bondPairs:1 },
+      { sym:'H', x:560, y:200, r:54, lonePairs:0, bondPairs:1 },
+      { sym:'H', x:250, y:370, r:54, lonePairs:0, bondPairs:1 },
+      { sym:'H', x:550, y:370, r:54, lonePairs:0, bondPairs:1 }
+    ], bonds:[{a:0,b:1,pairs:1},{a:0,b:2,pairs:1},{a:0,b:3,pairs:1},{a:0,b:4,pairs:1}],
+    hint:{ en:'C has 4 outer electrons and forms 4 bond pairs with 4 H atoms — no lone pairs on C.',
+           zh:'C 有 4 粒最外層電子，同 4 粒 H 形成 4 對鍵對 — C 上面冇孤對。' } }
+];
+
+/* ---------- glossary ---------- */
+const GLOSSARY = [
+  { id:'ionic', en:'Ionic bond', zh:'離子鍵',
+    def:{ en:'The electrostatic attraction between oppositely charged ions, formed by transfer of electrons from a metal to a non-metal.',
+          zh:'由金屬把電子轉移給非金屬後，帶相反電荷的離子之間的靜電吸引力。' } },
+  { id:'covalent', en:'Covalent bond', zh:'共價鍵',
+    def:{ en:'A bond formed when two atoms share one or more pairs of electrons.',
+          zh:'兩粒原子共用一對或多對電子而形成的鍵。' } },
+  { id:'metallic', en:'Metallic bond', zh:'金屬鍵',
+    def:{ en:'The attraction between a lattice of positive metal ions and a sea of delocalised electrons.',
+          zh:'正金屬離子晶格與離域電子海之間的吸引力。' } },
+  { id:'delocalised', en:'Delocalised electron', zh:'離域電子',
+    def:{ en:'An electron that is not tied to one atom but can move through a structure — this is why metals conduct.',
+          zh:'不受單一原子束縛、可在結構中移動的電子 — 金屬之所以導電的原因。' } },
+  { id:'cation', en:'Cation', zh:'陽離子',
+    def:{ en:'A positively charged ion formed when an atom LOSES electrons. e.g. Na → Na⁺ + e⁻',
+          zh:'原子失去電子後形成的帶正電離子。例：Na → Na⁺ + e⁻' } },
+  { id:'anion', en:'Anion', zh:'陰離子',
+    def:{ en:'A negatively charged ion formed when an atom GAINS electrons. e.g. Cl + e⁻ → Cl⁻',
+          zh:'原子得到電子後形成的帶負電離子。例：Cl + e⁻ → Cl⁻' } },
+  { id:'lone', en:'Lone pair', zh:'孤對電子',
+    def:{ en:'A pair of outer-shell electrons that belongs to one atom only and is NOT shared in a bond.',
+          zh:'只屬於一粒原子、並無參與成鍵共用的最外層電子對。' } },
+  { id:'bondpair', en:'Bond pair', zh:'鍵對',
+    def:{ en:'A pair of electrons shared between two atoms, forming a covalent bond.',
+          zh:'兩粒原子之間共用、形成共價鍵的一對電子。' } },
+  { id:'octet', en:'Octet rule', zh:'八隅體規則',
+    def:{ en:'Atoms tend to gain, lose or share electrons to have 8 electrons in their outer shell (2 for hydrogen).',
+          zh:'原子傾向透過得失或共用電子，使最外層有 8 粒電子（氫為 2 粒）。' } },
+  { id:'electrostatic', en:'Electrostatic attraction', zh:'靜電吸引',
+    def:{ en:'The force of attraction between particles with opposite electrical charges.',
+          zh:'帶相反電荷粒子之間的吸引力。' } },
+  { id:'lattice', en:'Giant ionic lattice', zh:'巨型離子晶格',
+    def:{ en:'A huge 3-D arrangement of alternating positive and negative ions, e.g. in solid NaCl.',
+          zh:'正負離子交替排列而成的巨大三維結構，例如固態 NaCl。' } },
+  { id:'simplemol', en:'Simple molecular', zh:'簡單分子',
+    def:{ en:'A substance made of small molecules held together by weak forces between molecules — low melting point.',
+          zh:'由小分子組成、分子間只有微弱作用力的物質 — 熔點低。' } },
+  { id:'giantcov', en:'Giant covalent structure', zh:'巨型共價結構',
+    def:{ en:'A huge 3-D network of atoms joined by covalent bonds, e.g. diamond — very high melting point.',
+          zh:'原子以共價鍵連成巨大三維網絡，例如鑽石 — 熔點極高。' } },
+  { id:'electroneg', en:'Dot-and-cross diagram', zh:'點叉圖',
+    def:{ en:'A diagram showing ONLY the outer-shell electrons of each atom, using dots for one atom and crosses for the other.',
+          zh:'只顯示每粒原子最外層電子的圖，用點代表一方原子、叉代表另一方。' } }
+];
+
+/* ---------- interaction nodes ----------
+   type: npc | chest | crystal
+   main: counts toward the 9 main objectives
+*/
+const NODES = [
+  { id:'n1', type:'npc',     zone:'A', x:-16, z:-20, compound:'nacl', main:1, label:{en:'Ion Sage', zh:'離子智者'} },
+  { id:'n2', type:'chest',   zone:'A', x:-40, z:-40, dc:'dc-nacl', main:1, label:{en:'Salt Chest', zh:'鹽之寶箱'} },
+  { id:'n3', type:'npc',     zone:'B', x: 18, z:-16, compound:'h2',   main:1, label:{en:'Gas Spirit', zh:'氣體精靈'} },
+  { id:'n4', type:'npc',     zone:'C', x:-20, z: 16, compound:'fe',   main:1, label:{en:'Forge Keeper', zh:'鍛造守衛'} },
+  { id:'n5', type:'npc',     zone:'B', x: 45, z:-35, compound:'h2o',  main:1, label:{en:'Water Nymph', zh:'水之精靈'} },
+  { id:'n6', type:'chest',   zone:'B', x: 60, z:-55, dc:'dc-hcl',     main:1, label:{en:'Acid Chest', zh:'酸之寶箱'} },
+  { id:'n7', type:'npc',     zone:'B', x: 75, z:-30, compound:'co2',  main:1, label:{en:'Air Wanderer', zh:'空氣旅人'} },
+  { id:'n8', type:'chest',   zone:'D', x: 55, z: 55, dc:'dc-ch4',     main:1, label:{en:'Methane Chest', zh:'甲烷寶箱'} },
+  { id:'n9', type:'npc',     zone:'D', x: 75, z: 70, compound:'bf3',  main:1, label:{en:'Crystal Scholar', zh:'晶體學者'} },
+
+  { id:'s1', type:'npc',     zone:'A', x:-52, z:-72, compound:'na2o', main:0, label:{en:'Oxide Hermit', zh:'氧化物隱士'} },
+  { id:'s2', type:'npc',     zone:'A', x:-84, z:-96, compound:'mgcl2',main:0, label:{en:'Salt Miner', zh:'鹽礦工'} },
+  { id:'s3', type:'chest',   zone:'A', x:-80, z:-72, dc:'dc-mgo',     main:0, label:{en:'Magnesia Chest', zh:'鎂之寶箱'} },
+  { id:'s4', type:'npc',     zone:'B', x: 52, z:-72, compound:'cl2',  main:0, label:{en:'Green Mist', zh:'綠霧'} },
+  { id:'s5', type:'chest',   zone:'B', x: 28, z:-62, dc:'dc-h2o',     main:0, label:{en:'Rain Chest', zh:'雨之寶箱'} },
+  { id:'s6', type:'npc',     zone:'C', x:-50, z: 45, compound:'cu',   main:0, label:{en:'Copper Smith', zh:'銅匠'} },
+  { id:'s7', type:'npc',     zone:'C', x:-78, z: 78, compound:'al',   main:0, label:{en:'Light Metal', zh:'輕金屬'} },
+  { id:'s8', type:'chest',   zone:'D', x: 40, z: 82, dc:'dc-nh3',     main:0, label:{en:'Ammonia Chest', zh:'氨之寶箱'} },
+  { id:'s9', type:'npc',     zone:'D', x: 88, z: 88, compound:'nh4cl',main:0, label:{en:'Puzzle Voice', zh:'謎之聲'} },
+
+  { id:'s10',type:'npc',     zone:'B', x: 34, z:-48, compound:'o2',     main:0, label:{en:'Twin Breath', zh:'雙息'} },
+  { id:'s11',type:'npc',     zone:'A', x:-70, z:-58, compound:'nh3',    main:0, label:{en:'Sharp Wind', zh:'刺風'} },
+  { id:'s12',type:'npc',     zone:'C', x:-92, z: 62, compound:'diamond',main:0, label:{en:'Hard Gem', zh:'硬寶石'} },
+  { id:'s13',type:'npc',     zone:'D', x: 66, z: 78, compound:'c60',    main:0, label:{en:'Round Cage', zh:'圓籠'} },
+
+  { id:'g1', type:'guild', zone:'A', x: 11, z:-11, ir:7.5, colliderR:4.6, main:0, label:{en:"Adventurers' Guild", zh:'冒險者公會'} },
+  { id:'sh1',type:'shop',  zone:'A', x:-11, z:-11, ir:6.5, colliderR:3.4, main:0, label:{en:'Chem Supply Shop', zh:'化學商店'} },
+
+  { id:'c1', type:'crystal', zone:'A', x:-58, z:-34, term:'cation',      main:0 },
+  { id:'c2', type:'crystal', zone:'B', x: 48, z:-76, term:'covalent',    main:0 },
+  { id:'c3', type:'crystal', zone:'C', x:-72, z: 58, term:'delocalised', main:0 },
+  { id:'c4', type:'crystal', zone:'D', x: 48, z: 86, term:'octet',       main:0 },
+  { id:'c5', type:'crystal', zone:'B', x: 80, z:-62, term:'lone',        main:0 },
+  { id:'c6', type:'crystal', zone:'D', x: 86, z: 58, term:'giantcov',    main:0 }
+];
+
+/* ---------- teleport waypoints ----------
+   Placed on the existing travel route (plaza → ionic west → forest east
+   → metal pass → crystal cavern) so fast travel removes backtracking
+   instead of skipping content.  `start:1` = already active at spawn.
+*/
+const WAYPOINTS = [
+  { id:'wp0', zone:'A', x:   6, z:  -5, start:1, name:{ en:'Camp Anchor',     zh:'營地錨點' } },
+  { id:'wp1', zone:'A', x: -46, z: -28,           name:{ en:'Saltwatch Post',  zh:'鹽晶哨站' } },
+  { id:'wp2', zone:'B', x:  30, z: -30,           name:{ en:'Forest Gate',     zh:'森林入口' } },
+  { id:'wp3', zone:'B', x:  68, z: -50,           name:{ en:'Deep Grove',      zh:'密林深處' } },
+  { id:'wp4', zone:'C', x: -38, z:  34,           name:{ en:'Forge Pass',      zh:'鍛造隘口' } },
+  { id:'wp5', zone:'D', x:  44, z:  42,           name:{ en:'Cavern Mouth',    zh:'晶洞入口' } },
+  { id:'wp6', zone:'D', x:  84, z:  66,           name:{ en:'Deep Altar',      zh:'深晶祭壇' } }
+];
+
+const MAIN_TOTAL = NODES.filter(n => n.main).length;

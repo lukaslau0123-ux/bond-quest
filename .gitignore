@@ -1,0 +1,21 @@
+# 建置產物：由 build.py 從 _src/ 生成，不入版控
+/index.html
+/site/index.html
+
+# 本機執行日誌
+/logs/
+
+# 依賴與系統檔
+node_modules/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# WorkBuddy 本機檔案：含本機絕對路徑與發佈標記，不應入版控
+.workbuddy/
+.wbapp_*.genie
+
+# 編輯器暫存
+*.swp
+*~
+~$*

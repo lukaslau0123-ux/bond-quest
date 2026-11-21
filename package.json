@@ -1,0 +1,17 @@
+{
+  "name": "bond-quest",
+  "version": "1.0.0",
+  "private": true,
+  "description": "鍵界 Bond Quest — 化學鍵 3D 開放世界學習遊戲",
+  "type": "module",
+  "scripts": {
+    "build": "python build.py && node scripts/verify.mjs",
+    "verify": "node scripts/verify.mjs",
+    "watch": "node scripts/watch.mjs",
+    "watch:push": "node scripts/watch.mjs --push",
+    "ship": "node scripts/ship.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
