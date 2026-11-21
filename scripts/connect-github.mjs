@@ -7,7 +7,7 @@
 //
 // 前提：你必須先在 https://github.com/new 建立一個同名空 repo（不要勾 README / .gitignore）。
 import { spawnSync } from 'node:child_process';
-import { git, hasRemote, isRepo, log, ROOT } from './lib.mjs';
+import { git, gitCmd, hasRemote, isRepo, log, ROOT } from './lib.mjs';
 
 const args = process.argv.slice(2).filter((a) => !a.startsWith('--'));
 const flags = process.argv.slice(2).filter((a) => a.startsWith('--'));
@@ -69,7 +69,7 @@ if (branch !== 'main') {
 }
 
 log('開始首次推送 — 瀏覽器會彈出，請按「Authorize Git Credential Manager」完成授權');
-const push = spawnSync('git', ['push', '-u', 'origin', 'main'], {
+const push = spawnSync(gitCmd(), ['push', '-u', 'origin', 'main'], {
   cwd: ROOT,
   stdio: 'inherit', // 保留互動，GCM 才能在你的終端機彈出授權
 });

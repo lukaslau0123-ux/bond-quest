@@ -1,6 +1,6 @@
 // 共用工具：建置、驗證、git 提交推送、日誌。
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, statSync } from 'node:fs';
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -57,7 +57,36 @@ export function runVerify() {
 }
 
 export function git(...args) {
-  return spawnSync('git', args, { cwd: ROOT, encoding: 'utf8' });
+  return spawnSync(gitCmd(), args, { cwd: ROOT, encoding: 'utf8' });
+}
+
+let _git = null;
+
+/** 找出可用的 git：先試 PATH，找不到再試 WorkBuddy 內建 PortableGit / 標準安裝位置 */
+export function gitCmd() {
+  if (_git) return _git;
+
+  const probe = spawnSync('git', ['--version'], { encoding: 'utf8' });
+  if (probe.status === 0) { _git = 'git'; return _git; }
+
+  const candidates = [];
+  const portableRoot = path.join(process.env.USERPROFILE || process.env.HOME || '', '.workbuddy', 'binaries', 'PortableGit', 'versions');
+  try {
+    for (const v of readdirSync(portableRoot).sort().reverse()) {
+      candidates.push(path.join(portableRoot, v, 'cmd', 'git.exe'));
+      candidates.push(path.join(portableRoot, v, 'mingw64', 'bin', 'git.exe'));
+    }
+  } catch { /* 沒有內建版本 */ }
+
+  candidates.push('C:\\Program Files\\Git\\cmd\\git.exe');
+  candidates.push('/usr/bin/git');
+
+  for (const c of candidates) {
+    if (existsSync(c)) { _git = c; return _git; }
+  }
+
+  _git = 'git';
+  return _git;
 }
 
 export function isRepo() {
