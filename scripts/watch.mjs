@@ -6,7 +6,7 @@
 //   DEBOUNCE_MS=800        自訂防抖延遲（預設 500ms）
 import { watch, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { ROOT, runBuild, runVerify, commitAndPush, log, stamp, builtSizeKB } from './lib.mjs';
+import { ROOT, runBuild, runVerify, commitAndPush, log, stamp, builtSizeKB, preserveLastGood, restoreLastGood } from './lib.mjs';
 import { notify } from './notify.mjs';
 
 const WATCH_DIRS = ['_src', '_vendor'];
@@ -60,10 +60,13 @@ function cycle(reason) {
   const v = runVerify();
   if (!v.ok) {
     log(`驗證失敗：\n${v.output}`, 'error');
+    if (restoreLastGood()) log('已還原本機產物到上一個通過驗證的版本', 'warn');
+    else log('沒有可還原的良好版本（首次建置就失敗）', 'warn');
     notify('Bond Quest 驗證失敗', '產物未通過守門檢查，已阻止部署');
     return;
   }
 
+  preserveLastGood();
   log(`建置通過 · ${builtSizeKB()} KB · ${Date.now() - t0} ms`);
 
   if (AUTO_PUSH) {

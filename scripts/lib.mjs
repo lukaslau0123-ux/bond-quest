@@ -1,6 +1,6 @@
 // 共用工具：建置、驗證、git 提交推送、日誌。
 import { spawnSync } from 'node:child_process';
-import { appendFileSync, mkdirSync, statSync } from 'node:fs';
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -75,6 +75,35 @@ export function builtSizeKB() {
     return (statSync(path.join(ROOT, 'index.html')).size / 1024).toFixed(0);
   } catch {
     return '?';
+  }
+}
+
+// ---- 最後良好版本回滾 ----
+// build.py 會直接覆寫 index.html / site/index.html，所以驗證失敗時本機產物已經壞了。
+// 保留一份「上次通過驗證」的成品，失敗即刻還原，本機預覽不會停留在壞版本。
+const GOOD = path.join(ROOT, 'logs', 'last-good.html');
+
+export function preserveLastGood() {
+  try {
+    const cur = path.join(ROOT, 'index.html');
+    if (!existsSync(cur)) return false;
+    mkdirSync(path.join(ROOT, 'logs'), { recursive: true });
+    copyFileSync(cur, GOOD);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function restoreLastGood() {
+  try {
+    if (!existsSync(GOOD)) return false;
+    copyFileSync(GOOD, path.join(ROOT, 'index.html'));
+    mkdirSync(path.join(ROOT, 'site'), { recursive: true });
+    copyFileSync(GOOD, path.join(ROOT, 'site', 'index.html'));
+    return true;
+  } catch {
+    return false;
   }
 }
 
