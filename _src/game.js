@@ -2094,6 +2094,11 @@
   function boot() {
     loadBeaconCfg();
     WORLD.init($('scene'));
+    // 觸控「E 互動」按鈕：與鍵盤 E 走同一個入口
+    WORLD.setInteractHandler(function () {
+      if (helpOpen || mapOpen || wpOpen || shopOpen || guildOpen || beaconOpen) return;
+      interact();
+    });
     loadWaypoints();
     WORLD.onZoneChange = k => {
       const Z = ZONES[k];

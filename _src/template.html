@@ -67,6 +67,15 @@
   <div id="prompt">按 <kbd>E</kbd> 互動</div>
   <div id="controlsHint">WASD 移動 · 空白鍵跳躍 · 滑鼠轉視角 · E 互動 · M 地圖 · T 傳送 · H 說明</div>
   <div id="lockHint">點擊畫面鎖定滑鼠</div>
+
+  <!-- 觸控控件：只有偵測到觸控裝置（pointer: coarse）時才顯示 -->
+  <div id="touchUI">
+    <div id="stickBase"><div id="stickKnob"></div></div>
+    <div id="touchRight">
+      <button id="actBtn" class="tBtn" aria-label="互動 Interact">E<small>互動</small></button>
+      <button id="jumpBtn" class="tBtn" aria-label="跳躍 Jump">↑<small>跳躍</small></button>
+    </div>
+  </div>
 </div>
 
 <div id="toastWrap"></div>
@@ -84,6 +93,7 @@
       <span>建議遊玩 8 分鐘</span>
       <span>數據只存本機，不收集個人資料</span>
     </div>
+    <div id="touchTip">已啟用<b>觸控模式</b>：左搖桿移動 · 右側拖曳轉視角 · 右下按鈕跳躍／互動。想更順暢可改用電腦（WASD + 滑鼠）。</div>
     </div>
     <div class="startFoot">
       <button id="startBtn" class="primary">開始探索 · Start exploring</button>

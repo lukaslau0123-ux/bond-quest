@@ -14,6 +14,10 @@ const WORLD = (function () {
   let yaw = 0, pitch = 0.40, camDist = 13;
   let velocity = new THREE.Vector3();
   let pointerDown = false, lastPX = 0, lastPY = 0;
+  // 觸控：搖桿向量、指標追蹤、跳躍佇列、互動回呼
+  let touchMode = false;
+  let stickX = 0, stickY = 0, stickId = null, stickCX = 0, stickCY = 0, stickRadius = 42;
+  let touchJump = false, lookId = null, interactHandler = null;
   let nodes = [];
   let zoneNow = 'A';
   let elapsed = 0;
@@ -1184,6 +1188,122 @@ const WORLD = (function () {
     renderer.setSize(window.innerWidth, window.innerHeight);
   }
 
+  /* ---------------- touch controls ---------------- */
+  function detectTouch() {
+    // 手動覆寫：?touch=1 強制觸控模式（方便在電腦上測試版面）、?touch=0 強制關閉
+    if (/[?&]touch=1\b/.test(location.search)) return true;
+    if (/[?&]touch=0\b/.test(location.search)) return false;
+    // 以「主指標」判斷：手機/平板 = coarse 且無 fine；有滑鼠或觸控板 = fine → 桌面模式
+    // 注意：不可用 navigator.maxTouchPoints，Windows 即使無觸控螢幕也可能回報 >0
+    try {
+      const coarse = window.matchMedia('(pointer: coarse)');
+      const fine = window.matchMedia('(pointer: fine)');
+      if (coarse.matches && !fine.matches) return true;
+      if (fine.matches) return false;
+    } catch (e) { }
+    return (navigator.maxTouchPoints || 0) > 1;
+  }
+
+  function resetStick() {
+    stickX = 0; stickY = 0; stickId = null;
+    const base = document.getElementById('stickBase');
+    const knob = document.getElementById('stickKnob');
+    if (base) base.classList.remove('active');
+    if (knob) knob.style.transform = 'translate(0px,0px)';
+  }
+
+  function bindTouch() {
+    touchMode = detectTouch();
+    if (!touchMode) return;
+    document.body.classList.add('is-touch');
+
+    const base = document.getElementById('stickBase');
+    const knob = document.getElementById('stickKnob');
+    const jumpBtn = document.getElementById('jumpBtn');
+    const actBtn = document.getElementById('actBtn');
+    const lh = document.getElementById('lockHint');
+
+    // 觸控裝置不會有 pointer lock，改用可自動消失的操作提示
+    if (lh) {
+      lh.textContent = '左搖桿移動 · 右側拖曳轉視角';
+      setTimeout(function () { lh.classList.add('hide'); }, 6000);
+    }
+
+    if (base && knob) {
+      const radius = function () { return Math.max(28, base.clientWidth * 0.32); };
+
+      const move = function (e) {
+        if (e.pointerId !== stickId) return;
+        let dx = e.clientX - stickCX, dy = e.clientY - stickCY;
+        const d = Math.hypot(dx, dy);
+        if (d > stickRadius) { dx = dx / d * stickRadius; dy = dy / d * stickRadius; }
+        knob.style.transform = 'translate(' + dx.toFixed(1) + 'px,' + dy.toFixed(1) + 'px)';
+        const dead = 7; // 死區，防止手指輕觸就走
+        stickX = Math.abs(dx) < dead ? 0 : dx / stickRadius;
+        stickY = Math.abs(dy) < dead ? 0 : dy / stickRadius;
+        const m = Math.hypot(stickX, stickY);
+        if (m > 1) { stickX /= m; stickY /= m; }
+        e.preventDefault();
+      };
+
+      const start = function (e) {
+        if (stickId !== null) return;
+        stickId = e.pointerId;
+        const r = base.getBoundingClientRect();
+        stickCX = r.left + r.width / 2;
+        stickCY = r.top + r.height / 2;
+        stickRadius = radius();
+        base.classList.add('active');
+        try { base.setPointerCapture(e.pointerId); } catch (err) { }
+        move(e);
+      };
+
+      const end = function (e) {
+        if (e.pointerId !== stickId) return;
+        resetStick();
+      };
+
+      base.addEventListener('pointerdown', start);
+      base.addEventListener('pointermove', move);
+      base.addEventListener('pointerup', end);
+      base.addEventListener('pointercancel', end);
+      base.addEventListener('lostpointercapture', end);
+      base.addEventListener('touchmove', function (e) { e.preventDefault(); }, { passive: false });
+    }
+
+    if (jumpBtn) {
+      jumpBtn.addEventListener('pointerdown', function (e) {
+        e.preventDefault();
+        touchJump = true;
+        jumpBtn.classList.add('on');
+      });
+      const off = function () { jumpBtn.classList.remove('on'); };
+      jumpBtn.addEventListener('pointerup', off);
+      jumpBtn.addEventListener('pointercancel', off);
+      jumpBtn.addEventListener('pointerleave', off);
+    }
+
+    if (actBtn) {
+      actBtn.addEventListener('pointerdown', function (e) {
+        e.preventDefault();
+        actBtn.classList.add('on');
+        if (interactHandler) interactHandler();
+      });
+      const off = function () { actBtn.classList.remove('on'); };
+      actBtn.addEventListener('pointerup', off);
+      actBtn.addEventListener('pointercancel', off);
+      actBtn.addEventListener('pointerleave', off);
+    }
+
+    // 互動提示氣泡本身也可點，等於按 E
+    const prompt = document.getElementById('prompt');
+    if (prompt) {
+      prompt.addEventListener('click', function () { if (interactHandler) interactHandler(); });
+    }
+  }
+
+  function setInteractHandler(fn) { interactHandler = fn; }
+
   function bindInput() {
     window.addEventListener('keydown', e => {
       const k = e.key.toLowerCase();
@@ -1216,14 +1336,23 @@ const WORLD = (function () {
       pitch = Math.max(-0.32, Math.min(0.9, pitch + e.movementY * 0.0017));
     });
 
-    // fallback: drag to look (only when pointer lock is unavailable)
+    // fallback: drag to look (only when pointer lock is unavailable) — 觸控也走這條
     cv.addEventListener('pointerdown', e => {
       if (locked || document.pointerLockElement === cv) return;
+      if (lookId !== null) return;              // 一次只追蹤一根手指，避免與搖桿打架
+      lookId = e.pointerId;
       pointerDown = true; lastPX = e.clientX; lastPY = e.clientY;
+      if (e.pointerType === 'touch') e.preventDefault();
     });
-    window.addEventListener('pointerup', () => { pointerDown = false; });
+    window.addEventListener('pointerup', e => {
+      if (lookId === null || e.pointerId === lookId) { pointerDown = false; lookId = null; }
+    });
+    window.addEventListener('pointercancel', e => {
+      if (lookId === null || e.pointerId === lookId) { pointerDown = false; lookId = null; }
+    });
     window.addEventListener('pointermove', e => {
-      if (!pointerDown || locked || document.pointerLockElement === cv) return;
+      if (!pointerDown || lookId !== e.pointerId) return;
+      if (locked || document.pointerLockElement === cv) return;
       const dx = e.clientX - lastPX, dy = e.clientY - lastPY;
       lastPX = e.clientX; lastPY = e.clientY;
       yaw -= dx * 0.0042;
@@ -1235,6 +1364,8 @@ const WORLD = (function () {
       camDist = Math.max(5, Math.min(20, camDist + e.deltaY * 0.012));
       e.preventDefault();
     }, { passive: false });
+
+    bindTouch();
   }
 
   function clearKeys() { keys = Object.create(null); }
@@ -1242,7 +1373,7 @@ const WORLD = (function () {
   function setLocked(v) {
     locked = v;
     if (v) {
-      clearKeys(); pointerDown = false;
+      clearKeys(); pointerDown = false; lookId = null; resetStick(); touchJump = false;
       if (document.pointerLockElement) document.exitPointerLock();
     }
   }
@@ -1269,14 +1400,22 @@ const WORLD = (function () {
     const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
     const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
     const dir = new THREE.Vector3();
-    if (keys['w'] || keys['arrowup']) dir.add(fwd);
-    if (keys['s'] || keys['arrowdown']) dir.sub(fwd);
-    if (keys['d'] || keys['arrowright']) dir.add(right);
-    if (keys['a'] || keys['arrowleft']) dir.sub(right);
 
+    // 鍵盤與虛擬搖桿合併成一個方向向量（搖桿保留類比力度）
+    let ix = 0, iy = 0;
+    if (keys['w'] || keys['arrowup']) iy -= 1;
+    if (keys['s'] || keys['arrowdown']) iy += 1;
+    if (keys['a'] || keys['arrowleft']) ix -= 1;
+    if (keys['d'] || keys['arrowright']) ix += 1;
+    ix += stickX; iy += stickY;
+
+    const inLen = Math.hypot(ix, iy);
     const speed = 16;
-    if (dir.lengthSq() > 0) dir.normalize();
-    const targetVel = dir.multiplyScalar(speed);
+    if (inLen > 0.02) {
+      const mag = Math.min(1, inLen);
+      dir.copy(fwd).multiplyScalar(-iy / inLen).addScaledVector(right, ix / inLen).multiplyScalar(mag);
+    }
+    const targetVel = dir.clone().multiplyScalar(speed);
     velocity.lerp(targetVel, 1 - Math.exp(-10 * dt));
 
     const nx = player.position.x + velocity.x * dt;
@@ -1299,7 +1438,7 @@ const WORLD = (function () {
 
     // jump + gravity
     const gy = heightAt(px, pz);
-    if (keys[' '] && onGround) { vy = 9.6; onGround = false; }
+    if ((keys[' '] || touchJump) && onGround) { vy = 9.6; onGround = false; touchJump = false; }
     vy -= 26 * dt;
     player.position.y += vy * dt;
     if (player.position.y <= gy) {
@@ -1535,6 +1674,7 @@ const WORLD = (function () {
   return {
     init, update, drawMinimap, heightAt, zoneKeyAt, nearestNode,
     setLocked, isLocked, setNodeState, clearKeys, requestLock, relock, setBeacon, BEACON_CFG,
+    setInteractHandler, isTouchMode: function () { return touchMode; },
     setWaypointState, teleportTo,
     get scene() { return scene; },
     get camera() { return camera; },

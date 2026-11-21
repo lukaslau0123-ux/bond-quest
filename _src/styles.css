@@ -481,3 +481,61 @@ button:focus-visible,.opt:focus-visible{outline:2px solid #8ff0c8;outline-offset
   .qpFold em{display:none}
   .qpFold{padding:5px 7px}
 }
+
+/* ============================================================
+   Touch controls (only when pointer: coarse is detected)
+   ============================================================ */
+#touchUI{position:fixed;inset:0;z-index:6;pointer-events:none;display:none}
+body.is-touch #touchUI{display:block}
+#scene{touch-action:none}
+body.is-touch{overscroll-behavior:none}
+
+#stickBase{position:absolute;left:26px;bottom:30px;width:134px;height:134px;border-radius:50%;
+  pointer-events:auto;touch-action:none;
+  background:radial-gradient(circle at 50% 46%,rgba(140,240,200,.13),rgba(8,18,22,.46) 72%);
+  border:1.5px solid rgba(140,240,200,.32);backdrop-filter:blur(7px);
+  box-shadow:0 10px 30px rgba(0,0,0,.36),inset 0 0 26px rgba(79,214,164,.09)}
+#stickBase.active{border-color:rgba(143,240,200,.6);background:radial-gradient(circle at 50% 46%,rgba(140,240,200,.2),rgba(8,18,22,.5) 72%)}
+#stickKnob{position:absolute;left:50%;top:50%;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;
+  background:radial-gradient(circle at 38% 32%,#b6ffdf,#4fd6a4 58%,#279b74);
+  border:1px solid rgba(255,255,255,.55);box-shadow:0 5px 16px rgba(0,0,0,.45);
+  transition:transform .1s ease-out;will-change:transform;pointer-events:none}
+#stickBase.active #stickKnob{transition:none}
+
+#touchRight{position:absolute;right:24px;bottom:30px;display:flex;align-items:flex-end;gap:14px;pointer-events:none}
+.tBtn{pointer-events:auto;touch-action:none;-webkit-tap-highlight-color:transparent;
+  width:74px;height:74px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;
+  background:rgba(10,20,24,.62);border:1.5px solid rgba(140,240,200,.38);color:#e6fbf3;
+  font-family:inherit;font-size:21px;font-weight:600;line-height:1;backdrop-filter:blur(8px);
+  box-shadow:0 10px 26px rgba(0,0,0,.4);cursor:pointer;transition:transform .1s,background .1s,border-color .1s}
+.tBtn small{font-size:10px;font-weight:400;color:#9fc6ba;letter-spacing:.6px;margin-top:3px}
+.tBtn.on,.tBtn:active{background:rgba(79,214,164,.32);border-color:#8ff0c8;transform:scale(.94)}
+.tBtn.on small,.tBtn:active small{color:#dffaf0}
+#jumpBtn{width:88px;height:88px;font-size:24px;border-color:rgba(143,240,200,.5)}
+
+body.is-touch #controlsHint{display:none}
+body.is-touch #lockHint{bottom:186px;font-size:11.5px;padding:6px 14px}
+body.is-touch #prompt{bottom:128px;pointer-events:auto;cursor:pointer}
+body.is-touch #prompt kbd{background:#8ff0c8}
+#touchTip{display:none;margin-top:14px;padding:11px 14px;border-radius:11px;font-size:12.5px;line-height:1.7;
+  color:#cfe4dc;background:rgba(140,240,200,.07);border:1px solid rgba(140,240,200,.2)}
+#touchTip b{color:#8ff0c8;font-weight:500}
+body.is-touch #touchTip{display:block}
+
+@media (max-width:420px){
+  #stickBase{width:112px;height:112px;left:16px;bottom:22px}
+  #stickKnob{width:48px;height:48px;margin:-24px 0 0 -24px}
+  .tBtn{width:62px;height:62px;font-size:18px}
+  #jumpBtn{width:74px;height:74px;font-size:21px}
+  #touchRight{right:16px;bottom:22px;gap:11px}
+  body.is-touch #prompt{bottom:110px}
+  body.is-touch #lockHint{bottom:160px}
+}
+@media (max-height:430px){
+  #stickBase{width:104px;height:104px;bottom:14px}
+  #stickKnob{width:44px;height:44px;margin:-22px 0 0 -22px}
+  .tBtn{width:58px;height:58px;font-size:17px}
+  #jumpBtn{width:68px;height:68px;font-size:19px}
+  #touchRight{bottom:14px}
+  body.is-touch #lockHint{display:none}
+}

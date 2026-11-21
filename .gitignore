@@ -18,6 +18,9 @@ desktop.ini
 .workbuddy/
 .wbapp_*.genie
 
+# 視覺檢查截圖
+qa-*.png
+
 # 編輯器暫存
 *.swp
 *~
