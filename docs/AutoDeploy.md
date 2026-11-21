@@ -102,8 +102,20 @@
 
 ### 4.1 建立遠端 repo
 
+先在 https://github.com/new 建一個名為 `bond-quest` 的 **Public** 空 repo（不要勾 README / .gitignore），然後一條指令搞定：
+
 ```bash
-# 在 GitHub 開一個新 repo（例如 bond-quest），然後：
+npm run connect -- <你的GitHub用戶名>
+```
+
+它會自動：設定 `origin` → 把分支改名 `main` → 首次推送。
+第一次推送時 **Git Credential Manager 會彈出瀏覽器**，按一次 **Authorize**，憑證就永久記住，之後 `push` 不再問。
+
+想先看它會做甚麼（不推送）：`npm run connect -- <用戶名> --dry-run`
+
+手動等價做法：
+
+```bash
 git remote add origin https://github.com/<你的帳號>/bond-quest.git
 git branch -M main
 git push -u origin main
