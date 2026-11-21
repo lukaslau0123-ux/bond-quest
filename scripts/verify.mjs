@@ -5,9 +5,9 @@ import path from 'node:path';
 import { ROOT } from './lib.mjs';
 
 const MIN_KB = 600;                 // 正常約 810 KB，太細代表組裝不完整
-const FILES = ['data.js', 'world.js', 'game.js'];
-const PLACEHOLDERS = ['/*__CSS__*/', '/*__THREE__*/', '/*__DATA__*/', '/*__WORLD__*/', '/*__GAME__*/'];
-const REQUIRED = ['id="questPanel"', 'id="bigMapModal"', 'id="wpModal"', 'id="guildModal"', 'id="shopModal"', 'id="coachCard"'];
+const FILES = ['data.js', 'auth.js', 'world.js', 'game.js'];
+const PLACEHOLDERS = ['/*__CSS__*/', '/*__THREE__*/', '/*__DATA__*/', '/*__AUTH__*/', '/*__WORLD__*/', '/*__GAME__*/'];
+const REQUIRED = ['id="questPanel"', 'id="bigMapModal"', 'id="wpModal"', 'id="guildModal"', 'id="shopModal"', 'id="coachCard"', 'id="authModal"', 'id="authBtn"'];
 
 const rootHtml = path.join(ROOT, 'index.html');
 const siteHtml = path.join(ROOT, 'site', 'index.html');
@@ -57,7 +57,7 @@ test('關鍵 UI 節點存在', () => {
   must(miss.length === 0, `缺少 ${miss.join(', ')}`);
 });
 
-test('三支原始 JS 語法正確', () => {
+test('原始 JS 語法正確', () => {
   for (const f of FILES) {
     const r = spawnSync(process.execPath, ['--check', path.join(ROOT, '_src', f)], { encoding: 'utf8' });
     must(r.status === 0, `${f}：${(r.stderr || '').split('\n').filter(Boolean).slice(0, 2).join(' ')}`);

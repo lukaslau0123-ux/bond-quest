@@ -17,6 +17,7 @@
     <div class="pill" id="counterPill"><b id="counterNum">0</b> / <b id="counterTotal">9</b></div>
     <div class="pill" id="timerPill">00:00</div>
     <div class="spacer"></div>
+    <button class="iconBtn" id="authBtn" title="登入 / 註冊帳號">登</button>
     <button class="iconBtn" id="mapBtn" title="大地圖 Map (M)">▦</button>
     <button class="iconBtn" id="helpBtn" title="遊戲說明 How to play">?</button>
     <button class="iconBtn" id="glossaryBtn" title="Glossary 詞彙表">Aa</button>
@@ -214,6 +215,75 @@
   </div>
 </div>
 
+<div id="authModal" class="modal">
+  <div class="modalCard authCard">
+    <div class="modalHead">
+      <div class="chestIcon">◍</div>
+      <div>
+        <div class="npcName" id="authTitle">帳號 Account</div>
+        <div class="npcLine">登入後，進度會保存喺呢個帳號，下次返嚟自動載入</div>
+      </div>
+    </div>
+    <div class="modalBody">
+      <div id="authGuestView">
+        <div class="authTabs" id="authTabs">
+          <button type="button" class="authTab active" data-mode="login">登入 Login</button>
+          <button type="button" class="authTab" data-mode="register">註冊 Register</button>
+        </div>
+        <form id="authForm" novalidate>
+          <div class="authField" id="rowName">
+            <label for="authName">顯示名稱 Display name</label>
+            <input id="authName" type="text" maxlength="12" placeholder="例如 Lukas" autocomplete="nickname">
+            <em class="authErr" id="errName"></em>
+          </div>
+          <div class="authField">
+            <label for="authEmail">電郵 Email</label>
+            <input id="authEmail" type="email" placeholder="you@example.com" autocomplete="email">
+            <em class="authErr" id="errEmail"></em>
+          </div>
+          <div class="authField">
+            <label for="authPw">密碼 Password</label>
+            <input id="authPw" type="password" placeholder="至少 8 個字元，要有字母同數字" autocomplete="current-password">
+            <em class="authErr" id="errPw"></em>
+          </div>
+          <div class="authField" id="rowPw2">
+            <label for="authPw2">再輸入一次密碼 Confirm</label>
+            <input id="authPw2" type="password" autocomplete="new-password">
+            <em class="authErr" id="errPw2"></em>
+          </div>
+          <label class="authKeep" id="rowKeep">
+            <input id="authKeep" type="checkbox">
+            <span>喺呢部裝置保持登入（共用電腦唔好勾）</span>
+          </label>
+          <div class="authMsg" id="authMsg"></div>
+          <button type="submit" class="primary authSubmit" id="authSubmit">登入</button>
+        </form>
+        <div class="authAlt" id="authAlt"></div>
+      </div>
+
+      <div id="authUserView" class="authUserView">
+        <div class="authWho">
+          <div class="authAvatar" id="authAvatar">?</div>
+          <div>
+            <div class="authNameBig" id="authNameBig">—</div>
+            <div class="authEmailBig" id="authEmailBig">—</div>
+          </div>
+        </div>
+        <div class="authStats" id="authStats"></div>
+        <div class="authUserActions">
+          <button type="button" class="ghost" id="authExport">匯出進度</button>
+          <button type="button" class="ghost danger" id="authDelete">刪除帳號</button>
+          <button type="button" class="primary" id="authLogout">登出</button>
+        </div>
+      </div>
+    </div>
+    <div class="modalFoot authFoot">
+      <span class="authNote">密碼以 PBKDF2 雜湊保存（唔存明文）；進度用你嘅密碼加密，冇密碼讀唔到。只限呢個瀏覽器，唔會跨裝置同步。</span>
+      <button class="ghost" id="authClose">關閉</button>
+    </div>
+  </div>
+</div>
+
 <div id="vocabModal" class="modal">
   <div class="modalCard">
     <div class="kicker">Glossary unlock</div>
@@ -345,6 +415,7 @@
 
 <script>/*__THREE__*/</script>
 <script>/*__DATA__*/</script>
+<script>/*__AUTH__*/</script>
 <script>/*__WORLD__*/</script>
 <script>/*__GAME__*/</script>
 </body>

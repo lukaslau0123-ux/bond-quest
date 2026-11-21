@@ -601,3 +601,61 @@ body.is-touch #touchTip{display:block}
 .dcNote{font-size:12.5px;line-height:1.65;color:#9fbcb1;margin-top:10px;padding:9px 12px;
   background:rgba(255,255,255,.035);border-left:2px solid rgba(143,240,200,.35);border-radius:7px}
 .dcNote b{color:#d8f0e6;font-weight:500}
+
+/* ============================================================
+   Account system
+   ============================================================ */
+#authBtn.signed{background:rgba(95,208,168,.26);border-color:rgba(143,240,200,.65);color:#d8fff0;font-weight:600}
+.authCard{width:min(460px,94vw)}
+.authTabs{display:flex;gap:6px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+  border-radius:11px;padding:4px;margin-bottom:16px}
+.authTab{flex:1;padding:9px 10px;border-radius:8px;border:none;background:transparent;color:#9fbcb1;
+  font-family:inherit;font-size:13.5px;cursor:pointer;transition:.15s}
+.authTab:hover{color:#d8f0e6}
+.authTab.active{background:rgba(95,208,168,.22);color:#d8fff0;font-weight:600}
+.authField{margin-bottom:13px}
+.authField label{display:block;font-size:12.5px;color:#a9c4bb;margin-bottom:5px}
+.authField input{width:100%;height:42px;padding:0 13px;border-radius:10px;font-size:14px;font-family:inherit;
+  background:rgba(6,14,18,.72);border:1px solid rgba(255,255,255,.16);color:#eafaf4;transition:.15s}
+.authField input::placeholder{color:#5f8074}
+.authField input:focus{outline:none;border-color:rgba(143,240,200,.65);background:rgba(6,14,18,.9);
+  box-shadow:0 0 0 3px rgba(143,240,200,.12)}
+.authField input.bad{border-color:rgba(226,75,74,.8)}
+.authErr{display:none;font-style:normal;font-size:12px;color:#ff9b8a;margin-top:5px;line-height:1.45}
+.authErr.show{display:block}
+.authKeep{display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:#9fbcb1;
+  margin:4px 0 14px;cursor:pointer;line-height:1.5}
+.authKeep input{margin-top:2px;accent-color:#4fd6a4;width:15px;height:15px}
+.authMsg{display:none;font-size:12.5px;line-height:1.5;padding:9px 12px;border-radius:9px;margin-bottom:12px}
+.authMsg.show{display:block}
+.authMsg.err{background:rgba(226,75,74,.12);border:1px solid rgba(226,75,74,.4);color:#ffb9ad}
+.authMsg.ok{background:rgba(79,214,164,.12);border:1px solid rgba(79,214,164,.4);color:#a8ffdd}
+.authSubmit{width:100%;margin-top:2px}
+.authAlt{margin-top:12px}
+.authImport{background:rgba(255,220,120,.08);border:1px solid rgba(255,220,120,.35);border-radius:11px;padding:12px 14px}
+.authImport b{display:block;font-size:13.5px;color:#ffe8b0;font-weight:600;margin-bottom:4px}
+.authImport span{display:block;font-size:12.5px;color:#c9b993;line-height:1.55}
+.authImportBtns{display:flex;gap:8px;margin-top:11px}
+.authImportBtns button{flex:1;padding:9px 12px;font-size:13px}
+.authWho{display:flex;align-items:center;gap:13px;margin-bottom:16px}
+.authAvatar{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-size:22px;font-weight:600;color:#0d1418;background:linear-gradient(140deg,#b6ffdf,#4fd6a4 60%,#37b6d8)}
+.authNameBig{font-size:17px;font-weight:500;color:#eafaf4}
+.authEmailBig{font-size:12.5px;color:#8fb2a6;margin-top:2px;word-break:break-all}
+.authStats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px}
+.authStat{background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.1);border-radius:10px;
+  padding:10px 8px;text-align:center}
+.authStat.wide{grid-column:1 / -1}
+.authStat b{display:block;font-size:16px;color:#8ff0c8;font-weight:600;line-height:1.3}
+.authStat span{display:block;font-size:11px;color:#8fb2a6;margin-top:3px}
+.authStat.wide b{font-size:13px;color:#d8f0e6}
+.authUserActions{display:flex;gap:8px;flex-wrap:wrap}
+.authUserActions button{flex:1;min-width:110px;padding:10px 12px;font-size:13px}
+.ghost.danger{color:#ff9b8a;border-color:rgba(226,75,74,.4)}
+.ghost.danger:hover{background:rgba(226,75,74,.14);border-color:rgba(226,75,74,.7)}
+.authFoot{gap:12px}
+.authNote{font-size:11.5px;color:#7d9b91;line-height:1.55;flex:1}
+@media (max-width:520px){
+  .authStats{grid-template-columns:1fr 1fr}
+  .authUserActions button{min-width:0}
+}

@@ -80,6 +80,7 @@
   function persist() {
     try { localStorage.setItem(KEY, JSON.stringify(SESSION)); }
     catch (e) { storeOk = false; }
+    try { AUTH.save(); } catch (e) { }
   }
   function logEvent(ev) {
     ev.t = Math.round(activeTime);
@@ -117,6 +118,41 @@
 
   /* ---------------- HUD ---------------- */
   function mainDone() { return NODES.filter(n => n.main && done.has(n.id)).length; }
+
+  /* ---------------- account progress bridge ---------------- */
+  // 帳號系統只透過這兩個函數接觸遊戲狀態：snapshot 取出、apply 還原。
+  function snapshotProgress() {
+    return {
+      v: 1,
+      done: [...done],
+      correct: correctCount,
+      freePass: freePass,
+      wp: [...unlockedWp],
+      beacon: JSON.parse(JSON.stringify(WORLD.BEACON_CFG)),
+      coach: (function () { try { return !!localStorage.getItem('bq_coach_v1'); } catch (e) { return false; } })()
+    };
+  }
+
+  function applyProgress(p) {
+    if (!p) return;
+    done.clear();
+    nodeCorrect.clear();
+    (p.done || []).forEach(function (id) { done.add(id); nodeCorrect.set(id, true); });
+    correctCount = p.correct || 0;
+    freePass = p.freePass || 0;
+
+    unlockedWp.clear();
+    WAYPOINTS.forEach(function (w) { if (w.start) unlockedWp.add(w.id); });
+    (p.wp || []).forEach(function (id) { if (wpById(id)) unlockedWp.add(id); });
+    applyWaypoints();
+
+    if (p.beacon) Object.assign(WORLD.BEACON_CFG, p.beacon);
+
+    refreshLocks();
+    updateHUD();
+    renderQuestPanel();
+    applyWaypoints();
+  }
 
   /* ---------------- quest tracking ---------------- */
   let trackedId = null;
@@ -1220,6 +1256,7 @@
   }
   function saveBeaconCfg() {
     try { localStorage.setItem('bq_beacon_v1', JSON.stringify(WORLD.BEACON_CFG)); } catch (e) { }
+    try { AUTH.save(); } catch (e) { }
   }
   function renderBeaconCfg() {
     const c = WORLD.BEACON_CFG;
@@ -1327,6 +1364,7 @@
     syncPaused();
     if (state === STATE.WORLD) { WORLD.setLocked(false); WORLD.relock(); }
     try { localStorage.setItem('bq_coach_v1', '1'); } catch (e) { }
+    try { AUTH.save(); } catch (e) { }
   }
 
   $('coachNext').addEventListener('click', () => {
@@ -1357,6 +1395,7 @@
   }
   function saveWaypoints() {
     try { localStorage.setItem(WP_KEY, JSON.stringify([...unlockedWp])); } catch (e) { }
+    try { AUTH.save(); } catch (e) { }
   }
   function applyWaypoints() {
     WAYPOINTS.forEach(w => WORLD.setWaypointState(w.id, unlockedWp.has(w.id)));
@@ -2169,6 +2208,7 @@
   window.addEventListener('keydown', e => {
     const k = e.key.toLowerCase();
     if (k === 'escape') {
+      if (AUTH.isOpen()) { AUTH.close(); return; }
       if (coachOn) { coachEnd(); return; }
       if (wpOpen) { closeWpList(); return; }
       if (beaconOpen) { closeBeacon(); return; }
@@ -2230,6 +2270,19 @@
     refreshLocks();
     updateHUD();
     WORLD.setBeacon(trackedNode());
+
+    // ---- 帳號系統 ----
+    $('authBtn').addEventListener('click', () => AUTH.open());
+    // 帳號視窗打開時凍結角色，避免打字時 WASD 令角色亂走
+    document.addEventListener('bq:auth-open', () => { WORLD.setLocked(true); });
+    document.addEventListener('bq:auth-close', () => {
+      WORLD.clearKeys();
+      if (state === STATE.WORLD) WORLD.setLocked(false);
+    });
+    document.addEventListener('bq:toast', (e) => { if (e.detail && e.detail.msg) toast(e.detail.msg, 3200); });
+    AUTH.init({ snapshot: snapshotProgress, apply: applyProgress }).catch((err) => {
+      console.warn('account init failed', err);
+    });
 
     $('startBtn').addEventListener('click', () => {
       $('startScreen').classList.remove('show');
