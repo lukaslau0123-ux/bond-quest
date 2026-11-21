@@ -1,4 +1,5 @@
-import re, os, sys
+import re, os, sys, hashlib
+from datetime import datetime
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 
@@ -23,6 +24,11 @@ def main():
         return parts[m.group(1)]
 
     out = re.sub(r'/\*__(CSS|THREE|DATA|WORLD|GAME)__\*/', repl, tpl)
+
+    # 建置戳記：查看原始碼即可確認線上版本與建置時間
+    stamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    digest = hashlib.sha256(''.join(parts[k] for k in ('CSS', 'DATA', 'WORLD', 'GAME')).encode('utf-8')).hexdigest()[:12]
+    out = out.replace('<head>', '<head>\n<!-- build: %s | src: %s -->' % (stamp, digest), 1)
 
     path = os.path.join(BASE, 'index.html')
     with open(path, 'w', encoding='utf-8') as f:

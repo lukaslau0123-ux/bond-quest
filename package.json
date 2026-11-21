@@ -9,7 +9,8 @@
     "verify": "node scripts/verify.mjs",
     "watch": "node scripts/watch.mjs",
     "watch:push": "node scripts/watch.mjs --push",
-    "ship": "node scripts/ship.mjs"
+    "ship": "node scripts/ship.mjs",
+    "upload": "node scripts/upload.mjs"
   },
   "engines": {
     "node": ">=18"

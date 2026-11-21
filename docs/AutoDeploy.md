@@ -181,6 +181,15 @@ npm run build     # 建置 + 驗證
 npm run verify    # 只跑守門檢查
 ```
 
+### 模式 E：產生上傳包
+
+```bash
+npm run upload    # 建置 → 驗證 → 產出 dist/
+```
+
+`dist/` 內容：`index.html`、`version.json`（版本戳）、`404.html`、`_headers`（HTML 不快取）、`.nojekyll`。
+這個資料夾可以直接丟到任何靜態主機（Netlify Drop、Cloudflare Pages、GitHub Pages），不需要改任何設定。
+
 > 想調延遲：`DEBOUNCE_MS=1200 npm run watch:push`（慢速硬碟或大檔案時有用）。
 
 ---
@@ -221,7 +230,65 @@ CI 的日誌在 GitHub → Actions → 對應 run → 展開 `建置` / `守門�
 
 ---
 
-## 7. 回滾（已上線但發現問題）
+## 9. 分享連結與更新機制（WorkBuddy 站點）
+
+**現用連結（固定不變）**
+
+```
+https://bond-quest.app.workbuddy.host/?sharecode=UXRUYBRT6X
+```
+
+### 9.1 為甚麼連結不會變
+
+發佈是綁在一個 **appId**（`wbapp_TgQ6cTAiyoqwbKTyZMQz4R`）上的。重新發佈時：
+
+```
+本地 site/  →  壓縮上傳  →  覆寫同一個 app 的沙箱  →  同一個 sharecode 指向新內容
+```
+
+所以 `sharecode=UXRUYBRT6X` 永遠有效，**你不需要重新取得連結**，已收到連結的人 `F5` 就看到最新版。
+
+### 9.2 已完成的實測
+
+| 步驟 | 線上位元組 | 線上 SHA-256 | 建置戳記 |
+|---|---|---|---|
+| 第一次發佈 | 828,141 | `c9c5619f…` | — |
+| 修改 → `npm run upload` → 重新發佈 | 828,198 | `3db7bd05…` | 22:27:39 |
+| 用**同一條連結**重新抓取 | 828,198 | `3db7bd05…` | 22:27:39 |
+
+連結完全相同，內容已被替換，且線上檔案的 SHA-256 與本地 `dist/index.html` **逐位元組一致**。
+
+### 9.3 更新流程
+
+```bash
+npm run upload     # 1. 建置 + 驗證 + 出包
+                   # 2. 重新發佈同一個應用（說一句「更新上線」即可）
+```
+
+或用 §4 的 GitHub Pages，達到 `git push` 全自動。
+
+### 9.4 如何確認線上是不是最新版
+
+在線上頁面 **右鍵 → 檢視網頁原始碼**，第 4 行：
+
+```html
+<!-- build: 2026-11-21 22:27:39 | src: c57e7c605faa -->
+```
+
+時間戳比你的建置時間新，就是最新版。
+
+### 9.5 限制（重要）
+
+1. **不是「存檔即上線」**：WorkBuddy 沙箱是快照，不會監看你的本地資料夾。`npm run watch` 只更新本機，要上線仍需重新發佈一次。真正全自動請走 §4。
+2. **sharecode 就是存取憑證**：任何拿到這條連結的人都能玩，請勿公開發佈在公開論壇。
+3. **瀏覽器／學校網絡快取**：極少數情況仍見舊版，`Ctrl+F5` 強制重新整理。
+4. **`version.json` 只在一般靜態主機有效**：WorkBuddy 站點只服務入口頁，直接開 `/version.json` 會顯示「連結不完整」，屬正常。
+5. **手機未支援**：仍只有鍵盤 + 滑鼠操作（無虛擬搖桿），手機開啟會看到提示但無法遊玩。
+6. **單檔 808 KB**：首次載入需下載整個遊戲（含 Three.js），學校網慢時會等幾秒。
+
+---
+
+## 10. 回滾（已上線但發現問題）
 
 **方法 1：反轉提交（推薦，保留歷史）**
 
@@ -242,7 +309,7 @@ GitHub → Actions → 找到上一個成功的 run → **Re-run all jobs**。
 
 ---
 
-## 8. 需要知道的限制
+## 11. 其他需要知道的限制
 
 1. **更新不是「即時」而是「1–2 分鐘」**：Actions 排隊 + 建置 + Pages CDN 傳播。若要做到 10 秒級，用 Plan B（Cloudflare 直傳）。
 2. **Pages CDN 會快取**：更新後如果還看到舊版，`Ctrl+F5` 強制重新整理（或無痕視窗）。
@@ -252,7 +319,7 @@ GitHub → Actions → 找到上一個成功的 run → **Re-run all jobs**。
 
 ---
 
-## 9. Plan B：Cloudflare Pages（想更快）
+## 12. Plan B：Cloudflare Pages（想更快）
 
 ```bash
 npm i -D wrangler
@@ -266,7 +333,7 @@ npx wrangler pages deploy site --project-name bond-quest
 
 ---
 
-## 10. 驗收清單
+## 13. 驗收清單
 
 - [x] `git` repo 已建立，產物與日誌已排除
 - [x] `python build.py` 產出 809 KB、`site/` 同步
@@ -274,6 +341,8 @@ npx wrangler pages deploy site --project-name bond-quest
 - [x] `npm run watch` 存檔後 1.1 秒完成重建（已實測）
 - [x] 故意寫壞 `data.js` → 驗證失敗、阻止部署、自動回滾（已實測）
 - [x] `node scripts/ship.mjs` 建置→驗證→提交 全鏈路通過（已實測）
-- [ ] 推到 GitHub（待你執行 §4.1）
+- [x] `npm run upload` 產出 `dist/`（版本戳 + 快取標頭）
+- [x] WorkBuddy 站點已發佈，連結 `?sharecode=UXRUYBRT6X`
+- [x] 重新發佈後同一連結內容更新（線上 SHA-256 = 本地，已實測）
+- [ ] 推到 GitHub（待你執行 §4.1，可選：做到全自動）
 - [ ] Settings → Pages → Source 選 GitHub Actions（待你執行 §4.2）
-- [ ] 首次 CI 綠燈、取得 `*.github.io` 網址

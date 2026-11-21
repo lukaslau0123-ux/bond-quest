@@ -1,6 +1,9 @@
 # 建置產物：由 build.py 從 _src/ 生成，不入版控
 /index.html
 /site/index.html
+/site/version.json
+/site/_headers
+/dist/
 
 # 本機執行日誌
 /logs/
