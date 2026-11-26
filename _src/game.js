@@ -21,57 +21,35 @@
   const $ = id => document.getElementById(id);
 
   const INTRO_HTML = `
-    <div class="introGrid" style="align-items:start">
-      <div class="qsBox">
-        <div class="qsHead">YOUR MISSION</div>
-        <p class="qsGoal">Explore <b>4 regions</b> and complete <b>9 quests</b>. Along the way you will master <b>ionic</b>, <b>covalent</b> and <b>metallic</b> bonding — and learn to draw <b>dot-and-cross diagrams</b>.</p>
+    <div class="introGrid" style="align-items:stretch">
+      <div class="qsBox qsMission">
+        <div class="qsHead">🌟 YOUR MISSION</div>
+        <p class="qsBig">🌱 <b>Learn chemistry by playing!</b><br>Walk around, meet the glowing helpers, and finish <b>9 little quests</b> about bonding.</p>
       </div>
 
       <div class="qsBox">
-        <div class="qsHead">HOW TO PLAY — 3 SIMPLE STEPS</div>
-        <div class="ruleRow"><span class="rn">1</span><span>Walk up to a <b>glowing NPC, chest or crystal</b>.</span></div>
-        <div class="ruleRow"><span class="rn">2</span><span>Press <kbd>E</kbd> when the prompt appears.</span></div>
-        <div class="ruleRow"><span class="rn">3</span><span>Answer the questions or draw the electrons → quest complete, and your progress <b>+1</b>.</span></div>
+        <div class="qsHead">🎮 PLAY IN 3 EASY STEPS</div>
+        <div class="ruleRow"><span class="rn rnBig">1</span><span><b>WALK</b> to the glowing person <em>(WASD keys / joystick)</em></span></div>
+        <div class="ruleRow"><span class="rn rnBig">2</span><span><b>PRESS</b> <kbd>E</kbd> <em>when you get close</em></span></div>
+        <div class="ruleRow"><span class="rn rnBig">3</span><span><b>PICK</b> the right answer → <b>quest done! +1</b> 🎉</span></div>
+        <p class="qsTiny">Lost? Follow the <b style="color:#8ff0c8">green light beam</b> — it always points to your next quest. Press <kbd>M</kbd> for the map.</p>
       </div>
     </div>
 
     <div class="qsBox">
-      <div class="qsHead">QUICK START — 5 STEPS</div>
-      <ol class="qsOl">
-        <li>Press <b>Start exploring</b> below.</li>
-        <li>Read the <b>CURRENT OBJECTIVE</b> panel on the left: it tells you what to do, how far away it is (e.g. <b>26 m</b>) and the direction (e.g. <b>NW</b>).</li>
-        <li>Follow the <b>white arrow</b> in the panel and on the mini-map. Press <kbd>M</kbd> at any time to open the big map.</li>
-        <li>When you arrive, a prompt appears in the middle of the screen — press <kbd>E</kbd>.</li>
-        <li>Finish the questions or the diagram → the counter at the top goes <b>+1</b>, and the panel automatically switches to your next quest.</li>
-      </ol>
-      <p class="qsGoal" style="margin-top:9px;padding-top:9px;border-top:1px solid rgba(255,255,255,.09);font-size:12px;color:#9fbcb1">
-        <b style="color:#8ff0c8">Want to move faster?</b> Walk to a blue anchor and press <kbd>E</kbd> to activate it. Then press <kbd>M</kbd> and click the anchor, or press <kbd>T</kbd>, to teleport. Stuck? Just press the <b>Hint</b> button.
-      </p>
-    </div>
-
-    <div class="qsBox">
-      <div class="qsHead"> ACTION COMBAT — FIGHT, EARN, UPGRADE</div>
-      <div class="ruleRow"><span class="rn">⚔</span><span>Wild <b>enemies</b> roam the fields and roads. Press <kbd>J</kbd> to attack — chain hits into a <b>combo</b> for bonus damage.</span></div>
-      <div class="ruleRow"><span class="rn">✦</span><span>Press <kbd>K</kbd> for a powerful <b>skill</b> (recharges over time). Every hit and defeat gives <b>Score</b> and <b>Gold</b>.</span></div>
-      <div class="ruleRow"><span class="rn">◉</span><span>Spend Gold in the <b>Shop</b> on weapons, outfits and characters. Higher <b>Score</b> unlocks the best gear. Press <kbd>B</kbd> to shop, <kbd>C</kbd> to swap character, <kbd>1–5</kbd> to switch weapons.</span></div>
-    </div>
-
-    <div class="qsBox">
-      <div class="qsHead">LEARN BY DOING — 2 EXAMPLES</div>
-      <div class="exRow"><b>① Answer questions (talk to an NPC):</b> "What is NaCl made of?" → choose <b>A metal + a non-metal</b> → "What happens to the electrons?" → <b>Electron transfer</b> → "What kind of bond?" → <b>Ionic bond</b>. Three correct steps finish the quest.</div>
-      <div class="exRow"><b>② Draw a dot-and-cross diagram (open a chest):</b> choose <b>•</b> → click each dotted slot beside Cl <b>twice</b> to place a pair → click <b>[ ] Brackets</b> → set Na to <b>+</b> and Cl to <b>−</b> → press <b>Check</b>. Follow the live checklist beside the diagram.</div>
+      <div class="qsHead">✨ EXTRA FUN (learn this after step 3 works)</div>
+      <div class="exRow">⚔ See an animal? Press <kbd>J</kbd> to fight it — you earn <b>score + gold</b>! Press <kbd>K</kbd> for a super attack.</div>
+      <div class="exRow">◉ Spend gold in the <b>Shop</b> <kbd>B</kbd> — unlock cool weapons, outfits & characters!</div>
+      <div class="exRow">💎 Blue crystals teach you a <b>new science word</b>. Collect them all!</div>
     </div>
 
     <div class="ctrlRow">
       <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</span>
-      <span><kbd>Space</kbd> Jump</span>
-      <span><kbd>Mouse</kbd> Look around</span>
       <span><kbd>E</kbd> Interact</span>
       <span><kbd>J</kbd> Attack</span>
       <span><kbd>K</kbd> Skill</span>
-      <span><kbd>C</kbd> Character</span>
-      <span><kbd>1-5</kbd> Weapon</span>
       <span><kbd>B</kbd> Shop</span>
+      <span><kbd>C</kbd> Character</span>
       <span><kbd>M</kbd> Map</span>
       <span><kbd>T</kbd> Teleport</span>
       <span><kbd>H</kbd> Help</span>
@@ -109,6 +87,62 @@
     setTimeout(() => { d.style.opacity = '0'; d.style.transition = 'opacity .3s'; }, ms || 2200);
     setTimeout(() => d.remove(), (ms || 2200) + 400);
   }
+
+  /* ---------------- sound effects (procedural WebAudio, no files) ---------------- */
+  const SFX = (function () {
+    let ctx = null;
+    let muted = false;
+    try { muted = localStorage.getItem('bq_mute') === '1'; } catch (e) { }
+    function ac() {
+      if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+      if (ctx.state === 'suspended') ctx.resume();
+      return ctx;
+    }
+    function tone(f0, f1, dur, type, vol, delay) {
+      const a = ac(); if (!a || muted) return;
+      const t0 = a.currentTime + (delay || 0);
+      const o = a.createOscillator(), gn = a.createGain();
+      o.type = type || 'sine';
+      o.frequency.setValueAtTime(f0, t0);
+      o.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t0 + dur);
+      gn.gain.setValueAtTime(0.0001, t0);
+      gn.gain.exponentialRampToValueAtTime(vol || 0.2, t0 + 0.012);
+      gn.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      o.connect(gn); gn.connect(a.destination);
+      o.start(t0); o.stop(t0 + dur + 0.05);
+    }
+    function noise(dur, vol, freq) {
+      const a = ac(); if (!a || muted) return;
+      const t0 = a.currentTime;
+      const n = Math.floor(a.sampleRate * dur);
+      const buf = a.createBuffer(1, n, a.sampleRate);
+      const d = buf.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+      const src = a.createBufferSource(); src.buffer = buf;
+      const fl = a.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = freq || 1200;
+      const gn = a.createGain(); gn.gain.setValueAtTime(vol || 0.2, t0);
+      gn.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
+      src.connect(fl); fl.connect(gn); gn.connect(a.destination);
+      src.start(t0);
+    }
+    return {
+      swing() { noise(0.12, 0.18, 2400); tone(320, 90, 0.12, 'sawtooth', 0.08); },
+      hit() { noise(0.08, 0.32, 900); tone(180, 60, 0.1, 'square', 0.18); },
+      kill() { tone(160, 40, 0.35, 'sawtooth', 0.22); noise(0.22, 0.22, 600); tone(520, 130, 0.3, 'sine', 0.12, 0.05); },
+      coin() { tone(880, 1320, 0.09, 'sine', 0.16); tone(1320, 1760, 0.14, 'sine', 0.14, 0.06); },
+      good() { tone(523, 523, 0.09, 'sine', 0.16); tone(659, 659, 0.09, 'sine', 0.16, 0.09); tone(784, 784, 0.16, 'sine', 0.18, 0.18); },
+      bad() { tone(220, 110, 0.28, 'square', 0.14); },
+      jump() { tone(220, 520, 0.14, 'sine', 0.1); },
+      skill() { tone(400, 1200, 0.3, 'sine', 0.2); tone(800, 2400, 0.25, 'sine', 0.1, 0.05); },
+      click() { tone(660, 660, 0.05, 'sine', 0.1); },
+      hurt() { tone(140, 70, 0.2, 'sawtooth', 0.18); },
+      unlock() { tone(440, 660, 0.12, 'sine', 0.16); tone(660, 990, 0.18, 'sine', 0.16, 0.1); },
+      isMuted() { return muted; },
+      toggleMute() { muted = !muted; try { localStorage.setItem('bq_mute', muted ? '1' : '0'); } catch (e) { } return muted; },
+      resume() { ac(); }
+    };
+  })();
+  window.SFX = SFX;   // world.js (jump/land) and inline handlers use this
 
   /* ============================================================
      COMBAT + REWARD LOOP  (original action-RPG layer)
@@ -168,12 +202,14 @@
     saveCombat();   // ensure a baseline record exists from the first session
     WORLD.setCombatHooks({
       onHit: function (enemy, dmg, combo, isSkill) {
+        SFX.hit();
         const s = COMBAT_RULES.hitScore + (combo || 0);
         const g = COMBAT_RULES.hitGold;
         addScore(s); addGold(g);
-        if (Math.random() < 0.45) floatReward('+' + s + '  +' + g + 'g', enemy.group.position);
+        if (Math.random() < 0.45) { SFX.coin(); floatReward('+' + s + '  +' + g + 'g', enemy.group.position); }
       },
       onKill: function (enemy) {
+        SFX.kill();
         COMBAT.kills++;
         addScore(enemy.type.score); addGold(enemy.type.gold);
         toast('⚔ ' + enemy.type.name + ' defeated! <b>+' + enemy.type.score + ' score</b> · <b>+' + enemy.type.gold + ' gold</b>', 1800);
@@ -183,6 +219,7 @@
       onHurt: function (enemy) {
         if (COMBAT.hurtCd > 0) return;
         COMBAT.hurtCd = 1.0;
+        SFX.hurt();
         const el = $('hurtFlash'); if (el) { el.style.opacity = '1'; setTimeout(() => { el.style.opacity = '0'; }, 260); }
       }
     });
@@ -192,6 +229,57 @@
     updateCombatHUD();
   }
   COMBAT.hurtCd = 0;
+
+  /* ---------------- big on-screen step guide (kid-friendly) ----------------
+     STEP 1 WALK to the glowing target → STEP 2 PRESS E → celebration. */
+  let bigHintOn = false, bigHintStep = 0, bigHintCelebrate = 0;
+  function bigHintSeen() {
+    try { return !!localStorage.getItem('bq_bighint_v1'); } catch (e) { return false; }
+  }
+  function bigHintShow(step) {
+    bigHintStep = step;
+    const bh = $('bigHint'); if (!bh) return;
+    const txt = {
+      1: ['👣 STEP 1', 'WALK to the glowing person', 'Follow the green light beam!'],
+      2: ['✋ STEP 2', 'PRESS  E', 'Get close, then press the E key!'],
+      3: ['🎉', 'QUEST DONE!  +1', 'Amazing! Keep following the green beam.']
+    }[step];
+    if (!txt) return;
+    bh.querySelector('.bhStep').textContent = txt[0];
+    bh.querySelector('.bhText').textContent = txt[1];
+    bh.querySelector('.bhSub').textContent = txt[2];
+    bh.className = 'bh show s' + step;
+    bigHintOn = true;
+  }
+  function bigHintHide() {
+    const bh = $('bigHint'); if (bh) bh.className = 'bh';
+    bigHintOn = false;
+  }
+  function bigHintStart() {
+    if (!bigHintSeen()) setTimeout(() => bigHintShow(1), 900);
+  }
+  function questCelebrate() {
+    bigHintShow(3);
+    SFX.unlock();
+    bigHintCelebrate = performance.now() + 2000;
+  }
+  function tickBigHint() {
+    if (bigHintCelebrate && performance.now() > bigHintCelebrate) {
+      bigHintCelebrate = 0;
+      try { localStorage.setItem('bq_bighint_v1', '1'); } catch (e) { }
+      bigHintHide();
+      return;
+    }
+    if (bigHintCelebrate) return;
+    if (bigHintSeen()) return;
+    if (state !== STATE.WORLD || !started) return;
+    const t = trackedNode();
+    if (!t) return;
+    const p = WORLD.player.position;
+    const d = Math.hypot(t.x - p.x, t.z - p.z);
+    if (bigHintStep === 1 && d < 7) bigHintShow(2);
+    else if (!bigHintOn) bigHintShow(d < 7 ? 2 : 1);   // restore after closing a modal
+  }
 
   /* Floating reward text in screen space (lightweight, no 3D text needed). */
   function floatReward(text, worldPos, big) {
@@ -217,6 +305,7 @@
     }
     const w = WPN[COMBAT.weapon];
     if (now - COMBAT.lastHit < w.rate * 0.75 && !isSkill) return;  // rate limit
+    if (isSkill) SFX.skill(); else SFX.swing();
     const comboStep = isSkill ? 0 : COMBAT.combo;
     const res = WORLD.performAttack(w, comboStep, !!isSkill);
     COMBAT.lastHit = now;
@@ -697,7 +786,7 @@
     dlg = { node, c, step: 0, picks: [], hintUsed: false, wrongSteps: 0 };
     $('npcName').textContent = node.label.en + ' · ' + c.f;
     $('npcAvatar').textContent = c.f.replace(/[₀-₉]/g, '').slice(0, 2);
-    $('npcLine').textContent = 'Help me classify ' + c.f + ' — answer three quick steps: composition, electron behaviour, bond type.';
+    $('npcLine').textContent = '📖 LEARNING: classify ' + c.f + ' — three quick questions and the quest is done!';
     setState(STATE.DIALOG);
     openModal('dialogModal');
     renderDialogStep();
@@ -757,6 +846,7 @@
 
     let ex = explain(c, dlg.step + 1);
     if (!ok) {
+      SFX.bad();
       dlg.wrongSteps++;
       const chosenOpt = opts.find(o => o.v === v) || { en: '—' };
       const why = (v === -1 && c.trap) ? c.trap.why : stepWhy(c, dlg.step + 1, v);
@@ -766,6 +856,7 @@
         wxCard(chosenOpt, why, rule, '');
       setTimeout(() => { try { fb.scrollIntoView({ block: 'start' }); } catch (e) { } }, 30);
     } else {
+      SFX.good();
       fb.className = 'fb show ok';
       fb.innerHTML = '✓ ' + ex.en;
     }
@@ -806,7 +897,7 @@
       correctCount++;
       nodeCorrect.set(dlg.node.id, true);
     }
-    done.add(dlg.node.id);
+    done.add(dlg.node.id); questCelebrate();
     WORLD.setNodeState(dlg.node.id, 'done');
     $('dialogBody').innerHTML =
       '<div class="fb show ok" style="margin-top:0">' +
@@ -1188,6 +1279,7 @@
 
     if (ok) {
       dcq.solved = true;
+      SFX.good();
       fb.innerHTML = '<div class="fbBanner ok"><span class="fbIcon">✓</span><div>' +
         '<b>Perfect diagram!</b>' +
         '<em>' + (q.type === 'ionic'
@@ -1196,7 +1288,7 @@
         '</div></div>';
       correctCount++;
       nodeCorrect.set(dcq.node.id, true);
-      done.add(dcq.node.id);
+      done.add(dcq.node.id); questCelebrate();
       WORLD.setNodeState(dcq.node.id, 'done');
       $('dcCheckBtn').textContent = 'Back to world';
       toast((dcq.node.main ? '✓ Quest complete! +1 — ' : '✓ Chest complete — ') + q.compound + ' mastered');
@@ -1302,11 +1394,12 @@
   }
   $('vocabCollectBtn').addEventListener('click', () => {
     if (!vocabNode) return;
-    done.add(vocabNode.id);
+    done.add(vocabNode.id); questCelebrate();
     WORLD.setNodeState(vocabNode.id, 'done');
     logEvent({ type: 'vocab', term: vocabNode.term });
     closeModal('vocabModal');
     setState(STATE.WORLD);
+    SFX.unlock();
     toast('✓ Vocabulary collected: <b>' + TERM[vocabNode.term].en + '</b> — added to your glossary');
     vocabNode = null;
     updateHUD();
@@ -1528,6 +1621,7 @@
     syncPaused();
     if (state === STATE.WORLD) { WORLD.setLocked(false); WORLD.relock(); }
     try { localStorage.setItem('bq_coach_v2', '1'); } catch (e) { }
+    bigHintStart();   // show the kid-friendly walk/press-E guide after the tour
     try { CLOUD.save(); } catch (e) { }
   }
 
@@ -2288,7 +2382,7 @@
         if (COMBAT.score < w.scoreReq) { toast('Need ' + w.scoreReq + ' score points to buy this'); return; }
         if (COMBAT.gold < w.gold) { toast('Not enough gold'); return; }
         COMBAT.gold -= w.gold; COMBAT.weapons.push(id);
-        toast('⚔ Purchased <b>' + w.name + '</b>!');
+        SFX.unlock(); toast('⚔ Purchased <b>' + w.name + '</b>!');
       }
       COMBAT.weapon = id; WORLD.equipWeapon(id);
       toast('Equipped <b>' + w.name + '</b>');
@@ -2300,7 +2394,7 @@
         if (COMBAT.score < s.scoreReq) { toast('Need ' + s.scoreReq + ' score points to buy this'); return; }
         if (COMBAT.gold < s.gold) { toast('Not enough gold'); return; }
         COMBAT.gold -= s.gold; COMBAT.skins.push(id);
-        toast('✦ Purchased <b>' + s.name + '</b>!');
+        SFX.unlock(); toast('✦ Purchased <b>' + s.name + '</b>!');
       }
       COMBAT.skin = id; WORLD.applyCharacterLook(COMBAT.character, COMBAT.skin);
       saveCombat(); renderShop(); updateCombatHUD(); return;
@@ -2310,7 +2404,7 @@
       if (COMBAT.characters.indexOf(id) < 0) {
         if (COMBAT.score < c.scoreReq) { toast('Need ' + c.scoreReq + ' score points to unlock ' + c.name); return; }
         COMBAT.characters.push(id);
-        toast('☻ Unlocked <b>' + c.name + '</b> — ' + c.role + '!');
+        SFX.unlock(); toast('☻ Unlocked <b>' + c.name + '</b> — ' + c.role + '!');
       }
       COMBAT.character = id; WORLD.applyCharacterLook(COMBAT.character, COMBAT.skin);
       saveCombat(); renderShop(); updateCombatHUD(); renderCharList(); return;
@@ -2497,6 +2591,8 @@
   /* ================= INTERACTION ================= */
   function interact() {
     if (state !== STATE.WORLD || !started) return;
+    SFX.click();
+    bigHintHide();   // clear the step banner while a modal is open
     const wpNear = nearWpInfo(3.9);
     const n = WORLD.nearestNode(3.6);
     const pp = WORLD.player.position;
@@ -2597,6 +2693,13 @@
     bindAtk('skillBtn', () => playerAttack(true));
     bindAtk('swapBtn', cycleCharacter);
     bindAtk('shopQuickBtn', () => openShop());
+    // mute toggle
+    const muteBtn = $('muteBtn');
+    if (muteBtn) {
+      const syncMute = () => { muteBtn.textContent = SFX.isMuted() ? '🔇' : '🔊'; muteBtn.title = SFX.isMuted() ? 'Sound off' : 'Sound on'; };
+      syncMute();
+      muteBtn.addEventListener('click', () => { SFX.toggleMute(); syncMute(); });
+    }
     $('startIntro').innerHTML = INTRO_HTML;
     $('helpBody').innerHTML = INTRO_HTML;
     $('qpFoldBtn').addEventListener('click', () => {
@@ -2639,6 +2742,7 @@
       let seenCoach = false;
       try { seenCoach = !!localStorage.getItem('bq_coach_v2'); } catch (e) { }
       if (!seenCoach) setTimeout(() => coachShow(0), 500);
+      else bigHintStart();
       if (!storeOk) setTimeout(() => toast('⚠️ Browser storage is blocked — progress will not save automatically. Use "↓" to export your data.', 5000), 1200);
       toast('Follow the arrow in the quest panel on the left — when you arrive, press E to interact.');
     });
@@ -2676,6 +2780,7 @@
     }
 
     tickCombat(dt);
+    tickBigHint();
     WORLD.update(dt, now / 1000);
 
     if (++mapTick % 4 === 0) {

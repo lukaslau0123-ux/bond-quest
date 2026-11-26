@@ -57,9 +57,33 @@ body{-webkit-user-select:none;user-select:none}
 
 #minimap{position:absolute;top:14px;right:14px;width:240px;height:240px;border-radius:14px;background:rgba(8,14,18,.7);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(6px)}
 
-#prompt{position:absolute;left:50%;bottom:96px;transform:translateX(-50%);background:rgba(12,20,24,.82);border:1px solid rgba(140,240,200,.5);border-radius:10px;padding:9px 16px;font-size:14px;color:#eafaf4;opacity:0;transition:opacity .18s;white-space:nowrap}
+#prompt{position:absolute;left:50%;bottom:96px;transform:translateX(-50%);background:rgba(12,20,24,.88);border:2px solid rgba(140,240,200,.7);border-radius:14px;padding:14px 24px;font-size:20px;color:#eafaf4;opacity:0;transition:opacity .18s;white-space:nowrap;animation:bhPulse 1.4s ease-in-out infinite}
 #prompt.show{opacity:1}
-#prompt kbd{background:#8ff0c8;color:#0d1418;border-radius:5px;padding:1px 6px;font-weight:600;font-size:12px}
+#prompt kbd{background:#8ff0c8;color:#0d1418;border-radius:7px;padding:3px 11px;font-weight:700;font-size:18px;box-shadow:0 0 12px rgba(143,240,200,.6)}
+
+/* ---------- kid-friendly big step banner ---------- */
+@keyframes bhPulse{0%,100%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.04)}}
+@keyframes bhFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+#bigHint.bh{position:fixed;left:50%;bottom:150px;transform:translateX(-50%) translateY(24px);z-index:57;
+  display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none;opacity:0;
+  transition:opacity .3s,transform .3s;padding:16px 34px;border-radius:18px;
+  background:linear-gradient(180deg,rgba(10,26,24,.94),rgba(8,18,20,.94));
+  border:2px solid rgba(143,240,200,.75);box-shadow:0 14px 44px rgba(0,0,0,.55),0 0 30px rgba(143,240,200,.22)}
+#bigHint.bh.show{opacity:1;transform:translateX(-50%) translateY(0);animation:bhFloat 2.2s ease-in-out infinite}
+#bigHint .bhStep{font-size:14px;font-weight:700;letter-spacing:2px;color:#ffd86a}
+#bigHint .bhText{font-size:30px;font-weight:800;color:#eafff6;letter-spacing:.5px;text-shadow:0 2px 12px rgba(0,0,0,.6)}
+#bigHint .bhSub{font-size:14px;color:#9fd8c4}
+#bigHint.bh.s2{border-color:#ffd86a;box-shadow:0 14px 44px rgba(0,0,0,.55),0 0 34px rgba(255,216,106,.3)}
+#bigHint.bh.s2 .bhStep{color:#ffd86a}
+#bigHint.bh.s3 .bhStep{color:#8ff0c8}
+
+/* ---------- simplified intro typography ---------- */
+.qsBig{font-size:19px;line-height:1.7;color:#eafaf4}
+.qsBig b{color:#8ff0c8}
+.qsTiny{font-size:12.5px;color:#9fbcb1;margin-top:9px;line-height:1.6}
+.qsMission{background:linear-gradient(135deg,rgba(143,240,200,.09),rgba(95,208,168,.03))}
+.rnBig{width:34px;height:34px;font-size:17px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto;
+  background:linear-gradient(135deg,#4fd6a4,#37b6d8);color:#0d1418;font-weight:800;box-shadow:0 0 14px rgba(79,214,164,.4)}
 #controlsHint{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);font-size:11px;color:rgba(200,225,215,.45);white-space:nowrap}
 
 /* ---------- toast ---------- */

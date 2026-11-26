@@ -28,6 +28,9 @@ const WORLD = (function () {
   /* ============ combat / reward loop state ============ */
   const enemies = [];                 // active enemy records
   const fx = [];                      // transient visual effects
+  let shakeT = 0, shakeAmp = 0;       // camera shake on impacts
+  let dustTimer = 0;                  // footstep dust cadence
+  let attackTrail = null;             // weapon trail emitter {t,dur,color}
   let weaponGroup = null;             // current weapon model attached to hand
   let weaponId = 'sword';
   let charId = 'lyra';
@@ -1889,7 +1892,7 @@ const WORLD = (function () {
 
     // jump + gravity
     const gy = heightAt(px, pz);
-    if ((keys[' '] || touchJump) && onGround) { vy = 9.6; onGround = false; touchJump = false; }
+    if ((keys[' '] || touchJump) && onGround) { vy = 9.6; onGround = false; touchJump = false; if (window.SFX) SFX.jump(); }
     vy -= 26 * dt;
     player.position.y += vy * dt;
     if (player.position.y <= gy) {
@@ -1910,6 +1913,12 @@ const WORLD = (function () {
     const spd = velocity.length();
     walkPhase += dt * (3.2 + spd * 0.95);
     const amp = Math.min(1, spd / 7) * 0.7;
+    /* footstep dust while running on the ground */
+    dustTimer -= dt;
+    if (spd > 4 && onGround && dustTimer <= 0 && combatEnabled) {
+      dustTimer = 0.17;
+      addFxDust(player.position.x, player.position.y, player.position.z);
+    }
     if (limbs.legs.length === 2) {
       if (onGround) {
         limbs.legs[0].rotation.x = Math.sin(walkPhase) * amp;
@@ -1948,6 +1957,14 @@ const WORLD = (function () {
     );
     if (dtOrInit === 1) camera.position.copy(targetCam);
     else camera.position.lerp(targetCam, 1 - Math.exp(-9 * dtOrInit));
+    /* impact camera shake */
+    if (shakeT > 0) {
+      shakeT -= dtOrInit === 1 ? 0 : dtOrInit;
+      const a = shakeAmp * Math.max(0, shakeT) * 2.2;
+      camera.position.x += (Math.random() - 0.5) * a;
+      camera.position.y += (Math.random() - 0.5) * a * 0.6;
+      if (shakeT <= 0) shakeAmp = 0;
+    }
 
     const gmin = heightAt(camera.position.x, camera.position.z) + 1.4;
     if (camera.position.y < gmin) camera.position.y = gmin;
@@ -2057,6 +2074,7 @@ const WORLD = (function () {
     }
     g.userData.type = t;
     g.userData.kind = 'weapon';
+    g.userData.tipY = t === 'staff' ? 1.06 : t === 'bow' ? 0.55 : t === 'daggers' ? 0.42 : 1.0;
     return g;
   }
 
@@ -2117,9 +2135,10 @@ const WORLD = (function () {
     const dark = plMat(0x3a2c28, plRamps().G2);
     const glow = new THREE.MeshBasicMaterial({ color: 0xff6a5a });
     const g = new THREE.Group();
+    const legs = [], parts = { legs: legs };
     const add = (geo, mat, x, y, z, sx, sy, sz) => {
       const m = new THREE.Mesh(geo, mat);
-      m.position.set(x, y, z); if (sx) m.scale.set(sx, sy, sz);
+      m.position.set(x, y, z); if (sx) { m.scale.set(sx, sy, sz); m.userData.bs = [sx, sy, sz]; }
       m.castShadow = true; g.add(m); return m;
     };
     if (typeId === 'boar') {
@@ -2127,29 +2146,31 @@ const WORLD = (function () {
       add(new THREE.SphereGeometry(0.34, 12, 10), bodyMat, 0, 0.72, 0.62, 1, 0.9, 0.95);   // head
       add(new THREE.ConeGeometry(0.09, 0.28, 6), dark, -0.18, 0.92, 0.78, 1, 1, 1);        // tusks
       add(new THREE.ConeGeometry(0.09, 0.28, 6), dark, 0.18, 0.92, 0.78, 1, 1, 1);
-      [-1, 1].forEach(sd => {
-        add(new THREE.CylinderGeometry(0.06, 0.05, 0.42, 6), dark, sd * 0.3, 0.21, 0.32);
-        add(new THREE.CylinderGeometry(0.06, 0.05, 0.42, 6), dark, sd * 0.3, 0.21, -0.32);
+      [[-0.3, 0.32], [0.3, 0.32], [-0.3, -0.32], [0.3, -0.32]].forEach(function (lp) {
+        const leg = add(new THREE.CylinderGeometry(0.06, 0.05, 0.42, 6), dark, lp[0], 0.21, lp[1]);
+        legs.push(leg);
       });
       add(new THREE.SphereGeometry(0.07, 8, 6), glow, -0.15, 0.80, 0.88);                 // eyes
       add(new THREE.SphereGeometry(0.07, 8, 6), glow, 0.15, 0.80, 0.88);
       g.userData.height = 1.1;
     } else if (typeId === 'slime') {
-      add(new THREE.SphereGeometry(0.46, 16, 12), bodyMat, 0, 0.42, 0, 1.1, 0.95, 1.1);
+      parts.body = add(new THREE.SphereGeometry(0.46, 16, 12), bodyMat, 0, 0.42, 0, 1.1, 0.95, 1.1);
       add(new THREE.SphereGeometry(0.09, 8, 6), glow, -0.18, 0.52, 0.40);
       add(new THREE.SphereGeometry(0.09, 8, 6), glow, 0.18, 0.52, 0.40);
       g.userData.height = 0.9;
     } else { // crab
-      add(new THREE.SphereGeometry(0.52, 14, 10), bodyMat, 0, 0.52, 0, 1.3, 0.65, 1);
+      parts.body = add(new THREE.SphereGeometry(0.52, 14, 10), bodyMat, 0, 0.52, 0, 1.3, 0.65, 1);
       [-1, 1].forEach(sd => {
-        add(new THREE.SphereGeometry(0.22, 10, 8), bodyMat, sd * 0.62, 0.5, 0.1);
+        const claw = add(new THREE.SphereGeometry(0.22, 10, 8), bodyMat, sd * 0.62, 0.5, 0.1);
+        legs.push(claw);
         add(new THREE.ConeGeometry(0.14, 0.4, 6), dark, sd * 0.78, 0.72, 0.16, 1, 1, 1);
-        for (let i = -1; i <= 1; i++) add(new THREE.CylinderGeometry(0.04, 0.03, 0.4, 5), dark, sd * 0.5, 0.2, i * 0.3);
+        for (let i = -1; i <= 1; i++) legs.push(add(new THREE.CylinderGeometry(0.04, 0.03, 0.4, 5), dark, sd * 0.5, 0.2, i * 0.3));
       });
       add(new THREE.SphereGeometry(0.07, 8, 6), glow, -0.2, 0.7, 0.45);
       add(new THREE.SphereGeometry(0.07, 8, 6), glow, 0.2, 0.7, 0.45);
       g.userData.height = 0.95;
     }
+    g.userData.parts = parts;
     g.scale.setScalar(e.scale || 1);
     return g;
   }
@@ -2207,6 +2228,21 @@ const WORLD = (function () {
     scene.add(sp);
     fx.push({ mesh: sp, t: 0, dur: 0.45, kind: 'spark' });
   }
+  function addFxDust(x, y, z) {
+    const mat = new THREE.SpriteMaterial({ map: softDot(64), color: 0xcfc8b8, transparent: true, opacity: 0.5, depthWrite: false });
+    const sp = new THREE.Sprite(mat);
+    sp.position.set(x + (Math.random() - 0.5) * 0.5, y + 0.15, z + (Math.random() - 0.5) * 0.5);
+    sp.scale.setScalar(0.55);
+    scene.add(sp);
+    fx.push({ mesh: sp, t: 0, dur: 0.7, kind: 'dust' });
+  }
+  function addFxTrail(x, y, z, color) {
+    const mat = new THREE.SpriteMaterial({ map: softDot(64), color: color, transparent: true, opacity: 0.75, depthWrite: false });
+    const sp = new THREE.Sprite(mat);
+    sp.position.set(x, y, z); sp.scale.setScalar(0.85);
+    scene.add(sp);
+    fx.push({ mesh: sp, t: 0, dur: 0.22, kind: 'trail' });
+  }
   function updateFx(dt) {
     for (let i = fx.length - 1; i >= 0; i--) {
       const f = fx[i]; f.t += dt;
@@ -2221,8 +2257,20 @@ const WORLD = (function () {
       } else if (f.kind === 'spark') {
         f.mesh.position.y += dt * 1.2; f.mesh.material.opacity = 1 - k;
         f.mesh.scale.setScalar(0.9 + k * 0.8);
+      } else if (f.kind === 'dust') {
+        f.mesh.position.y += dt * 0.5;
+        f.mesh.scale.setScalar(0.55 + k * 0.9);
+        f.mesh.material.opacity = 0.5 * (1 - k);
+      } else if (f.kind === 'trail') {
+        f.mesh.scale.setScalar(0.85 - k * 0.4);
+        f.mesh.material.opacity = 0.75 * (1 - k);
       }
     }
+  }
+
+  function triggerShake(amp, dur) {
+    shakeAmp = Math.max(shakeAmp, amp);
+    shakeT = Math.max(shakeT, dur || 0.25);
   }
 
   /* ---------- trigger an attack pose ---------- */
@@ -2243,7 +2291,9 @@ const WORLD = (function () {
     const fwdX = Math.sin(player.rotation.y), fwdZ = Math.cos(player.rotation.y);
     triggerAttack(isSkill ? 'cast' : w.anim);
     addFxSlash(px, py, pz, player.rotation.y, w.glow);
+    triggerShake(isSkill ? 0.5 : 0.28, isSkill ? 0.4 : 0.24);
     if (isSkill) addFxRing(px, py, pz, w.glow, 3.2, 0.6);
+    attackTrail = { t: 0, dur: (isSkill ? 0.5 : 0.42), color: w.glow };
 
     let hitAny = false, killed = 0;
     enemies.forEach(en => {
@@ -2261,9 +2311,10 @@ const WORLD = (function () {
       if (combatHooks.onHit) combatHooks.onHit(en, dmg, comboStep, isSkill);
       if (en.hp <= 0) {
         en.alive = false; en.respawn = COMBAT_RULES.respawnDelay;
-        en.group.visible = false;
+        en.dying = 0.45;                       // play a topple-and-shrink death animation
         addFxRing(en.group.position.x, en.group.position.y, en.group.position.z, 0xffc85f, 2.4, 0.55);
         killed++;
+        triggerShake(0.4, 0.3);
         if (combatHooks.onKill) combatHooks.onKill(en);
       }
     });
@@ -2311,12 +2362,30 @@ const WORLD = (function () {
   function updateCombat(dt) {
     if (!combatEnabled) return;
     updateFx(dt);
+    /* weapon trail while attacking */
+    if (attackTrail) {
+      attackTrail.t += dt;
+      if (attackTrail.t < attackTrail.dur && weaponGroup) {
+        weaponGroup.updateWorldMatrix(true, false);
+        const tp = weaponGroup.getWorldPosition(new THREE.Vector3());
+        addFxTrail(tp.x, tp.y + (weaponGroup.userData.tipY || 0.8) * 0.85, tp.z, attackTrail.color);
+      } else attackTrail = null;
+    }
     const px = player.position.x, pz = player.position.z;
     enemies.forEach(en => {
       if (!en.alive) {
+        /* dying: topple + shrink before hiding */
+        if (en.dying > 0) {
+          en.dying -= dt;
+          const k = Math.max(0, en.dying / 0.45);
+          en.group.rotation.x = -(1 - k) * 1.45;
+          en.group.scale.setScalar(en.type.scale * Math.max(0.05, k));
+          if (en.dying <= 0) { en.group.visible = false; en.group.rotation.x = 0; }
+        }
         en.respawn -= dt;
         if (en.respawn <= 0) {
           en.alive = true; en.hp = en.maxHp; en.group.visible = true;
+          en.group.rotation.x = 0; en.group.scale.setScalar(en.type.scale);
           en.group.position.set(en.homeX, heightAt(en.homeX, en.homeZ), en.homeZ);
         }
         return;
@@ -2339,7 +2408,23 @@ const WORLD = (function () {
       } else {
         en.state = 'idle';
       }
-      g.position.y = heightAt(g.position.x, g.position.z) + Math.sin(elapsed * 3 + en.bob) * 0.05;
+      g.position.y = heightAt(g.position.x, g.position.z) + Math.abs(Math.sin(elapsed * 3 + en.bob)) * 0.07;
+      /* limb / body animation */
+      const parts = g.userData.parts;
+      if (parts) {
+        const moveK = en.state === 'chase' ? 1 : en.state === 'attack' ? 0.55 : 0.18;
+        if (parts.legs && parts.legs.length) {
+          parts.legs.forEach(function (lg, i) {
+            lg.rotation.x = Math.sin(elapsed * 9 + i * Math.PI * 0.72) * 0.55 * moveK;
+            lg.rotation.z = Math.cos(elapsed * 9 + i * 1.7) * 0.14 * moveK;
+          });
+        }
+        if (parts.body && parts.body.userData.bs) {
+          const bs = parts.body.userData.bs;
+          const sq = Math.sin(elapsed * 4.5 + en.bob);
+          parts.body.scale.set(bs[0] * (1 - sq * 0.05), bs[1] * (1 + sq * 0.12), bs[2] * (1 - sq * 0.05));
+        }
+      }
       if (en.hitFlash > 0) {
         en.hitFlash -= dt;
         g.scale.setScalar(en.type.scale * (1 + en.hitFlash * 0.8));
