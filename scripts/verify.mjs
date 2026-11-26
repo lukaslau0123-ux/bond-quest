@@ -5,8 +5,8 @@ import path from 'node:path';
 import { ROOT } from './lib.mjs';
 
 const MIN_KB = 600;                 // 正常約 810 KB，太細代表組裝不完整
-const FILES = ['data.js', 'cloud.js', 'world.js', 'game.js'];
-const PLACEHOLDERS = ['/*__CSS__*/', '/*__THREE__*/', '/*__DATA__*/', '/*__CLOUD__*/', '/*__WORLD__*/', '/*__GAME__*/'];
+const FILES = ['data.js', 'story.js', 'cloud.js', 'models-preview.js', 'models-variants.js', 'ambient.js', 'swords-preview.js', 'world.js', 'game.js'];
+const PLACEHOLDERS = ['/*__CSS__*/', '/*__THREE__*/', '/*__DATA__*/', '/*__STORY__*/', '/*__CLOUD__*/', '/*__MODELS__*/', '/*__VARIANTS__*/', '/*__AMBIENT__*/', '/*__WORLD__*/', '/*__GAME__*/'];
 const REQUIRED = ['id="questPanel"', 'id="bigMapModal"', 'id="wpModal"', 'id="guildModal"', 'id="shopModal"', 'id="coachCard"', 'id="clModal"', 'id="authBtn"'];
 
 const rootHtml = path.join(ROOT, 'index.html');

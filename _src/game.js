@@ -716,9 +716,11 @@
       const dx = t.x - p.x, dz = t.z - p.z;
       const dist = Math.hypot(dx, dz);
       const lock = isLockedNode(t);
-      $('qpTag').textContent = t.main ? 'CURRENT OBJECTIVE' : 'SIDE QUEST';
-      $('qpName').textContent = nodeTitle(t);
-      $('qpDesc').textContent = nodeDesc(t) + ' Press E when you arrive.';
+      const st = (window.Story && t.main) ? window.Story.forNode(t.id) : null;
+      $('qpTag').textContent = st ? window.Story.chapterLabel(t.id) : (t.main ? 'CURRENT OBJECTIVE' : 'SIDE QUEST');
+      $('qpName').textContent = st ? (st.client + ' · ' + nodeTitle(t)) : nodeTitle(t);
+      $('qpDesc').textContent = st ? (st.objective + ' Press E when you arrive.')
+                                   : (nodeDesc(t) + ' Press E when you arrive.');
       $('qpDist').textContent = Math.round(dist) + ' m away';
       $('qpBear').textContent = '· ' + bearingText(dx, dz);
 
@@ -1100,9 +1102,10 @@
     $('npcName').textContent = node.label.en + ' · ' + c.f;
     $('npcAvatar').textContent = c.f.replace(/[₀-₉]/g, '').slice(0, 2);
     const mission = NODES.filter(n => n.main).indexOf(node) + 1;
-    $('npcLine').textContent = guided
+    const story = (window.Story && node.main) ? window.Story.forNode(node.id) : null;
+    $('npcLine').textContent = story ? story.intro : (guided
       ? bi('Challenge ' + mission + ' of ' + MAIN_TOTAL + ' · Classify ' + c.f, '第 ' + mission + ' / ' + MAIN_TOTAL + ' 題 · 分類 ' + c.f)
-      : bi('Classify ' + c.f + ' in three steps.', '用三個步驟分類 ' + c.f + '。');
+      : bi('Classify ' + c.f + ' in three steps.', '用三個步驟分類 ' + c.f + '。'));
     setState(STATE.DIALOG);
     openModal('dialogModal');
     renderDialogStep();
@@ -1374,7 +1377,9 @@
     updateCombatHUD();
     if (guided) labCompletionActions($('dialogBody'), closeDialog);
     persist();
-    toast((dlg.node.main ? '✓ Quest complete! +1 — ' : '✓ Side quest complete — ') + c.f + ' classified');
+    const epilogue = (!wasDone && dlg.node.main && window.Story) ? window.Story.forNode(dlg.node.id) : null;
+    toast(epilogue ? ('✦ ' + epilogue.done + ' <b>' + epilogue.reward + '</b>')
+                   : ((dlg.node.main ? '✓ Quest complete! +1 — ' : '✓ Side quest complete — ') + c.f + ' classified'), 3200);
   }
 
   function closeDialog(next) {

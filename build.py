@@ -13,6 +13,7 @@ def main():
         'CSS': read('_src/styles.css'),
         'THREE': read('_vendor/three.min.js'),
         'DATA': read('_src/data.js'),
+        'STORY': read('_src/story.js'),
         'CLOUD': read('_src/cloud.js'),
         'WORLD': read('_src/world.js'),
         'MODELS': read('_src/models-preview.js'),
@@ -20,14 +21,14 @@ def main():
         'AMBIENT': read('_src/ambient.js'),
         'GAME': read('_src/game.js'),
     }
-    for k in ('THREE', 'DATA', 'CLOUD', 'MODELS', 'VARIANTS', 'AMBIENT', 'WORLD', 'GAME'):
+    for k in ('THREE', 'DATA', 'STORY', 'CLOUD', 'MODELS', 'VARIANTS', 'AMBIENT', 'WORLD', 'GAME'):
         if '</script' in parts[k].lower():
             sys.exit('ERROR: %s contains </script>' % k)
 
     def repl(m):
         return parts[m.group(1)]
 
-    out = re.sub(r'/\*__(CSS|THREE|DATA|CLOUD|MODELS|VARIANTS|AMBIENT|WORLD|GAME)__\*/', repl, tpl)
+    out = re.sub(r'/\*__(CSS|THREE|DATA|STORY|CLOUD|MODELS|VARIANTS|AMBIENT|WORLD|GAME)__\*/', repl, tpl)
 
     # 建置戳記：查看原始碼即可確認線上版本與建置時間
     stamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
