@@ -7,14 +7,17 @@
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
 import { ROOT } from './lib.mjs';
 
 const CHROME = 'C:/Program Files/Google/Chrome/Application/chrome.exe';
+const PROFILE = path.join(os.tmpdir(), 'bq-chrome-' + Date.now());
 const [out = 'shot.png', w = '1280', h = '800', mode = 'desktop', query = ''] = process.argv.slice(2);
 const PORT = 9333 + Math.floor(Math.random() * 200);
 const url = 'file:///' + path.join(ROOT, 'index.html').replace(/\\/g, '/') + (query ? query : mode === 'mobile' ? '?touch=1' : '');
 
 const chrome = spawn(CHROME, [
+  `--user-data-dir=${PROFILE}`,
   '--headless=new',
   '--disable-gpu',
   '--hide-scrollbars',
