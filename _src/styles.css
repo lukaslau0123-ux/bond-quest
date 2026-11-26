@@ -63,7 +63,7 @@ body{-webkit-user-select:none;user-select:none}
 
 /* ---------- kid-friendly big step banner ---------- */
 @keyframes bhPulse{0%,100%{transform:translateX(-50%) scale(1)}50%{transform:translateX(-50%) scale(1.04)}}
-@keyframes bhFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes bhFloat{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(-6px)}}
 #bigHint.bh{position:fixed;left:50%;bottom:150px;transform:translateX(-50%) translateY(24px);z-index:57;
   display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none;opacity:0;
   transition:opacity .3s,transform .3s;padding:16px 34px;border-radius:18px;
@@ -131,6 +131,7 @@ body{-webkit-user-select:none;user-select:none}
 .qBlock{font-size:14.5px;color:#e6f4ef;line-height:1.6;margin-bottom:6px}
 .qZh{font-size:12.5px;color:#88a89c;margin-bottom:16px}
 .options{display:flex;flex-direction:column;gap:9px}
+.options[hidden]{display:none}
 .opt{pointer-events:auto;text-align:left;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.12);border-radius:11px;padding:12px 15px;font-size:13.5px;color:#dcece7;cursor:pointer;transition:.14s;font-family:inherit;line-height:1.5}
 .opt:hover{background:rgba(140,240,200,.1);border-color:rgba(140,240,200,.4)}
 .opt.correct{background:rgba(80,220,160,.18);border-color:#4fd6a4;color:#c9ffe8}
@@ -142,6 +143,19 @@ body{-webkit-user-select:none;user-select:none}
 .fb.ok{background:rgba(80,220,160,.1);border:1px solid rgba(80,220,160,.35);color:#c9ffe8}
 .fb.no{background:rgba(240,120,90,.1);border:1px solid rgba(240,120,90,.35);color:#ffdccd}
 .fb .fbZh{color:#8fb2a6;font-size:12px;margin-top:6px;display:block}
+.qBlock{font-size:17px;font-weight:650}
+.opt{font-size:15px}
+.opt:disabled{cursor:default}
+.fb.answerFeedback{padding:0;font-size:15px;color:#edf7f3}
+.answerKey,.answerMiss{padding:12px 14px;border:1px solid #397a66;border-radius:10px;background:#142c28}
+.answerMiss{margin-top:8px;background:#322023;border-color:#79464b}
+.answerKey span,.answerMiss span{display:block;color:#a7fad1;font-size:13px;font-weight:700}
+.answerMiss span{color:#ffb6ae}
+.answerKey strong,.answerMiss strong{display:block;margin:2px 0}
+.answerKey p,.answerMiss p{line-height:1.5}
+#dialogModal .modalFoot{flex-wrap:wrap}
+#dialogActions{justify-content:flex-end;margin-top:0}
+#dialogActions:empty{display:none}
 .modalFoot{display:flex;gap:10px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap;
   flex:0 0 auto;padding-top:14px;border-top:1px solid rgba(255,255,255,.08);background:none;position:static}
 .modalBody{overflow-y:auto;flex:1 1 auto;min-height:0;padding-right:3px;scrollbar-width:thin}
@@ -168,6 +182,7 @@ body{-webkit-user-select:none;user-select:none}
 .dcFeedback li{margin-bottom:4px}
 .slot{fill:transparent;cursor:pointer}
 .slot:hover{fill:rgba(140,240,200,.14)}
+.slot:focus-visible{outline:none;stroke:#ffd27a;stroke-width:3}
 .slotHint{fill:rgba(255,220,120,.35)!important;animation:pulse 1s infinite}
 @keyframes pulse{0%,100%{opacity:.4}50%{opacity:1}}
 
@@ -233,6 +248,17 @@ kbd{background:rgba(255,255,255,.11);border:1px solid rgba(255,255,255,.2);borde
 .startScroll::-webkit-scrollbar-thumb{background:rgba(255,255,255,.15);border-radius:4px}
 .startFoot{flex:0 0 auto;padding-top:16px}
 .startFoot .primary{margin-top:0}
+.startFoot #exploreBtn{width:100%;margin-top:10px}
+.labIntro{margin-top:12px;color:#a9c4bb;line-height:1.5}
+.iconBtn.labBtn{width:auto;padding:0 10px;color:#b8f6de;white-space:nowrap}
+.labToggle{display:flex;gap:8px;align-items:center;margin-top:20px}
+.labRecruit{padding:12px;margin-bottom:12px;border:1px solid #395951;border-radius:12px}
+.labRecruit button{margin-top:8px}
+.labReview{display:grid;gap:10px;margin:14px 0;line-height:1.5;color:#cee3db}
+.labReview strong{display:block;color:#a8f0d4}
+.labChoices{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.labChoices .primary{width:auto;margin-top:0}
+body:not(.combat-on) :is(#scorePill,#goldPill,#weaponPill,#skillMeter,#atkBtn,#skillBtn,#shopQuickBtn){display:none}
 @media (max-width:720px){
   .introGrid{grid-template-columns:1fr}
 }
@@ -240,15 +266,21 @@ kbd{background:rgba(255,255,255,.11);border:1px solid rgba(255,255,255,.2);borde
 /* ---------- big map ---------- */
 .mapCard{width:min(1120px,96vw)}
 .mapTop{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:10px;flex:0 0 auto}
-.mapTitle{font-size:15px;color:#eafaf4;font-weight:500;margin-top:3px}
+.mapTitle{font-size:19px;color:#eafaf4;font-weight:650;margin-top:3px}
+.mapObjective{font-size:15px;color:#a7fad1;margin:4px 0 9px;min-height:1.35em}
 .mapTools{display:flex;align-items:center;gap:8px}
 .mapZoomVal{font-size:12px;color:#9fbcb1;min-width:46px;text-align:center}
 .mapWrap{position:relative;border-radius:14px;overflow:hidden;border:1px solid rgba(255,255,255,.12);
-  background:#08131a;cursor:grab;flex:0 1 auto;min-height:0}
+  background:#08131a;cursor:grab;flex:0 1 auto;width:100%;height:min(56vh,580px);min-height:0}
 .mapWrap.drag{cursor:grabbing}
-#bigMap{display:block;width:100%;height:auto;touch-action:none}
-.mapHint{position:absolute;left:12px;bottom:10px;font-size:11px;color:rgba(200,225,215,.5);pointer-events:none}
-.mapLegend{display:flex;flex-wrap:wrap;gap:14px;margin-top:11px;font-size:11.5px;color:#9fbcb1;flex:0 0 auto}
+#bigMap{position:absolute;inset:0;display:block;width:100%;height:100%;touch-action:none}
+.mapHint{position:absolute;left:12px;bottom:10px;font-size:13px;color:#e2f3ed;background:#101b20;padding:4px 8px;border-radius:5px;pointer-events:none}
+.mapLegend{display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:11px;font-size:13px;color:#c4dfd6;flex:0 0 auto}
+@media (max-width:560px){
+  .mapCard{padding:16px}
+  .mapTop{gap:8px}
+  .mapHint{display:none}
+}
 .mapLegend span{display:flex;align-items:center;gap:5px}
 .lg{width:10px;height:10px;border-radius:50%;display:inline-block}
 .lg-npc{background:#4fd6a4}
@@ -806,12 +838,13 @@ body.is-touch #skillMeter{bottom:210px;width:170px}
 }
 
 /* ---- compact top bar on phones: pills row + buttons row ---- */
-@media (max-width:720px){
+@media (max-width:900px){
   #topbar{right:14px;flex-wrap:wrap;row-gap:6px;column-gap:6px;align-content:flex-start}
   #topbar>*{flex:0 0 auto}
   #topbar .spacer{flex:0 0 100%;height:0}
   #topbar .pill{padding:5px 9px;font-size:11px}
   #topbar .iconBtn{width:30px;height:30px;font-size:12px}
+  #topbar .labBtn{width:auto;font-weight:600}
   #timerPill{display:none}
   #weaponPill b,#charPill b{display:none}
   #minimap{top:100px}
@@ -819,10 +852,11 @@ body.is-touch #skillMeter{bottom:210px;width:170px}
   .qpTab{top:100px}
   #comboBadge{top:88px;font-size:12px}
 }
-@media (min-width:721px) and (max-width:1000px){
+@media (min-width:901px) and (max-width:1080px){
   #topbar{gap:6px}
   #topbar .pill{padding:6px 9px;font-size:11.5px}
   #topbar .iconBtn{width:30px;height:30px;font-size:12px}
+  #topbar .labBtn{width:auto}
   #weaponPill b{max-width:72px}
   #charPill b{max-width:56px}
   #zoneLabel{max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -830,3 +864,272 @@ body.is-touch #skillMeter{bottom:210px;width:170px}
 @media (max-width:420px){
   #zoneLabel{display:none}
 }
+
+
+/* ============================================================
+   Bond Quest polish: rewards, bilingual, gacha, daily drill
+   ============================================================ */
+#streakPill{min-width:104px;transition:border-color .2s,box-shadow .2s,background .2s}
+#streakPill b{color:#ffd86a;font-variant-numeric:tabular-nums}
+#streakMul{font-size:11px;color:#8fb2a6;font-variant-numeric:tabular-nums}
+#streakPill.hot{background:linear-gradient(100deg,rgba(255,174,71,.2),rgba(95,208,168,.12));
+  border-color:rgba(255,216,106,.62);box-shadow:0 0 18px rgba(255,180,80,.22)}
+#streakPill.hot #streakMul{color:#fff0a8;font-weight:700}
+.dailyHudBtn,.gachaHudBtn{width:auto!important;padding:0 10px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+#dailyBadge,#gachaBadge{font-size:10px;color:#ffd86a;font-variant-numeric:tabular-nums}
+#dailyBtn.ready,#gachaBtn.ready{border-color:rgba(255,216,106,.62);box-shadow:0 0 14px rgba(255,216,106,.18)}
+#gachaBtn.ready{animation:gachaReady 1.8s ease-in-out infinite}
+@keyframes gachaReady{0%,100%{box-shadow:0 0 10px rgba(255,216,106,.1)}50%{box-shadow:0 0 22px rgba(255,216,106,.34)}}
+.langBtn{font-size:11px!important;font-weight:700;letter-spacing:.2px;min-width:38px}
+.langToggle{pointer-events:auto;margin-left:auto;flex:0 0 auto;align-self:flex-start;border-radius:999px;
+  padding:6px 10px;background:rgba(143,240,200,.08);border:1px solid rgba(143,240,200,.3);
+  color:#c9f5e4;font:600 11px/1.2 inherit;cursor:pointer;transition:.15s}
+.langToggle:hover{background:rgba(143,240,200,.18);border-color:rgba(143,240,200,.55)}
+
+/* correct-answer juice */
+.correctParticle{position:fixed;width:7px;height:7px;margin:-3.5px 0 0 -3.5px;border-radius:50%;
+  left:0;top:0;background:var(--pc,#8ff0c8);box-shadow:0 0 10px var(--pc,#8ff0c8);
+  animation:correctBurst .72s cubic-bezier(.15,.75,.28,1) forwards;pointer-events:none;z-index:70}
+@keyframes correctBurst{
+  0%{opacity:1;transform:translate(0,0) scale(.7)}
+  70%{opacity:1}
+  100%{opacity:0;transform:translate(var(--bx),var(--by)) scale(.05)}
+}
+.floatScreenText{position:fixed;transform:translate(-50%,-50%);z-index:72;pointer-events:none;white-space:nowrap;
+  color:#d8fff0;font-weight:800;font-size:18px;letter-spacing:.3px;text-shadow:0 2px 8px #000,0 0 16px rgba(143,240,200,.6);
+  animation:floatScreen 1.05s ease-out forwards}
+.floatScreenText.perfect{color:#ffe08a;font-size:23px;text-shadow:0 2px 8px #000,0 0 20px rgba(255,190,80,.75)}
+.floatScreenText.streak{color:#ffb86a;font-size:12px;letter-spacing:1.1px;animation-delay:.08s}
+@keyframes floatScreen{0%{opacity:0;transform:translate(-50%,-20%) scale(.75)}18%{opacity:1;transform:translate(-50%,-65%) scale(1.08)}
+  100%{opacity:0;transform:translate(-50%,-160%) scale(1)}}
+.feedbackShake{animation:feedbackShake .3s cubic-bezier(.36,.07,.19,.97)}
+@keyframes feedbackShake{10%,90%{transform:translateX(-1px)}20%,80%{transform:translateX(3px)}30%,50%,70%{transform:translateX(-5px)}40%,60%{transform:translateX(5px)}}
+.rewardChip{display:inline-flex;align-items:center;gap:4px;margin-top:9px;padding:5px 10px;border-radius:999px;
+  color:#eafff7;background:rgba(143,240,200,.15);border:1px solid rgba(143,240,200,.38);
+  font-size:12px;font-weight:700;letter-spacing:.2px;box-shadow:0 0 16px rgba(143,240,200,.12)}
+.rewardChip.perfect{color:#2a1d05;background:linear-gradient(100deg,#ffe08a,#ffc857);border-color:#fff0b0;
+  box-shadow:0 0 22px rgba(255,205,90,.35)}
+.fb.answerFeedback.isCorrect{border-color:rgba(143,240,200,.5);background:linear-gradient(145deg,rgba(95,208,168,.1),rgba(255,255,255,.02))}
+.fb.answerFeedback.isWrong{border-color:rgba(255,140,120,.35)}
+.fbBanner.ok.perfectResult{box-shadow:0 0 26px rgba(255,205,90,.2);border-color:rgba(255,216,106,.45)}
+#perfectBanner{position:fixed;left:50%;top:22%;z-index:140;pointer-events:none;opacity:0;
+  transform:translate(-50%,-30%) scale(.72);display:flex;flex-direction:column;align-items:center;gap:6px;
+  transition:opacity .18s,transform .32s cubic-bezier(.16,1.2,.32,1);white-space:nowrap}
+#perfectBanner.show{opacity:1;transform:translate(-50%,0) scale(1)}
+#perfectBanner b{font-size:clamp(32px,6vw,72px);letter-spacing:5px;line-height:1;
+  color:#fff3b0;background:linear-gradient(180deg,#fff8c7,#ffd45e 55%,#ff9d42);
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  filter:drop-shadow(0 4px 0 rgba(110,55,10,.55)) drop-shadow(0 0 26px rgba(255,200,80,.75))}
+#perfectBanner span{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:#ffe6aa;text-shadow:0 2px 8px #000}
+#perfectBanner.show b{animation:perfectPop .55s cubic-bezier(.16,1.3,.32,1)}
+@keyframes perfectPop{0%{transform:scale(.5) rotate(-4deg)}60%{transform:scale(1.12) rotate(1deg)}100%{transform:scale(1)}}
+body.lang-zh .qBlock{letter-spacing:.1px}
+
+/* dot-cross pair interaction */
+.dcAutoBtn{border-color:rgba(169,159,240,.4)!important;color:#d6d0ff!important;background:rgba(125,100,220,.12)!important}
+.dcAutoBtn:hover{background:rgba(125,100,220,.24)!important}
+.dcAutoBtn:disabled{opacity:.35;cursor:not-allowed}
+
+/* party / gacha status */
+.recruitActions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:8px}
+.recruitActions .ghost{pointer-events:auto;background:rgba(95,208,168,.14);border:1px solid rgba(140,240,200,.35);
+  color:#bff5e0;border-radius:10px;padding:9px 14px;font:600 12.5px inherit;cursor:pointer}
+.gachaPity{font-size:11px;color:#c9bdf7;letter-spacing:.5px;padding:4px 8px;border-radius:999px;
+  border:1px solid rgba(169,159,240,.28);background:rgba(120,100,210,.1)}
+.charRarity{font-size:9px;color:#ffd86a;letter-spacing:1px;vertical-align:middle}
+
+/* daily drill */
+.dailyCard{width:min(680px,94vw)}
+.dailySun{font-size:28px;color:#ffd86a;border-color:rgba(255,216,106,.4);
+  background:radial-gradient(circle,rgba(255,206,80,.25),rgba(255,150,60,.05))}
+.dailyProgress{display:flex;align-items:center;gap:8px;margin:0 0 16px}
+.dailyDot{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;
+  background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);color:#8fb2a6}
+.dailyDot.now{background:rgba(255,216,106,.16);border-color:rgba(255,216,106,.55);color:#ffe8a6;box-shadow:0 0 14px rgba(255,216,106,.16)}
+.dailyDot.ok{background:rgba(95,208,168,.22);border-color:rgba(143,240,200,.55);color:#cffff0}
+.dailyDot.bad{background:rgba(255,120,100,.16);border-color:rgba(255,120,100,.45);color:#ffb4a8}
+.dailyBonusTag{margin-left:auto;font-size:10px;font-weight:800;letter-spacing:1.2px;padding:5px 9px;border-radius:999px;
+  color:#2a1d05;background:linear-gradient(100deg,#ffe08a,#ffc857)}
+.dailyRewardHint{margin-top:12px;font-size:12px;color:#ffd86a;font-weight:700;letter-spacing:.3px}
+.dailyNextBtn{display:block;width:auto!important;margin:14px 0 0 auto!important}
+.dailyDone{text-align:center;padding:26px 12px;border-radius:14px;background:rgba(95,208,168,.08);border:1px solid rgba(143,240,200,.22)}
+.dailyDone b{display:block;font-size:22px;color:#ffe08a;letter-spacing:1px}
+.dailyDone p{font-size:14px;color:#d8f0e6;margin-top:8px}
+.dailyDone span{display:block;font-size:11.5px;color:#8fb2a6;margin-top:10px}
+.dailyOptions .opt{min-height:52px}
+
+/* full-screen companion card flip */
+.gachaModal{position:fixed;inset:0;z-index:120;display:none;grid-template-rows:auto 1fr auto auto;place-items:center;
+  padding:28px 22px 22px;background:radial-gradient(circle at 50% 42%,#1c2f36 0%,#091014 54%,#030506 100%);
+  overflow:hidden;--rarity:#8ff0c8;--rarity2:#3ac6a0}
+.gachaModal.show{display:grid;animation:gachaFade .24s ease-out}
+@keyframes gachaFade{from{opacity:0}to{opacity:1}}
+.gachaModal.rarity-4{--rarity:#c7a7ff;--rarity2:#7558d8}
+.gachaModal.rarity-5{--rarity:#ffd86a;--rarity2:#ff8c42}
+.gachaSky{position:absolute;inset:0;overflow:hidden;pointer-events:none}
+.gachaSky::before{content:'';position:absolute;inset:-20%;background:
+  radial-gradient(circle at 50% 48%,color-mix(in srgb,var(--rarity) 22%,transparent),transparent 34%),
+  radial-gradient(circle at 50% 55%,rgba(255,255,255,.05),transparent 48%);animation:gachaSkyPulse 2.8s ease-in-out infinite}
+@keyframes gachaSkyPulse{0%,100%{opacity:.55;transform:scale(.96)}50%{opacity:1;transform:scale(1.04)}}
+.gachaOrbit{position:absolute;left:50%;top:47%;width:min(76vw,780px);aspect-ratio:1;border-radius:50%;
+  transform:translate(-50%,-50%);border:1px solid color-mix(in srgb,var(--rarity) 34%,transparent);
+  box-shadow:0 0 60px color-mix(in srgb,var(--rarity) 18%,transparent),inset 0 0 80px color-mix(in srgb,var(--rarity) 10%,transparent);
+  opacity:.55}
+.gachaOrbit::before,.gachaOrbit::after{content:'';position:absolute;inset:12%;border-radius:50%;border:1px dashed color-mix(in srgb,var(--rarity) 28%,transparent)}
+.gachaOrbit::after{inset:27%;border-style:solid;opacity:.5}
+.gachaBeams{position:absolute;inset:0;overflow:hidden;opacity:0;transition:opacity .45s}
+.gachaModal.revealed .gachaBeams{opacity:1}
+.gachaBeams i{position:absolute;left:50%;top:50%;width:5px;height:66vmax;transform-origin:50% 0;
+  transform:translateX(-50%) rotate(calc(var(--i) * 360deg / var(--n)));
+  background:linear-gradient(180deg,color-mix(in srgb,var(--rarity) 75%,white),transparent 72%);
+  opacity:.18;filter:blur(.4px);animation:beamSweep 4.8s linear infinite;animation-delay:calc(var(--i) * -.18s)}
+@keyframes beamSweep{0%{opacity:.1}50%{opacity:.42}100%{opacity:.1}}
+.gachaHead{position:relative;text-align:center;z-index:3}
+.gachaKicker{font-size:10px;font-weight:800;letter-spacing:4px;color:var(--rarity)}
+.gachaTitle{font-size:clamp(20px,3vw,32px);font-weight:600;letter-spacing:2px;color:#f4fffb;margin-top:3px}
+.gachaSub{font-size:12px;color:#9fc3b5;margin-top:5px;min-height:18px}
+.gachaClose{position:absolute;right:22px;top:18px;z-index:5;width:38px;height:38px;border-radius:50%;
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);color:#eafff7;font-size:24px;cursor:pointer}
+.gachaClose:hover{background:rgba(255,255,255,.14)}
+.gachaStage{position:relative;z-index:2;display:grid;place-items:center;perspective:1400px;align-self:stretch}
+.gachaCard{width:min(360px,76vw);height:min(510px,62vh);cursor:pointer;outline:none;transform-style:preserve-3d}
+.gachaCardInner{position:relative;width:100%;height:100%;transform-style:preserve-3d;
+  transition:transform .82s cubic-bezier(.18,.86,.22,1)}
+.gachaCard.flipped .gachaCardInner{transform:rotateY(180deg)}
+.gachaFace{position:absolute;inset:0;border-radius:22px;overflow:hidden;backface-visibility:hidden;
+  border:1px solid color-mix(in srgb,var(--rarity) 46%,#ffffff0d);
+  box-shadow:0 30px 80px rgba(0,0,0,.62),0 0 44px color-mix(in srgb,var(--rarity) 16%,transparent)}
+.gachaBack{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
+  background:
+    radial-gradient(circle at 50% 38%,color-mix(in srgb,var(--rarity) 20%,transparent),transparent 38%),
+    repeating-linear-gradient(45deg,rgba(255,255,255,.025) 0 2px,transparent 2px 14px),
+    linear-gradient(150deg,#11252a,#071013 62%,#020405)}
+.gachaBack::before{content:'';position:absolute;inset:14px;border-radius:16px;border:1px solid color-mix(in srgb,var(--rarity) 30%,transparent);
+  box-shadow:inset 0 0 32px color-mix(in srgb,var(--rarity) 10%,transparent)}
+.gachaRune{width:116px;height:116px;border-radius:50%;display:grid;place-items:center;font-size:48px;color:var(--rarity);
+  border:2px solid color-mix(in srgb,var(--rarity) 55%,transparent);box-shadow:0 0 40px color-mix(in srgb,var(--rarity) 30%,transparent);
+  animation:runeSpin 7s linear infinite}
+@keyframes runeSpin{to{transform:rotate(360deg)}}
+.gachaBackLabel{font-size:14px;letter-spacing:5px;color:#eafff7;font-weight:600}
+.gachaBackHint{font-size:11px;letter-spacing:1.6px;color:#7fa094;text-transform:uppercase}
+.gachaFront{transform:rotateY(180deg);background:linear-gradient(155deg,#173038,#081114 62%,#030607)}
+.gachaFrontInner{position:relative;height:100%;display:flex;flex-direction:column;align-items:center;padding:24px 18px 20px;
+  background:radial-gradient(circle at 50% 40%,color-mix(in srgb,var(--rarity) 17%,transparent),transparent 44%)}
+.gachaRarityLine{font-size:16px;letter-spacing:5px;color:var(--rarity);text-shadow:0 0 14px color-mix(in srgb,var(--rarity) 60%,transparent)}
+.gachaPortrait{position:relative;width:100%;flex:1;min-height:0;display:flex;align-items:center;justify-content:center;isolation:isolate}
+.gachaHalo{position:absolute;left:50%;top:47%;width:78%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;
+  background:radial-gradient(circle,color-mix(in srgb,var(--rarity) 24%,transparent),transparent 65%);filter:blur(5px);z-index:-1}
+.gachaFigure{width:100%;height:100%;max-height:340px;overflow:visible}
+.gachaPortrait.entrance .gPose{animation:entrancePose .9s cubic-bezier(.15,.85,.22,1) both}
+.gachaPortrait.entrance{animation:portraitGlow 1.2s ease-out both}
+@keyframes entrancePose{0%{opacity:0;transform:translateY(42px) scale(.72) rotate(-3deg);filter:blur(5px)}
+  55%{opacity:1;filter:blur(0)}100%{transform:translateY(0) scale(1) rotate(0);filter:blur(0)}}
+@keyframes portraitGlow{0%{filter:brightness(2.2) saturate(.2)}100%{filter:brightness(1) saturate(1)}}
+.gShadow{fill:rgba(0,0,0,.42)}
+.gCape{fill:var(--cc);opacity:.58;stroke:rgba(255,255,255,.18);stroke-width:1.4}
+.gCapeR{opacity:.42}
+.gBody{fill:var(--cc);stroke:rgba(255,255,255,.24);stroke-width:1.5}
+.gLegL,.gLegR{fill:#17252a;stroke:rgba(255,255,255,.12);stroke-width:1}
+.gArmL,.gArmR{fill:var(--cc);stroke:rgba(255,255,255,.22);stroke-width:1.4}
+.gNeck,.gHead{fill:#efc8b4}
+.gHair{fill:var(--hair);stroke:rgba(255,255,255,.12);stroke-width:1}
+.gBang{opacity:.9}
+.gEye{fill:#25343a}
+.gScarf{fill:var(--rarity);opacity:.72}
+.gAccent{fill:var(--rarity);filter:drop-shadow(0 0 6px var(--rarity))}
+.gachaPortrait.male .gBody{transform:scaleX(1.08);transform-origin:center}
+.gachaName{font-size:28px;font-weight:700;letter-spacing:2px;color:#f6fffc;line-height:1.1;text-shadow:0 0 18px color-mix(in srgb,var(--rarity) 30%,transparent)}
+.gachaRole{font-size:12px;color:var(--rarity);margin-top:5px;letter-spacing:1px}
+.gachaElement{font-size:9px;letter-spacing:2px;color:#78978d;margin-top:6px}
+.gachaQuote{position:absolute;bottom:8px;left:50%;transform:translateX(-50%);width:88%;text-align:center;font-size:11px;
+  color:#a9c7bc;font-style:italic;line-height:1.45;text-shadow:0 2px 6px #000}
+.gachaMeta{position:relative;z-index:3;min-height:18px;font-size:11px;color:#b5d3c7;text-align:center;letter-spacing:.5px}
+.gachaActions{position:relative;z-index:3;display:flex;gap:10px;justify-content:center;padding-top:8px}
+.gachaActions button{pointer-events:auto}
+.gachaDrawBtn{min-width:180px;background:linear-gradient(100deg,var(--rarity2),var(--rarity))!important;color:#081210!important;font-weight:800!important}
+.gachaDrawBtn:disabled{opacity:.4;cursor:not-allowed}
+@media (max-width:620px){
+  .gachaModal{padding:16px 12px 14px}
+  .gachaCard{width:min(300px,82vw);height:min(430px,60vh)}
+  .gachaName{font-size:23px}
+  .gachaTitle{font-size:20px}
+  .gachaClose{right:12px;top:10px}
+  #perfectBanner b{letter-spacing:3px}
+}
+@media (max-height:680px){
+  .gachaCard{height:min(400px,58vh)}
+  .gachaFigure{max-height:250px}
+}
+@media (max-width:900px){
+  .dailyHudBtn,.gachaHudBtn{height:30px;padding:0 8px}
+  #streakPill{padding:5px 8px}
+  #streakPill{min-width:86px}
+}
+@media (prefers-reduced-motion:reduce){
+  .correctParticle,.floatScreenText,.feedbackShake,.gachaCardInner,.gachaBeams i,.gachaRune,.gachaPortrait.entrance .gPose,#perfectBanner b{animation:none!important;transition:none!important}
+}
+
+@media (max-width:620px){
+  #bigHint.bh{width:calc(100vw - 24px);max-width:calc(100vw - 24px);padding:14px 16px;box-sizing:border-box}
+  #bigHint .bhText{font-size:22px;line-height:1.2;text-align:center;max-width:100%}
+  #bigHint .bhSub{font-size:12px;text-align:center;line-height:1.4}
+  #bigHint .bhBar{width:100%}
+  #topbar{gap:5px}
+  #topbar .pill{padding:4px 7px;font-size:10px}
+  #topbar .iconBtn{width:28px;height:28px;font-size:11px}
+  .dailyHudBtn,.gachaHudBtn{width:auto!important;min-width:36px;padding:0 6px!important}
+  .langBtn{min-width:32px!important}
+}
+
+@media (max-width:900px){
+  #topbar .labBtn{flex:0 0 auto;white-space:nowrap}
+}
+
+@media (max-width:620px){
+  #mapBtn,#exportBtn{display:none}
+}
+
+@media (max-width:620px){
+  #topbar .iconBtn.labBtn{width:auto!important;padding:0 8px}
+}
+
+
+/* ============================================================
+   First-minute Bond Trial onboarding
+   ============================================================ */
+#trialHud{position:fixed;left:50%;top:78px;transform:translate(-50%,-12px);z-index:9;width:min(520px,calc(100vw - 32px));
+  display:none;pointer-events:none;opacity:0;transition:opacity .22s,transform .28s cubic-bezier(.2,.9,.3,1);
+  background:linear-gradient(180deg,rgba(9,23,25,.94),rgba(6,14,18,.94));border:1px solid rgba(143,240,200,.38);
+  border-radius:16px;padding:13px 16px 14px;box-shadow:0 18px 46px rgba(0,0,0,.5),0 0 32px rgba(95,208,168,.12);
+  backdrop-filter:blur(12px)}
+#trialHud.show{display:block;opacity:1;transform:translate(-50%,0)}
+#trialHud.complete{border-color:rgba(255,216,106,.7);box-shadow:0 18px 46px rgba(0,0,0,.5),0 0 38px rgba(255,200,80,.24)}
+.trialTop{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.trialKicker{font-size:10px;font-weight:800;letter-spacing:2.2px;color:#8ff0c8}
+#trialTimer{font-size:12px;font-weight:700;color:#d7ede4;font-variant-numeric:tabular-nums}
+.trialPips{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0 9px}
+.trialPip{display:flex;align-items:center;gap:7px;padding:7px 9px;border-radius:10px;background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.1);color:#809d93;font-size:10px;letter-spacing:.4px;transition:.2s}
+.trialPip i{width:11px;height:11px;border-radius:50%;background:currentColor;opacity:.38;box-shadow:0 0 0 transparent}
+.trialPip b{font-weight:700}
+.trialPip.ionic{--ptc:#3fd8ff;color:#3fd8ff}.trialPip.covalent{--ptc:#5fd0a8;color:#5fd0a8}.trialPip.metallic{--ptc:#ffc85f;color:#ffc85f}
+.trialPip.got{background:color-mix(in srgb,var(--ptc) 14%,transparent);border-color:color-mix(in srgb,var(--ptc) 55%,transparent)}
+.trialPip.got i{opacity:1;background:var(--ptc);box-shadow:0 0 12px var(--ptc)}
+.trialPip.got b{color:#effff9}
+.trialPip.got b::after{content:' ✓'}
+#trialGoal{font-size:12.5px;color:#cbe5da;line-height:1.45}
+#trialHud.complete #trialGoal{color:#ffe3a0;font-weight:700}
+#trialContinueBtn{display:none;pointer-events:auto;margin:11px 0 0;padding:10px 16px;border:none;border-radius:10px;
+  background:linear-gradient(100deg,#ffe08a,#ffc857);color:#241801;font:800 13px inherit;cursor:pointer;
+  box-shadow:0 0 22px rgba(255,200,80,.28)}
+#trialHud.complete #trialContinueBtn{display:inline-block;animation:trialCta 1.25s ease-in-out infinite}
+@keyframes trialCta{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+body.intro-trial #questPanel{opacity:.35;pointer-events:none}
+@media (max-width:900px){
+  #trialHud{top:112px;width:calc(100vw - 24px);padding:11px 12px 12px}
+  .trialPip{padding:6px;gap:5px;font-size:9px}
+  #trialGoal{font-size:11.5px}
+}
+
+#trialHud.celebrating{opacity:0!important;transform:translate(-50%,-14px)!important;pointer-events:none!important}
+#startScreen{background:radial-gradient(circle at 50% 28%,rgba(24,52,48,.94),rgba(4,8,10,.985))}

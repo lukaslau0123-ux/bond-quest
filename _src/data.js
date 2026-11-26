@@ -84,7 +84,7 @@ const COMPOUNDS = [
   { id:'mg3n2', f:'Mg₃N₂', zh:'氮化鎂', comp:1, ebeh:1, bond:1, tier:3 },
 
   { id:'nh4cl', f:'NH₄Cl', zh:'氯化銨', comp:2, ebeh:1, bond:1, tier:3,
-    note:{ en:'Tricky one: every element is a non-metal, yet NH₄Cl is IONIC. The NH₄⁺ ion is a polyatomic cation, so electron transfer happens between NH₄⁺ and Cl⁻.',
+    note:{ en:'NH₄Cl is ionic even though all its elements are non-metals. The NH₄⁺ ion contains covalent N–H bonds. Attraction between NH₄⁺ and Cl⁻ holds the lattice together.',
            zh:'陷阱題：全部元素都係非金屬，但 NH₄Cl 係離子化合物。NH₄⁺ 係多原子陽離子，電子轉移發生喺 NH₄⁺ 同 Cl⁻ 之間。' } },
 
   { id:'diamond', f:'diamond', zh:'鑽石', comp:2, ebeh:2, bond:2, tier:3,
@@ -92,7 +92,7 @@ const COMPOUNDS = [
            zh:'巨型共價結構：每粒 C 同 4 個鄰居共用 4 對電子 — 熔點極高、唔導電。' } },
 
   { id:'graphite', f:'graphite', zh:'石墨', comp:2, ebeh:2, bond:2, tier:3,
-    note:{ en:'Giant covalent but layered: each C bonds to 3 others; the 4th electron is delocalised between layers — so graphite conducts.',
+    note:{ en:'Graphite has layers. Each carbon bonds to three neighbours. Delocalised electrons can move along the layers and carry charge.',
            zh:'巨型共價但分層：每粒 C 同 3 個鄰居成鍵；第 4 粒電子喺層與層之間離域 — 所以石墨導電。' } },
 
   { id:'c60', f:'C₆₀', zh:'富勒烯', comp:2, ebeh:2, bond:2, tier:3,
@@ -229,7 +229,7 @@ const GLOSSARY = [
    main: counts toward the 9 main objectives
 */
 const NODES = [
-  { id:'n1', type:'npc',     zone:'A', x:-16, z:-20, compound:'nacl', main:1, label:{en:'Ion Sage', zh:'離子智者'} },
+  { id:'n1', type:'npc',     zone:'A', x:0, z:-31, compound:'nacl', main:1, label:{en:'Ion Sage', zh:'離子智者'} },
   { id:'n2', type:'chest',   zone:'A', x:-40, z:-40, dc:'dc-nacl', main:1, label:{en:'Salt Chest', zh:'鹽之寶箱'} },
   { id:'n3', type:'npc',     zone:'B', x: 18, z:-16, compound:'h2',   main:1, label:{en:'Gas Spirit', zh:'氣體精靈'} },
   { id:'n4', type:'npc',     zone:'C', x:-20, z: 16, compound:'fe',   main:1, label:{en:'Forge Keeper', zh:'鍛造守衛'} },
@@ -254,8 +254,8 @@ const NODES = [
   { id:'s12',type:'npc',     zone:'C', x:-92, z: 62, compound:'diamond',main:0, label:{en:'Hard Gem', zh:'硬寶石'} },
   { id:'s13',type:'npc',     zone:'D', x: 66, z: 78, compound:'c60',    main:0, label:{en:'Round Cage', zh:'圓籠'} },
 
-  { id:'g1', type:'guild', zone:'A', x: 11, z:-11, ir:7.5, colliderR:4.6, main:0, label:{en:"Adventurers' Guild", zh:'冒險者公會'} },
-  { id:'sh1',type:'shop',  zone:'A', x:-11, z:-11, ir:6.5, colliderR:3.4, main:0, label:{en:'Chem Supply Shop', zh:'化學商店'} },
+  { id:'g1', type:'guild', zone:'A', x: 11, z:-17, ir:7.5, colliderR:4.6, main:0, label:{en:"Adventurers' Guild", zh:'冒險者公會'} },
+  { id:'sh1',type:'shop',  zone:'A', x:-10, z:-18, ir:6.5, colliderR:3.4, main:0, label:{en:'Chem Supply Shop', zh:'化學商店'} },
 
   { id:'c1', type:'crystal', zone:'A', x:-58, z:-34, term:'cation',      main:0 },
   { id:'c2', type:'crystal', zone:'B', x: 48, z:-76, term:'covalent',    main:0 },
@@ -271,7 +271,7 @@ const NODES = [
    instead of skipping content.  `start:1` = already active at spawn.
 */
 const WAYPOINTS = [
-  { id:'wp0', zone:'A', x:   6, z:  -5, start:1, name:{ en:'Camp Anchor',     zh:'營地錨點' } },
+  { id:'wp0', zone:'A', x:   7, z: -11, start:1, name:{ en:'Windvale Gate',   zh:'風谷鎮城門' } },
   { id:'wp1', zone:'A', x: -46, z: -28,           name:{ en:'Saltwatch Post',  zh:'鹽晶哨站' } },
   { id:'wp2', zone:'B', x:  30, z: -30,           name:{ en:'Forest Gate',     zh:'森林入口' } },
   { id:'wp3', zone:'B', x:  68, z: -50,           name:{ en:'Deep Grove',      zh:'密林深處' } },
@@ -302,12 +302,21 @@ const WEAPONS = [
 /* Playable characters. role affects stats; scoreReq gates shop unlock;
    skin variants are cosmetic outfits purchasable with gold. */
 const CHARACTERS = [
-  { id:'lyra',   name:'Elara',      gender:'female', role:'Adventurer',    color:0x343a4d, hair:0x5a3828, speed:1.00, bonus:0,    scoreReq:0,   desc:'A seasoned road-worn adventurer with balanced speed and power.' },
-  { id:'kael',   name:'Kael',       gender:'male',   role:'Vanguard',      color:0x6f9fd8, hair:0x2e2a2c, speed:0.92, bonus:0.15, scoreReq:0,   desc:'Burly shield-bearer. Slower, but hits harder.' },
-  { id:'mira',   name:'Mira',       gender:'female', role:'Arcane Caster', color:0xb9a7f0, hair:0x8a5a9a, speed:1.05, bonus:-0.05,scoreReq:60,  desc:'Ranged orbital mage. Quick and nimble.' },
-  { id:'dorian', name:'Dorian',     gender:'male',   role:'Ranger',        color:0x8fd8b0, hair:0x7a5230, speed:1.08, bonus:0.05, scoreReq:140, desc:'Keen-eyed archer. Fast footwork.' },
-  { id:'vex',    name:'Vex',        gender:'female', role:'Shadow Dancer', color:0xe08fb8, hair:0x3a2a44, speed:1.12, bonus:0.10, scoreReq:240, desc:'Twin-blade whirlwind. Dangerous up close.' }
+  { id:'lyra',   name:'Elara',      gender:'female', role:'Adventurer',    color:0x343a4d, hair:0x5a3828, speed:1.00, bonus:0,    scoreReq:0,   rarity:4, desc:'A seasoned road-worn adventurer with balanced speed and power.' },
+  { id:'kael',   name:'Kael',       gender:'male',   role:'Vanguard',      color:0x6f9fd8, hair:0x2e2a2c, speed:0.92, bonus:0.15, scoreReq:0,   rarity:3, desc:'Burly shield-bearer. Slower, but hits harder.' },
+  { id:'mira',   name:'Mira',       gender:'female', role:'Arcane Caster', color:0xb9a7f0, hair:0x8a5a9a, speed:1.05, bonus:-0.05,scoreReq:60,  rarity:5, desc:'Ranged orbital mage. Quick and nimble.' },
+  { id:'dorian', name:'Dorian',     gender:'male',   role:'Ranger',        color:0x8fd8b0, hair:0x7a5230, speed:1.08, bonus:0.05, scoreReq:140, rarity:4, desc:'Keen-eyed archer. Fast footwork.' },
+  { id:'vex',    name:'Vex',        gender:'female', role:'Shadow Dancer', color:0xe08fb8, hair:0x3a2a44, speed:1.12, bonus:0.10, scoreReq:240, rarity:5, desc:'Twin-blade whirlwind. Dangerous up close.' }
 ];
+
+/* Gacha and learning reward tuning. */
+const GACHA_RULES = { pityMax:10, challengesPerDraw:2, weights:{ 3:68, 4:27, 5:5 } };
+const REWARD_RULES = {
+  stepXp:5, stepGold:3,
+  perfectXp:30, perfectGold:20, perfectCrystals:1,
+  streakAt:3, streakMultiplier:1.5,
+  dailyMultiplier:2, autoFillCrystals:1
+};
 
 /* Cosmetic skins / outfits. Applied as a colour theme on the character. */
 const SKINS = [

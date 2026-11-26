@@ -11,7 +11,7 @@ const WORLD = (function () {
   let clock;
   let keys = Object.create(null);
   let locked = false;
-  let yaw = 0, pitch = 0.40, camDist = 13;
+  let yaw = 0, pitch = 0.31, camDist = 10.5;
   let velocity = new THREE.Vector3();
   let pointerDown = false, lastPX = 0, lastPY = 0;
   // 觸控：搖桿向量、指標追蹤、跳躍佇列、互動回呼
@@ -24,14 +24,24 @@ const WORLD = (function () {
   let elapsed = 0;
   const colliders = [];
   const nodeMeshes = new Map();
+  let windmillRotor;
+  const TOWN = { left: -29, right: 29, front: -3, back: -46, elevation: 0.6 };
+
+  function townDistance(x, z) {
+    return Math.hypot(Math.max(0, TOWN.left - x, x - TOWN.right),
+      Math.max(0, TOWN.back - z, z - TOWN.front));
+  }
   let sky = null, rim = null, fireflies = null, ffBase = null;
 
   /* ============ combat / reward loop state ============ */
   const enemies = [];                 // active enemy records
   const fx = [];                      // transient visual effects
   let shakeT = 0, shakeAmp = 0;       // camera shake on impacts
+  let trailClock = 0;                  // zone-element trail emitter
+  const ZONE_TRAIL = { A: 0x3fd8ff, B: 0x5fd0a8, C: 0xffc85f, D: 0xc6a7ff };
+  let bondTrial = null;
+  let bondTrialHooks = null;
   let dustTimer = 0;                  // footstep dust cadence
-  let attackTrail = null;             // weapon trail emitter {t,dur,color}
   let weaponGroup = null;             // current weapon model attached to hand
   let weaponId = 'sword';
   let charId = 'lyra';
@@ -39,6 +49,7 @@ const WORLD = (function () {
   let attackAnim = null;              // { t, dur, style } active attack pose
   let combatHooks = { onHit: null, onKill: null, onHurt: null };  // set by game.js
   let combatEnabled = false;
+  let fxGlow = null;
   let charMats = null;                // character material set for live re-skinning
   let skirtGrpRef = null;             // skirt group — hidden for male characters
 
@@ -214,7 +225,7 @@ const WORLD = (function () {
       smoothstep(150, 196, Math.abs(z))
     );
     h += edge * 26;
-    return h;
+    return THREE.MathUtils.lerp(TOWN.elevation, h, smoothstep(4, 17, townDistance(x, z)));
   }
 
   function zoneKeyAt(x, z) {
@@ -265,20 +276,27 @@ const WORLD = (function () {
   }
 
   function makeRockGeometry(seed) {
-    const g = new THREE.IcosahedronGeometry(1, 1);
+    const g = new THREE.IcosahedronGeometry(1, 3);
     const pos = g.attributes.position;
+    const colors = new Float32Array(pos.count * 3);
     const v = new THREE.Vector3();
     for (let i = 0; i < pos.count; i++) {
       v.fromBufferAttribute(pos, i);
-      const n = v.clone().normalize();
+      const n = v.normalize();
       const d = 1
         + 0.27 * Math.sin(n.x * 3.1 + seed) * Math.cos(n.y * 2.3 + seed * 1.7)
         + 0.17 * Math.sin(n.z * 4.2 - seed * 0.6)
-        + 0.09 * Math.cos(n.x * 6.5 + n.z * 5.1 + seed);
+        + 0.09 * Math.cos(n.x * 6.5 + n.z * 5.1 + seed)
+        + 0.045 * Math.sin(n.x * 13 + n.z * 11 - n.y * 7 + seed);
       v.multiplyScalar(Math.max(0.55, d));
-      v.y *= 0.94;
+      v.y = Math.min(0.86 + v.x * 0.18, v.y * 0.94);
       pos.setXYZ(i, v.x, v.y, v.z);
+      const layer = v.y + 0.21 * v.x - 0.12 * v.z + 0.035 * Math.sin(v.z * 10 + seed);
+      const vein = Math.pow(Math.max(0, Math.cos(layer * 21 + seed)), 9);
+      const shade = 0.73 + v.y * 0.105 + 0.05 * Math.sin(layer * 12 + seed);
+      colors.set([shade + vein * 0.24, shade * 0.98 + vein * 0.23, shade * 0.94 + vein * 0.22], i * 3);
     }
+    g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     g.computeVertexNormals();
     return g;
   }
@@ -555,6 +573,134 @@ const WORLD = (function () {
     scene.add(water);
   }
 
+  function buildTown() {
+    const town = new THREE.Group();
+    town.name = 'Windvale';
+    scene.add(town);
+    const y = TOWN.elevation;
+    const timber = 0x694b39, stone = 0xadb1a9, roofRed = 0x934c48, brass = 0xba8a52;
+    const cube = new THREE.BoxGeometry(1, 1, 1);
+    const batches = new Map();
+    const matrix = new THREE.Matrix4(), rotation = new THREE.Quaternion(), point = new THREE.Vector3(), scale = new THREE.Vector3();
+    function box(color, x, height, z, w, h, depth, rx = 0, rz = 0) {
+      if (!batches.has(color)) batches.set(color, []);
+      rotation.setFromEuler(new THREE.Euler(rx, 0, rz));
+      batches.get(color).push(matrix.compose(point.set(x, y + height, z), rotation, scale.set(w, h, depth)).clone());
+    }
+    function block(x, z, w, depth) {
+      colliders.push({ x, z, halfX: w / 2, halfZ: depth / 2 });
+    }
+    function paving(x, z, columns, rows) {
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < columns; col++) {
+          const colors = [0xbeb7a8, 0xaaa899, 0xc9c0aa, 0xb7af9f];
+          box(colors[(row * 5 + col * 7 + Math.floor(row / 3)) % colors.length],
+            x + (col - (columns - 1) / 2) * 1.16, -0.028, z + row * 0.91, 1.14, 0.13, 0.89);
+        }
+      }
+    }
+    function house(x, z, w, d, h, plaster, roof, academy = false) {
+      const front = z + d / 2;
+      box(stone, x, 0.28, z, w + 0.14, 0.7, d + 0.14);
+      box(plaster, x, h / 2 + 0.31, z, w, h, d);
+      const half = w / 2 + 0.38, pitch = 0.52;
+      const eaves = h + 0.29;
+      [-1, 1].forEach(side => {
+        box(roof, x + side * half / 2, eaves + Math.tan(pitch) * half / 2, z, half / Math.cos(pitch), 0.23, d + 0.8, 0, -side * pitch);
+        for (let row = 1; row <= 4; row++) {
+          const t = row / 5;
+          box(roofRed, x + side * half * t, eaves + Math.tan(pitch) * half * (1 - t) + 0.16, z, 0.055, 0.084, d + 0.84);
+        }
+        for (let row = 0; row < 5; row++) {
+          const band = half / 5;
+          box(plaster, x + side * band * (row + 0.5), eaves + Math.tan(pitch) * half * (1 - (row + 1) / 5) / 2,
+            z, band + 0.06, Math.tan(pitch) * half * (1 - (row + 1) / 5) + 0.12, d - 0.04);
+        }
+        box(timber, x + side * (w / 2 - 0.08), h / 2 + 0.31, front + 0.02, 0.2, h, 0.18);
+        box(timber, x + side * (w / 2 - 0.05), h / 2 + 0.31, z, 0.2, h, d + 0.16);
+        const wx = x + side * w * 0.28;
+        box(timber, wx, h * 0.57, front + 0.065, 1.22, 1.3, 0.17);
+        box(0x53838a, wx, h * 0.57, front + 0.16, 0.84, 0.94, 0.04);
+        box(brass, wx, h * 0.57, front + 0.19, 0.075, 0.94, 0.04);
+        box(brass, wx, h * 0.57, front + 0.19, 0.84, 0.075, 0.04);
+        box(timber, wx, eaves - 0.57, front + 0.12, 1.65, 0.13, 0.12, 0, side * 0.42);
+      });
+      box(timber, x, eaves - 0.17, front + 0.1, w, 0.24, 0.17);
+      box(timber, x, 1.35, front + 0.075, academy ? 2.2 : 1.24, 2.55, 0.2);
+      box(0x865e43, x, 1.37, front + 0.19, academy ? 1.86 : 1.00, 2.25, 0.10);
+      box(brass, x + 0.32, 1.32, front + 0.26, 0.085, 0.085, 0.075);
+      if (academy) {
+        box(0x376c70, x, 3.34, front + 0.24, 4.8, 0.94, 0.17);
+        const canvas = document.createElement('canvas');
+        canvas.width = 512; canvas.height = 96;
+        const ctx = canvas.getContext('2d');
+        ctx.font = 'bold 58px Georgia'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#fff2cc'; ctx.fillText('CHEM ACADEMY', 256, 48);
+        const sign = new THREE.Mesh(new THREE.PlaneGeometry(4.55, 0.84), new THREE.MeshBasicMaterial({
+          map: new THREE.CanvasTexture(canvas), transparent: true, depthWrite: false
+        }));
+        sign.position.set(x, y + 3.34, front + 0.34);
+        town.add(sign);
+      }
+      block(x, z, w + 0.10, d + 0.12);
+    }
+    paving(0, -36, 7, 42);
+    paving(-8.12, -22.35, 7, 13);
+    paving(8.12, -22.35, 7, 13);
+    house(0, -39.2, 11.5, 7.8, 6.6, 0xe3ca9e, 0x486b6d, true);
+    [
+      [-11, -6, 6, 5, 4.6], [11, -6, 6.2, 5, 5.0], [-18, -13, 7, 6, 5.2], [18, -13, 7, 6.2, 5.6],
+      [-17, -23, 6.8, 5.8, 4.8], [17, -23, 7.2, 6, 5.4], [-12, -32, 6.6, 6, 5],
+      [12, -32, 6.8, 6, 5.5], [-21, -33, 5.7, 5, 4.7]
+    ].forEach(([x, z, w, d, h], i) => house(x, z, w, d, h, [0xddc49e, 0xe4d2ad, 0xd6c2a3][i % 3], [roofRed, 0xa5644c, 0x667278][i % 3]));
+    [-1, 1].forEach(side => {
+      box(stone, side * 5.1, 2.9, -3.8, 3.3, 5.8, 3.4);
+      box(roofRed, side * 5.1, 5.86, -3.8, 3.68, 0.33, 3.8);
+      box(stone, side * 15.5, 1.5, -3.8, 17.4, 3, 1.4);
+      for (let col = 0; col < 9; col++) {
+        box(stone, side * (7.2 + col * 1.96), 3.24, -3.8, 0.86, 0.58, 1.52);
+      }
+      block(side * 5.1, -3.8, 3.3, 3.4);
+      block(side * 15.5, -3.8, 17.4, 1.4);
+    });
+    // Keep the central entrance open for the third-person camera.
+    for (const side of [-1, 1]) {
+      box(0x4e7980, side * 4.8, 3.45, -2.03, 0.88, 2.05, 0.075);
+      box(brass, side * 4.8, 3.8, -1.98, 0.34, 0.09, 0.055, 0, Math.PI / 4);
+    }
+    function round(color, x, height, z, upper, lower, h) {
+      const mesh = new THREE.Mesh(new THREE.CylinderGeometry(upper, lower, h, 20), toonMat(color));
+      mesh.position.set(x, y + height, z); mesh.castShadow = true; mesh.receiveShadow = true;
+      town.add(mesh);
+    }
+    round(stone, -5.4, 0.34, -17.6, 2.55, 2.70, 0.68);
+    round(0x589da6, -5.4, 0.70, -17.6, 2.24, 2.24, 0.075);
+    round(stone, -5.4, 1.01, -17.6, 0.38, 0.64, 0.83);
+    round(0x8ebbbc, -5.4, 1.59, -17.6, 0.58, 0.28, 0.35);
+    colliders.push({ x: -5.4, z: -17.6, r: 2.7 });
+    round(0xd8c6a5, 21, 4.1, -37, 1.58, 2.4, 8.5);
+    round(roofRed, 21, 9.6, -37, 0.16, 2.05, 2.8);
+    colliders.push({ x: 21, z: -37, r: 2.4 });
+    windmillRotor = new THREE.Group();
+    windmillRotor.position.set(21, y + 7.1, -35.1);
+    const sail = toonMat(0xece2c3), beamMat = toonMat(timber);
+    for (let i = 0; i < 4; i++) {
+      const arm = new THREE.Group(); arm.rotation.z = i * Math.PI / 2;
+      const spar = new THREE.Mesh(new THREE.BoxGeometry(0.15, 3.75, 0.18), beamMat);
+      spar.position.y = 1.85; arm.add(spar);
+      const blade = new THREE.Mesh(new THREE.BoxGeometry(0.9, 2.42, 0.11), sail);
+      blade.position.set(0.42, 2.32, 0); arm.add(blade);
+      windmillRotor.add(arm);
+    }
+    town.add(windmillRotor);
+    batches.forEach((matrices, color) => {
+      const mesh = new THREE.InstancedMesh(cube, toonMat(color), matrices.length);
+      matrices.forEach((transform, i) => mesh.setMatrixAt(i, transform));
+      mesh.castShadow = color !== 0xbeb7a8 && color !== 0xaaa899 && color !== 0xc9c0aa && color !== 0xb7af9f;
+      mesh.receiveShadow = true; town.add(mesh);
+    });
+  }
+
   function scatter() {
     const rand = (function (seed) {
       let s = seed;
@@ -563,6 +709,13 @@ const WORLD = (function () {
 
     const nearNode = (x, z, r) => nodes.some(n => Math.hypot(n.x - x, n.z - z) < r)
       || WAYPOINTS.some(w => Math.hypot(w.x - x, w.z - z) < Math.max(r, 8.5));
+    const occupied = [];
+    function reserve(x, z, radius, nodeBuffer) {
+      if (townDistance(x, z) < radius + 1.0 || nearNode(x, z, radius + nodeBuffer)) return false;
+      if (occupied.some(o => Math.hypot(o.x - x, o.z - z) < o.radius + radius + 0.45)) return false;
+      occupied.push({ x, z, radius });
+      return true;
+    }
 
     /* trees */
     const treeN = 210;
@@ -579,10 +732,10 @@ const WORLD = (function () {
       const x = (rand() * 2 - 1) * 185, z = (rand() * 2 - 1) * 185;
       if (zoneWeight(x, z, 'B') < 0.68) continue;
       if (Math.hypot(x, z) < 26) continue;
-      if (nearNode(x, z, 7)) continue;
-      const y = heightAt(x, z);
       const sc = 0.7 + rand() * 0.9;
-      p.set(x, y + 2.5 * sc, z);
+      if (!reserve(x, z, 2.6 * sc, 3.8)) continue;
+      const y = heightAt(x, z);
+      p.set(x, y + 2.5 * sc - 0.17, z);
       q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand() * Math.PI * 2);
       s.set(sc, sc, sc);
       m.compose(p, q, s);
@@ -592,6 +745,7 @@ const WORLD = (function () {
       leaves.setMatrixAt(placed, m);
       c.setHSL(0.30 + rand() * 0.06, 0.38 + rand() * 0.18, 0.26 + rand() * 0.12);
       leaves.setColorAt(placed, c);
+      colliders.push({ x, z, r: 0.75 * sc });
       placed++;
     }
     trunks.count = placed; leaves.count = placed;
@@ -603,7 +757,7 @@ const WORLD = (function () {
     const rockTex = makeGrainTexture(160, 212, 40, 6);
     rockTex.repeat.set(1.8, 1.8);
     const rockMat = animeToonMaterial({
-      color: 0xffffff, map: rockTex, flatShading: true, rimStrength: 0.13
+      color: 0xffffff, map: rockTex, vertexColors: true, flatShading: true, rimStrength: 0.18
     });
     const variants = [0, 1, 2].map(function (vi) {
       const geo = makeRockGeometry(vi * 2.37 + 1.13);
@@ -611,18 +765,37 @@ const WORLD = (function () {
       im.castShadow = true; im.receiveShadow = true;
       return { mesh: im, n: 0 };
     });
+    const rockVertex = new THREE.Vector3();
+    function positionRock(geometry, x, z, sink) {
+      if (townDistance(x, z) < 1 || nearNode(x, z, 3.2)) return 0;
+      const vertices = geometry.attributes.position;
+      let radius = 0;
+      for (let i = 0; i < vertices.count; i++) {
+        rockVertex.fromBufferAttribute(vertices, i).multiply(s).applyQuaternion(q);
+        radius = Math.max(radius, Math.hypot(rockVertex.x, rockVertex.z));
+      }
+      if (!reserve(x, z, radius, 3.2)) return 0;
+      const groundContacts = [];
+      for (let i = 0; i < vertices.count; i += 3) {
+        rockVertex.fromBufferAttribute(vertices, i).multiply(s).applyQuaternion(q);
+        if (rockVertex.y < 0) groundContacts.push(heightAt(x + rockVertex.x, z + rockVertex.z) - rockVertex.y);
+      }
+      groundContacts.sort((a, b) => a - b);
+      const contact = groundContacts[Math.floor(groundContacts.length * 0.94)];
+      p.set(x, contact - sink, z);
+      m.compose(p, q, s);
+      return radius;
+    }
     let rIdx = 0; guard = 0;
     while (rIdx < rockN && guard++ < 9000) {
       const x = (rand() * 2 - 1) * 188, z = (rand() * 2 - 1) * 188;
       if (Math.hypot(x, z) < 16) continue;
-      if (nearNode(x, z, 5)) continue;
-      const y = heightAt(x, z);
       const sc = 0.55 + rand() * 2.3;
-      p.set(x, y + sc * 0.42, z);
       q.setFromEuler(new THREE.Euler(rand() * 0.5, rand() * Math.PI, rand() * 0.4));
       s.set(sc * (0.85 + rand() * 0.4), sc * (0.55 + rand() * 0.6), sc * (0.85 + rand() * 0.4));
-      m.compose(p, q, s);
       const V = variants[rIdx % 3];
+      const radius = positionRock(V.mesh.geometry, x, z, sc * 0.15);
+      if (!radius) continue;
       V.mesh.setMatrixAt(V.n, m);
       const wA = zoneWeight(x, z, 'A'), wC = zoneWeight(x, z, 'C'), wD = zoneWeight(x, z, 'D');
       if (wA > 0.5) c.setRGB(0.86 + rand() * 0.08, 0.88 + rand() * 0.07, 0.90 + rand() * 0.06);
@@ -632,7 +805,7 @@ const WORLD = (function () {
       V.mesh.setColorAt(V.n, c);
       V.n++;
       rIdx++;
-      if (sc > 1.6) colliders.push({ x, z, r: sc * 0.85 });
+      if (sc > 0.95) colliders.push({ x, z, r: radius * 0.82 });
     }
     variants.forEach(function (V) { V.mesh.count = V.n; scene.add(V.mesh); });
 
@@ -643,13 +816,10 @@ const WORLD = (function () {
     while (si < stoneN && guard++ < 6000) {
       const x = (rand() * 2 - 1) * 185, z = (rand() * 2 - 1) * 185;
       if (Math.hypot(x, z) < 12) continue;
-      if (nearNode(x, z, 4)) continue;
-      const y = heightAt(x, z);
       const sc = 0.18 + rand() * 0.42;
-      p.set(x, y + sc * 0.3, z);
       q.setFromEuler(new THREE.Euler(rand(), rand() * Math.PI, rand()));
       s.set(sc, sc * (0.6 + rand() * 0.5), sc);
-      m.compose(p, q, s);
+      if (!positionRock(stoneMesh.geometry, x, z, sc * 0.18)) continue;
       stoneMesh.setMatrixAt(si, m);
       c.setRGB(0.42 + rand() * 0.22, 0.43 + rand() * 0.2, 0.41 + rand() * 0.18);
       stoneMesh.setColorAt(si, c);
@@ -666,19 +836,17 @@ const WORLD = (function () {
       const x = (rand() * 2 - 1) * 180, z = (rand() * 2 - 1) * 180;
       if (Math.hypot(x, z) < 30) continue;
       if (zoneWeight(x, z, 'C') < 0.55) continue;
-      if (nearNode(x, z, 6)) continue;
-      const y = heightAt(x, z);
       const sc = 1.0 + rand() * 1.6;
       const hh = 3.4 + rand() * 5.2;
-      p.set(x, y + hh * 0.34, z);
       q.setFromEuler(new THREE.Euler((rand() - 0.5) * 0.18, rand() * Math.PI, (rand() - 0.5) * 0.18));
       s.set(sc, hh * 0.5, sc);
-      m.compose(p, q, s);
+      const radius = positionRock(spireMesh.geometry, x, z, hh * 0.12);
+      if (!radius) continue;
       spireMesh.setMatrixAt(pi2, m);
       c.setRGB(0.40 + rand() * 0.1, 0.38 + rand() * 0.09, 0.36 + rand() * 0.08);
       spireMesh.setColorAt(pi2, c);
       pi2++;
-      if (sc > 1.5) colliders.push({ x, z, r: sc * 0.8 });
+      colliders.push({ x, z, r: radius * 0.82 });
     }
     spireMesh.count = pi2; spireMesh.castShadow = true; spireMesh.receiveShadow = true;
     scene.add(spireMesh);
@@ -696,18 +864,18 @@ const WORLD = (function () {
       const x = (rand() * 2 - 1) * 185, z = (rand() * 2 - 1) * 185;
       if (Math.hypot(x, z) < 34) continue;
       if (zoneWeight(x, z, 'D') < 0.45) continue;
-      if (nearNode(x, z, 5.5)) continue;
       const y = heightAt(x, z);
       const sc = 0.5 + rand() * 2.1;
       p.set(x, y + sc * 0.8, z);
       q.setFromEuler(new THREE.Euler((rand() - 0.5) * 0.7, rand() * Math.PI, (rand() - 0.5) * 0.7));
       s.set(sc * 0.62, sc * (1.2 + rand() * 0.9), sc * 0.62);
-      m.compose(p, q, s);
+      const radius = positionRock(shGeo, x, z, sc * 0.30);
+      if (!radius) continue;
       shards.setMatrixAt(placed, m);
       c.setHSL(0.71 + rand() * 0.05, 0.62 + rand() * 0.18, 0.50 + rand() * 0.12);
       shards.setColorAt(placed, c);
       placed++;
-      if (sc > 2.0) colliders.push({ x, z, r: sc * 0.6 });
+      if (sc > 1.35) colliders.push({ x, z, r: radius * 0.82 });
     }
     shards.count = placed;
     scene.add(shards);
@@ -726,7 +894,7 @@ const WORLD = (function () {
       const x = (rand() * 2 - 1) * 186, z = (rand() * 2 - 1) * 186;
       const wB = zoneWeight(x, z, 'B'), wA = zoneWeight(x, z, 'A');
       if (wB < 0.45) continue;
-      if (nearNode(x, z, 4)) continue;
+      if (townDistance(x, z) < 1 || nearNode(x, z, 4)) continue;
       const y = heightAt(x, z);
       if (y < -0.9) continue;
       const sc = 0.6 + rand() * 0.9;
@@ -755,7 +923,7 @@ const WORLD = (function () {
     while (fi < flN && fg++ < 6000) {
       const x = (rand() * 2 - 1) * 180, z = (rand() * 2 - 1) * 180;
       if (zoneWeight(x, z, 'B') < 0.35) continue;
-      if (nearNode(x, z, 4)) continue;
+      if (townDistance(x, z) < 1 || nearNode(x, z, 4)) continue;
       const y = heightAt(x, z);
       if (y < -0.6) continue;
       p.set(x, y + 0.5 + rand() * 0.3, z);
@@ -1233,8 +1401,13 @@ const WORLD = (function () {
 
       g.restore();
     }
-    eye(290, 315, false);   // 畫布右側
-    eye(128, 315, true);    // 畫布左側（水平鏡像）
+    [[295, false], [138, true]].forEach(([x, mirror]) => {
+      g.save();
+      g.translate(x, 326);
+      g.scale(0.86, 0.73);
+      eye(0, 0, mirror);
+      g.restore();
+    });
 
     /* 眉：3px 圓頭線，平緩微彎（收細、減斜，避免兇相） */
     g.strokeStyle = '#7A4A34'; g.lineWidth = 3.0; g.lineCap = 'round';
@@ -1247,7 +1420,7 @@ const WORLD = (function () {
 
     /* 嘴：淺微笑 ∪ 形（嘴角微上揚），加深加粗讓遠距離可讀 */
     g.strokeStyle = '#9C4A44'; g.lineWidth = 4.2; g.lineCap = 'round';
-    g.beginPath(); g.moveTo(240, 450); g.quadraticCurveTo(256, 461, 272, 448); g.stroke();
+    g.beginPath(); g.moveTo(239, 450); g.quadraticCurveTo(255, 454, 272, 448); g.stroke();
     /* 嘴角的小上揚鉤 */
     g.lineWidth = 3.0;
     g.beginPath(); g.moveTo(272, 448); g.quadraticCurveTo(276, 446, 277, 443); g.stroke();
@@ -1265,6 +1438,98 @@ const WORLD = (function () {
     return t;
   }
 
+  function taperedHairLock(curve, radiusAt, segments = 22) {
+    const sides = 8;
+    const geo = new THREE.TubeGeometry(curve, segments, 1, sides, false);
+    const pos = geo.attributes.position;
+    const v = new THREE.Vector3();
+    for (let row = 0; row <= segments; row++) {
+      const t = row / segments;
+      const center = curve.getPointAt(t);
+      for (let j = 0; j <= sides; j++) {
+        const i = row * (sides + 1) + j;
+        v.fromBufferAttribute(pos, i).sub(center).multiplyScalar(radiusAt(t)).add(center);
+        pos.setXYZ(i, v.x, v.y, v.z);
+      }
+    }
+    geo.computeVertexNormals();
+    return geo;
+  }
+
+  function buildElaraHair(head, materials) {
+    const point = (angle, angleFromCrown) => new THREE.Vector3(
+      Math.sin(angle) * Math.sin(angleFromCrown) * 0.343,
+      Math.cos(angleFromCrown) * 0.355 + 0.014,
+      Math.cos(angle) * Math.sin(angleFromCrown) * 0.334 - 0.001
+    );
+    const scalp = new THREE.PlaneGeometry(1, 1, 48, 20);
+    const positions = scalp.attributes.position, uv = scalp.attributes.uv;
+    for (let i = 0; i < positions.count; i++) {
+      const angle = uv.getX(i) * Math.PI * 2 - Math.PI;
+      const fringe = 0.96 + 0.55 * (1 - Math.cos(angle)) + 0.065 * Math.sin(angle * 3 + 0.6);
+      const t = THREE.MathUtils.clamp(1 - uv.getY(i), 0, 1);
+      const p = point(angle, t * fringe);
+      positions.setXYZ(i, p.x, p.y, p.z);
+    }
+    scalp.computeVertexNormals();
+    const swept = [
+      [[0.055, 0.355, 0.095], [-0.075, 0.335, 0.152], [-0.185, 0.27, 0.224], [-0.255, 0.155, 0.23], [-0.285, 0.03, 0.18]],
+      [[0.041, 0.349, 0.13], [-0.066, 0.318, 0.205], [-0.156, 0.266, 0.255], [-0.221, 0.193, 0.264], [-0.254, 0.124, 0.24]],
+      [[0.062, 0.347, 0.121], [0.163, 0.318, 0.185], [0.249, 0.252, 0.206], [0.287, 0.153, 0.196], [0.305, 0.06, 0.148]],
+      [[-0.20, 0.268, -0.13], [-0.29, 0.134, -0.18], [-0.32, -0.01, -0.14], [-0.32, -0.12, -0.061]]
+    ];
+    const locks = [{ g: scalp }, { g: buildElaraBraid() }];
+    swept.forEach((points, index) => {
+      const curve = new THREE.CatmullRomCurve3(points.map(p => new THREE.Vector3(...p)));
+      locks.push({ g: taperedHairLock(curve, t => (0.052 - index * 0.004) * Math.sin(Math.PI * t) + 0.006 * (1 - t) + 0.001) });
+    });
+    const mesh = new THREE.Mesh(plMerge(locks), materials.hair);
+    mesh.name = 'Elara swept hair and side braid';
+    mesh.castShadow = true; head.add(mesh);
+    const tie = new THREE.Mesh(new THREE.TorusGeometry(0.035, 0.009, 6, 16), materials.red);
+    tie.rotation.x = Math.PI / 2;
+    tie.position.set(-0.35, -0.99, 0.38);
+    head.add(tie);
+    const clasp = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.008, 6, 5), materials.gold);
+    clasp.rotation.y = -0.65;
+    clasp.position.set(-0.31, 0.11, 0.18);
+    head.add(clasp);
+  }
+
+  function buildElaraBraid() {
+    const guide = new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.202, 0.08, -0.276), new THREE.Vector3(-0.342, -0.10, -0.17),
+      new THREE.Vector3(-0.435, -0.43, 0.16), new THREE.Vector3(-0.409, -0.70, 0.34),
+      new THREE.Vector3(-0.35, -0.99, 0.38), new THREE.Vector3(-0.38, -1.10, 0.385)
+    ]);
+    const strands = [];
+    for (let strand = 0; strand < 3; strand++) {
+      const points = [];
+      for (let i = 0; i <= 32; i++) {
+        const t = i / 32;
+        const angle = (t * 5 + strand / 3) * Math.PI * 2;
+        const width = Math.sin(Math.PI * Math.pow(t, 0.55)) * 0.049;
+        const point = guide.getPoint(t);
+        point.x += width * Math.cos(angle);
+        point.z += width * Math.sin(angle);
+        points.push(point);
+      }
+      strands.push({ g: taperedHairLock(new THREE.CatmullRomCurve3(points), t => 0.046 * (1 - t * t) + 0.005, 42) });
+    }
+    return plMerge(strands);
+  }
+
+  function addEmbroideredSprig(items, x, y, z, scale) {
+    const point = (px, py) => new THREE.Vector3(x + px * scale, y + py * scale, z);
+    items.push({ g: new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(point(0, 0), point(0.025, 0.07), point(0, 0.15)), 6, 0.004, 5, false) });
+    [0.045, 0.082, 0.116].forEach((height, index) => {
+      [-1, 1].forEach(side => {
+        const width = (0.038 - index * 0.007) * side;
+        items.push({ g: new THREE.TubeGeometry(new THREE.QuadraticBezierCurve3(point(0.008, height), point(width, height + 0.005), point(width, height + 0.022)), 4, 0.003, 5, false) });
+      });
+    });
+  }
+
   function buildPlayer() {
     const CR = plRamps(), G2 = CR.G2, G3 = CR.G3, G4 = CR.G4;
 
@@ -1276,7 +1541,7 @@ const WORLD = (function () {
     };
     const R = {
       headX: 0.315, headY: 0.330, headZ: 0.310,
-      shoulderPivX: 0.245, hipPivX: 0.145,
+      shoulderPivX: 0.265, hipPivX: 0.145,
       ZS_TORSO: 0.74, ZS_SKIRT: 0.88
     };
     /* 臉貼圖方位補償：r128 SphereGeometry 的 u=0.25 對應 +z，故為 0。
@@ -1304,7 +1569,7 @@ const WORLD = (function () {
       creamDim: plMat(C.creamDim, G3, { double: true }),
       skin: plMat(C.skin, G4),
       skinDim: plMat(C.skinDim, G4),
-      hair: plMat(C.hair, G4, { flat: true }),
+      hair: plMat(C.hair, G4),
       hairDark: plMat(C.hairDark, G4, { flat: true }),
       leather: plMat(C.leather, G2),
       leatherDark: plMat(C.leatherDark, G2),
@@ -1357,9 +1622,17 @@ const WORLD = (function () {
       ]), MAT.tights);
 
       put(lowerLeg, plMerge([
-        { g: new THREE.CylinderGeometry(0.122, 0.114, 0.10, 14), m: plM(0, -0.46, 0) },    // 靴口翻邊
-        { g: new THREE.CylinderGeometry(0.114, 0.100, 0.31, 14), m: plM(0, -0.655, 0) }    // 靴筒
+        { g: new THREE.CylinderGeometry(0.124, 0.114, 0.13, 14), m: plM(0, -0.16, 0) },
+        { g: new THREE.CylinderGeometry(0.111, 0.095, 0.63, 14), m: plM(0, -0.48, 0) }
       ]), MAT.leather);
+      const bootLaces = [];
+      for (let i = 0; i < 5; i++) {
+        const y = -0.27 - 0.073 * i;
+        [-1, 1].forEach(side => {
+          bootLaces.push({ g: new THREE.BoxGeometry(0.081, 0.012, 0.012), m: plM(0, y, 0.102, 0, 0, side * 0.44) });
+        });
+      }
+      put(lowerLeg, plMerge(bootLaces), MAT.bedroll, false);
 
       const foot = new THREE.Group();
       foot.position.set(0, -0.785, 0.055);
@@ -1376,16 +1649,12 @@ const WORLD = (function () {
       ]), MAT.sole);
 
       put(lowerLeg, plMerge([
-        { g: new THREE.TorusGeometry(0.122, 0.013, 8, 36), m: plM(0, -0.415, 0, Math.PI / 2) }
+        { g: new THREE.TorusGeometry(0.121, 0.013, 8, 24), m: plM(0, -0.205, 0, Math.PI / 2) }
       ]), MAT.leatherDark);
 
       put(lowerLeg, plMerge([
-        { g: new THREE.TorusGeometry(0.117, 0.009, 8, 30, 2.2),
-          m: plM(0, -0.50, 0, Math.PI / 2, 0, 0.9) },
-        { g: new THREE.TorusGeometry(0.108, 0.008, 8, 30, 2.2),
-          m: plM(0, -0.64, 0, Math.PI / 2, 0, 0.9) },
-        { g: new THREE.TorusGeometry(0.103, 0.008, 8, 30, 2.2),
-          m: plM(0, -0.75, 0, Math.PI / 2, 0, 0.9) }
+        { g: new THREE.TorusGeometry(0.029, 0.007, 6, 4), m: plM(sd * 0.03, -0.165, 0.121, 0, 0, Math.PI / 4) },
+        { g: new THREE.TorusGeometry(0.024, 0.006, 6, 4), m: plM(sd * 0.024, -0.67, 0.106, 0, 0, Math.PI / 4) }
       ]), MAT.gold);
 
       upperLeg.userData.lower = lowerLeg;
@@ -1428,6 +1697,18 @@ const WORLD = (function () {
     underSkirtGeo.applyMatrix4(new THREE.Matrix4().makeScale(0.92, 1.08, 0.92));
     const underSkirt = put(skirtGrp, underSkirtGeo, MAT.cream);
     underSkirt.position.y = 1.30;
+    const frontPanels = [];
+    [-1, 1].forEach(side => {
+      const panel = new THREE.CylinderGeometry(0.225, 0.345, 0.42, 12, 3, true, side > 0 ? 0.12 : -0.98, 0.86);
+      panel.scale(1, 1, 0.95);
+      panel.translate(0, 1.37, 0.035);
+      put(skirtGrp, panel, MAT.coat);
+      for (let j = 0; j < 3; j++) {
+        const angle = side * (0.24 + j * 0.23);
+        addEmbroideredSprig(frontPanels, Math.sin(angle) * 0.311, 1.17, Math.cos(angle) * 0.31 + 0.068, 0.76);
+      }
+    });
+    put(skirtGrp, plMerge(frontPanels), MAT.gold, false);
 
     /* 裙內殼：同幾何 scale 0.985、BackSide、色 ×0.55 → 仰角不透空 */
     const skirtInGeo = skirtGeo.clone();
@@ -1518,10 +1799,10 @@ const WORLD = (function () {
 
     /* ================= 手臂（pivot 在肩，§2.8）================= */
     limbs.arms = [];
-    [-1, 1].forEach(function (sd) {
+    [1, -1].forEach(function (sd) {
       const upperArm = new THREE.Group();
-      upperArm.position.set(R.shoulderPivX * sd, P.yShoulder, 0);
-      upperArm.rotation.z = -0.17 * sd;   // 外張角與 movePlayer 的 ±0.17 一致
+      upperArm.position.set(R.shoulderPivX * sd, P.yShoulder - P.yTorsoPiv, 0);
+      upperArm.rotation.z = 0.17 * sd;
 
       put(upperArm, plMerge([
         { g: new THREE.SphereGeometry(0.145, 14, 12), m: plM(0, 0, 0, 0, 0, 0, 1.08, 0.82, 1.0) }
@@ -1545,9 +1826,10 @@ const WORLD = (function () {
         { g: new THREE.TorusGeometry(0.134, 0.011, 8, 36), m: plM(0, 0.012, 0, Math.PI / 2) },    // 袖口滾邊
       ]), MAT.cream);
       put(lowerArm, plMerge([
-        { g: new THREE.CylinderGeometry(0.090, 0.098, 0.13, 12), m: plM(0, -0.265, 0) },
-        { g: new THREE.TorusGeometry(0.098, 0.010, 8, 32), m: plM(0, -0.205, 0, Math.PI / 2) }
+        { g: new THREE.CylinderGeometry(0.102, 0.096, 0.065, 12), m: plM(0, -0.035, 0) },
+        { g: new THREE.TorusGeometry(0.101, 0.010, 8, 24), m: plM(0, -0.068, 0, Math.PI / 2) }
       ]), MAT.cream);
+      put(lowerArm, new THREE.CylinderGeometry(0.083, 0.072, 0.15, 12).translate(0, -0.29, 0), MAT.leatherDark);
 
       const hand = new THREE.Group();
       hand.position.set(0, -0.375, 0.006);
@@ -1564,7 +1846,7 @@ const WORLD = (function () {
       upperArm.userData.lower = lowerArm;
       upperArm.userData.hand = hand;
       upperArm.userData.weaponMount = weaponMount;
-      player.add(upperArm);
+      torsoGrp.add(upperArm);
       limbs.arms.push(upperArm);
     });
 
@@ -1586,6 +1868,12 @@ const WORLD = (function () {
       uv.needsUpdate = true;
       skullGeo.scale(0.955, 1.0, 0.94);                // → rx .315 / ry .330 / rz .310
     })();
+    const skull = skullGeo.attributes.position;
+    for (let i = 0; i < skull.count; i++) {
+      const jaw = THREE.MathUtils.smoothstep(-skull.getY(i), 0.05, 0.31);
+      skull.setX(i, skull.getX(i) * (1 - 0.24 * jaw));
+    }
+    skullGeo.computeVertexNormals();
     put(headGrp, skullGeo, animeToonMaterial({
       color: 0xffffff, map: makeFaceTexture(), gradientMap: G4,
       rimColor: 0xffe8d7, rimStrength: 0.28
@@ -1603,127 +1891,10 @@ const WORLD = (function () {
     ]), MAT.skin, false);
 
     /* 髮：髮冠 + 7 束瀏海 + 2 側髮 + 馬尾 3 段 + 呆毛（全部一個 mesh） */
-    const hairItems = [];
+    buildElaraHair(headGrp, MAT);
+    headGrp.scale.set(0.79, 0.84, 0.83);
+    headGrp.position.y += 0.035;
 
-    /* 髮量主體：一整顆「閉合」橢球，往後下偏。
-       不切方位角、不留缺口 → 不會看到碗內壁／水平硬邊／方板切邊；
-       前方因 z 後偏而沉進頭骨，只在頭頂、兩側、後腦露出，瀏海再蓋住前緣接縫。 */
-    const HAIR = { cy: 0.045, cz: -0.090, rx: 0.367, ry: 0.330, rz: 0.360 };
-    hairItems.push({
-      g: new THREE.SphereGeometry(0.34, 22, 16),
-      m: plM(0, HAIR.cy, HAIR.cz, 0, 0, 0, 1.08, 0.97, 1.06)
-    });
-    /* 髮暗層整層移除：那兩束就是背面「深色橫帶」的來源，
-       現在髮量是一整顆閉合橢球，層次由 flatShading + G4 四階 ramp 提供。 */
-
-    /* 瀏海 7 束：髮根落在髮冠前緣（球面解 z），rx 讓髮束貼著額頭往前下方垂 */
-    const BANGS = [
-      [-0.245, 2.815, -0.30, 0.062],
-      [-0.170, 2.855, -0.20, 0.090],
-      [-0.095, 2.895, -0.10, 0.080],
-      [-0.020, 2.865, -0.04, 0.095],
-      [ 0.062, 2.900,  0.10, 0.085],
-      [ 0.145, 2.850,  0.19, 0.092],
-      [ 0.228, 2.820,  0.32, 0.064]
-    ];
-    const BANG_RX = Math.PI - 0.80;
-    BANGS.forEach(function (b) {
-      const x = b[0], yTip = b[1], rz = b[2], w = b[3];
-      const by = 0.300 - 1.05 * x * x;                        // 髮根高度：越外側越低
-      const k = 1 - (x / HAIR.rx) * (x / HAIR.rx)
-        - ((by - HAIR.cy) / HAIR.ry) * ((by - HAIR.cy) / HAIR.ry);
-      const bz = Math.max(0.02, HAIR.cz + Math.sqrt(Math.max(0, k)) * HAIR.rz);
-      const dir = new THREE.Vector3(0, 1, 0).applyEuler(new THREE.Euler(BANG_RX, 0, rz));
-      const L = Math.max(0.10, (by + P.yHeadC - yTip) / Math.max(0.2, -dir.y));
-      const g = plLock(L, w, 0.45, 2);
-      hairItems.push({
-        g: g,
-        m: plM(x + dir.x * L / 2, by + dir.y * L / 2, bz + dir.z * L / 2, BANG_RX, 0, rz)
-      });
-    });
-
-    /* Loose layered strands frame the face and blend into the travel braids. */
-    [-1, 1].forEach(function (sd) {
-      [[0.288, 0.082, 0.070, 0.40, -0.05],
-       [0.320, -0.075, 0.050, 0.34, -0.02],
-       [0.255, -0.035, 0.075, 0.31, 0.06]].forEach(function (s) {
-        const bx = s[0] * sd, len = s[3], rz = s[4] * sd;
-        const rx = Math.PI - 0.05;
-        const dir = new THREE.Vector3(0, 1, 0).applyEuler(new THREE.Euler(rx, 0, rz));
-        hairItems.push({
-          g: plLock(len, s[1], 0.45, 2),
-          m: plM(bx + dir.x * len / 2, 0.175 + dir.y * len / 2, s[2] + dir.z * len / 2, rx, 0, rz)
-        });
-      });
-    });
-
-    /* 馬尾 3 段（每段各自旋轉 → 側面是折線不是錐）；rx > π 才是往後垂 */
-    /* 馬尾：由髮圈往後垂的「三節辮」。四個節點直接給世界座標，
-       每節的方向由相鄰節點反推（rx = atan2(dz,dy)），節間各重疊 0.02。
-       末端 z −0.558 比外套背面 −0.19 再往後 0.37 → 離開背脊，不貼成一支三角。 */
-    const PONYP = [
-      [2.615, -0.400],
-      [2.355, -0.432],
-      [2.115, -0.487],
-      [1.905, -0.558]
-    ];
-    const PONYW = [[0.074, 0.66], [0.066, 0.72], [0.056, 0.80]];   // 半徑遞減、thick ≥0.6
-    const PONYX = [0.000, 0.026, -0.020];                          // 左右錯位 → 辮子感
-    const PONYR = [0.30, -0.26, 0.20];                             // 每節 Y 軸扭轉，避免平面對鏡頭
-    for (let pi = 0; pi < 3; pi++) {
-      const ay = PONYP[pi][0] - P.yHeadC, az = PONYP[pi][1];
-      const by = PONYP[pi + 1][0] - P.yHeadC, bzN = PONYP[pi + 1][1];
-      let dy = by - ay, dz = bzN - az;
-      const segL = Math.sqrt(dy * dy + dz * dz);
-      dy /= segL; dz /= segL;
-      const rx = Math.atan2(dz, dy);
-      hairItems.push({
-        g: plLock(segL + 0.04, PONYW[pi][0], PONYW[pi][1], 3),
-        m: plM(PONYX[pi], ay - dy * 0.02, az - dz * 0.02, rx, PONYR[pi], 0)  // 根端退 0.02 → 重疊
-      });
-    }
-
-    /* 呆毛：全角色最高點 y = 3.26 */
-    hairItems.push({
-      g: plLock(0.21, 0.024, 0.35, 2),
-      m: plM(0.030, 3.095 - P.yHeadC, -0.045, 0.42, 0, -0.55)
-    });
-
-    put(headGrp, plMerge(hairItems), MAT.hair);
-    /* 髮圈：放在後腦髮量表面（z −0.392，髮量背面就在 −0.395）＝馬尾第一節的根部，
-       rx 0.55；內圈用一顆髮束填住，不會透空看到頭皮。 */
-    hairItems.push({
-      g: new THREE.SphereGeometry(0.055, 10, 8),
-      m: plM(0, 2.600 - P.yHeadC, -0.392, 0, 0, 0, 1.0, 1.25, 0.9)
-    });
-    put(headGrp, plMerge([
-      { g: new THREE.TorusGeometry(0.058, 0.019, 4, 14), m: plM(0, 2.600 - P.yHeadC, -0.392, 0.55) }
-    ]), MAT.gold, false);
-
-    const braidRoot = new THREE.Group();
-    braidRoot.position.set(0.15, 0.105, -0.29);
-    braidRoot.rotation.x = 0.58;
-    headGrp.add(braidRoot);
-    limbs.braids = [];
-    let braidParent = braidRoot;
-    for (let bi = 0; bi < 6; bi++) {
-      const joint = new THREE.Group();
-      joint.position.y = bi ? -0.115 : 0;
-      const radius = 0.092 - bi * 0.008;
-      const bead = new THREE.Mesh(new THREE.SphereGeometry(radius, 10, 8), bi % 2 ? MAT.hairDark : MAT.hair);
-      bead.position.y = -0.066;
-      bead.scale.set(0.88, 1.22, 0.92);
-      joint.add(bead);
-      const tie = new THREE.Mesh(new THREE.TorusGeometry(radius * 0.76, 0.009, 6, 12), MAT.gold);
-      tie.position.set(0, -0.115, 0);
-      tie.rotation.x = Math.PI / 2;
-      joint.add(tie);
-      braidParent.add(joint);
-      limbs.braids.push(joint);
-      braidParent = joint;
-    }
-
-    /* ================= 領巾（limbs.cape，pivot 在領口，§2.11）================= */
     const cape = new THREE.Group();
     cape.position.set(0, 2.34 - P.yTorsoPiv, -0.16);
     limbs.cape = cape;
@@ -1737,29 +1908,36 @@ const WORLD = (function () {
     put(cape, plMerge([{ g: band1 }, { g: band2 }]), MAT.scarf);
 
     const capeSegments = [];
-    const capeLengths = [0.36, 0.40, 0.38];
-    const capeWidths = [[0.62, 0.58], [0.58, 0.48], [0.48, 0.34]];
+    const capeLengths = [0.42, 0.54, 0.66];
+    const capeWidths = [[0.68, 0.73], [0.73, 0.91], [0.91, 1.16]];
     let capeParent = cape;
     capeLengths.forEach(function (len, i) {
       const joint = new THREE.Group();
       joint.position.set(0, i ? -capeLengths[i - 1] : -0.07, i ? -0.025 : -0.02);
       joint.rotation.x = 0.10 + i * 0.07;
-      const panel = new THREE.PlaneGeometry(1, len, 4, 2);
+      const panel = new THREE.PlaneGeometry(1, len, 12, 8);
       const panelPos = panel.attributes.position;
       for (let vi = 0; vi < panelPos.count; vi++) {
         const localY = panelPos.getY(vi);
         const t = (len / 2 - localY) / len;
         const width = capeWidths[i][0] + (capeWidths[i][1] - capeWidths[i][0]) * t;
-        const fold = Math.cos(panelPos.getX(vi) * Math.PI * 4) * 0.014;
-        panelPos.setXYZ(vi, panelPos.getX(vi) * width, localY - len / 2, fold);
+        const across = panelPos.getX(vi);
+        const fold = Math.cos(across * Math.PI * 9) * 0.027;
+        panelPos.setXYZ(vi, across * width, localY - len / 2 + (i === 2 ? t * Math.abs(across) * 0.18 : 0),
+          fold + across * across * 0.47);
       }
       panelPos.needsUpdate = true;
       panel.computeVertexNormals();
       put(joint, panel, MAT.coat);
-      const embroidery = new THREE.Mesh(new THREE.PlaneGeometry(0.68, len * 0.80, 2, 2), MAT.gold);
-      embroidery.position.set(0, -len * 0.58, 0.009);
-      embroidery.scale.x = capeWidths[i][1] * 0.78;
-      joint.add(embroidery);
+      if (i === 2) {
+        const embroidery = [];
+        [-0.52, -0.36, -0.18, 0, 0.18, 0.36, 0.52].forEach(x => {
+          const across = x / capeWidths[i][1];
+          const z = Math.cos(across * Math.PI * 9) * 0.027 + across * across * 0.47;
+          addEmbroideredSprig(embroidery, x, -len + 0.06 + Math.abs(across) * 0.18, z - 0.018, 1.1);
+        });
+        put(joint, plMerge(embroidery), MAT.gold, false);
+      }
       capeParent.add(joint);
       capeSegments.push(joint);
       capeParent = joint;
@@ -1770,18 +1948,18 @@ const WORLD = (function () {
     backpack.position.set(0, 0.12, -0.245);
     backpack.rotation.x = -0.10;
     torsoGrp.add(backpack);
-    const packBody = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.66, 0.27), MAT.leather);
+    const packBody = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.64, 0.24), MAT.leather);
     packBody.position.set(0, 0.16, -0.02);
     backpack.add(packBody);
     const packFlap = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.20, 0.035), MAT.bedroll);
-    packFlap.position.set(0, 0.42, 0.128);
+    packFlap.position.set(0, 0.42, -0.155);
     backpack.add(packFlap);
     [-1, 1].forEach(function (side) {
       const pocket = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.25, 0.16), MAT.leather);
-      pocket.position.set(side * 0.22, 0.03, 0.12);
+      pocket.position.set(side * 0.17, 0.03, -0.158);
       backpack.add(pocket);
       const buckle = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.065, 0.02), MAT.gold);
-      buckle.position.set(side * 0.22, 0.075, 0.215);
+      buckle.position.set(side * 0.17, 0.075, -0.245);
       backpack.add(buckle);
     });
     const roll = new THREE.Mesh(new THREE.CylinderGeometry(0.145, 0.145, 0.64, 12), MAT.bedroll);
@@ -1795,7 +1973,7 @@ const WORLD = (function () {
       backpack.add(strap);
     });
     const packStraps = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.055, 0.03), MAT.gold);
-    packStraps.position.set(0, -0.06, 0.15);
+    packStraps.position.set(0, -0.06, -0.243);
     backpack.add(packStraps);
     limbs.backpack = backpack;
 
@@ -1803,17 +1981,25 @@ const WORLD = (function () {
     backMount.position.set(0.34, 0.56, -0.19);
     backMount.rotation.x = -0.16;
     torsoGrp.add(backMount);
-    const backSword = buildWeapon('sword');
-    backSword.position.set(0, -0.03, -0.08);
-    backSword.rotation.set(-0.10, 0.08, 0.12);
-    backSword.scale.setScalar(0.78);
-    backMount.add(backSword);
+    const scabbard = new THREE.Group();
+    scabbard.position.set(-0.04, 0.07, -0.34);
+    scabbard.rotation.z = -0.41;
+    backMount.add(scabbard);
+    put(scabbard, plMerge([
+      { g: new THREE.BoxGeometry(0.13, 1.36, 0.064), m: plM(0, -0.66, 0) },
+      { g: new THREE.CylinderGeometry(0.040, 0.037, 0.28, 10), m: plM(0, 0.16, 0) }
+    ]), MAT.leatherDark);
+    put(scabbard, plMerge([
+      { g: new THREE.BoxGeometry(0.21, 0.044, 0.070), m: plM(0, 0.01, 0) },
+      { g: new THREE.BoxGeometry(0.134, 0.038, 0.070), m: plM(0, -1.30, 0) },
+      { g: new THREE.OctahedronGeometry(0.053), m: plM(0, 0.32, 0) }
+    ]), MAT.gold);
     const ribbonMat = MAT.red;
     [-1, 1].forEach(function (side) {
       const ribbon = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.42, 1, 5), ribbonMat);
-      ribbon.position.set(side * 0.07, 0.72, -0.02);
+      ribbon.position.set(side * 0.065, 0.18, -0.07);
       ribbon.rotation.z = side * -0.24;
-      backMount.add(ribbon);
+      scabbard.add(ribbon);
     });
     limbs.backMount = backMount;
 
@@ -1843,6 +2029,7 @@ const WORLD = (function () {
     const orbLight = new THREE.PointLight(0x54e3b0, 0.8, 7, 2);
     orbLight.position.copy(orb.position);
     limbs.arms[0].userData.hand.add(orbLight);
+    limbs.orb = [orb, orbLight];
 
     /* ================= 地面接觸陰影 + 地面光環（原樣保留，§2.12）================= */
     const shadow = new THREE.Mesh(
@@ -1909,6 +2096,7 @@ const WORLD = (function () {
 
     buildSky();
     buildTerrain();
+    buildTown();
     scatter();
     buildNodeMeshes();
     buildWaypoints();
@@ -2045,6 +2233,7 @@ const WORLD = (function () {
 
   function bindInput() {
     window.addEventListener('keydown', e => {
+      if (locked || e.defaultPrevented) return;
       const k = e.key.toLowerCase();
       keys[k] = true;
       if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' '].includes(k)) e.preventDefault();
@@ -2054,12 +2243,7 @@ const WORLD = (function () {
 
     const cv = renderer.domElement;
 
-    cv.addEventListener('click', function () {
-      if (locked) return;
-      if (document.pointerLockElement !== cv && cv.requestPointerLock) {
-        try { cv.requestPointerLock(); } catch (e) { }
-      }
-    });
+    cv.addEventListener('click', requestLock);
 
     /* Left mouse button = primary attack (Genshin/CS-style), active only while
        pointer-locked so menu clicks and the initial lock click are safe. */
@@ -2128,8 +2312,14 @@ const WORLD = (function () {
 
   function requestLock() {
     const cv = renderer.domElement;
-    if (locked || document.pointerLockElement === cv) return;
-    if (cv.requestPointerLock) { try { cv.requestPointerLock(); } catch (e) { } }
+    if (locked || touchMode || document.pointerLockElement === cv || !cv.requestPointerLock) return;
+    try {
+      const result = cv.requestPointerLock();
+      if (result) result.catch(() => {
+        const hint = document.getElementById('lockHint');
+        if (hint) hint.textContent = 'Drag to look';
+      });
+    } catch (e) { }
   }
   function relock() { if (everLocked && !locked) requestLock(); }
 
@@ -2172,6 +2362,15 @@ const WORLD = (function () {
     let pz = Math.max(-WALK_LIMIT, Math.min(WALK_LIMIT, nz));
 
     for (const c of colliders) {
+      if (c.halfX !== undefined) {
+        const gapX = c.halfX + 0.75 - Math.abs(px - c.x);
+        const gapZ = c.halfZ + 0.75 - Math.abs(pz - c.z);
+        if (gapX > 0 && gapZ > 0) {
+          if (gapX < gapZ) px += (Math.sign(px - c.x) || 1) * gapX;
+          else pz += (Math.sign(pz - c.z) || 1) * gapZ;
+        }
+        continue;
+      }
       const dx = px - c.x, dz = pz - c.z;
       const dist = Math.hypot(dx, dz);
       const minD = c.r + 1.0;
@@ -2254,10 +2453,15 @@ const WORLD = (function () {
         });
       }
       if (limbs.torso) {
+        limbs.torso.rotation.y = 0;
         const idle = Math.max(0, 1 - spd / 5);
         limbs.torso.scale.y = 1 + Math.sin(elapsed * 1.7) * 0.013 * idle;
-        limbs.arms[0].rotation.z = -0.17 - Math.sin(elapsed * 1.1) * 0.02 * idle;
-        limbs.arms[1].rotation.z = 0.17 + Math.sin(elapsed * 1.1) * 0.02 * idle;
+        limbs.arms[0].rotation.z = 0.17 + Math.sin(elapsed * 1.1) * 0.02 * idle;
+        limbs.arms[1].rotation.z = -limbs.arms[0].rotation.z;
+        limbs.arms.forEach(arm => {
+          arm.rotation.y = 0;
+          arm.userData.hand.rotation.z = 0;
+        });
         if (limbs.head) {
           limbs.head.rotation.y = Math.sin(elapsed * 0.52) * 0.035 * idle;
           limbs.head.rotation.z = -limbs.torso.rotation.z * 0.45;
@@ -2268,7 +2472,7 @@ const WORLD = (function () {
 
   function updateCamera(dtOrInit) {
     const dist = camDist;
-    const h = 3.6;
+    const h = 2.9;
     targetCam.set(
       player.position.x + Math.sin(yaw) * dist * Math.cos(pitch),
       player.position.y + h + Math.sin(pitch) * dist,
@@ -2288,7 +2492,7 @@ const WORLD = (function () {
     const gmin = heightAt(camera.position.x, camera.position.z) + 1.4;
     if (camera.position.y < gmin) camera.position.y = gmin;
 
-    tmpV.set(player.position.x, player.position.y + 2.2, player.position.z);
+    tmpV.set(player.position.x, player.position.y + 1.92, player.position.z);
     camera.lookAt(tmpV);
   }
 
@@ -2397,7 +2601,7 @@ const WORLD = (function () {
     }
     g.userData.type = t;
     g.userData.kind = 'weapon';
-    g.userData.tipY = t === 'staff' ? 1.06 : t === 'bow' ? 0.55 : t === 'daggers' ? 0.42 : 1.0;
+    g.userData.tipY = t === 'great' ? 1.34 : t === 'daggers' ? 0.42 : 1.01;
     return g;
   }
 
@@ -2408,11 +2612,11 @@ const WORLD = (function () {
     if (weaponGroup && mount) mount.remove(weaponGroup);
     if (!limbs.arms[1]) return;
     weaponGroup = buildWeapon(id);
-    /* Hold at the hand, blade angled UP and OUT so it reads clearly from the
-       third-person camera (a downward blade hid behind the skirt/body). */
-    weaponGroup.position.set(0.06, 0.035, 0.15);
-    weaponGroup.rotation.set(-0.55, 0, -0.28);
-    weaponGroup.scale.setScalar(1.05);
+    const type = weaponGroup.userData.type;
+    const blade = type === 'sword' || type === 'great' || type === 'daggers';
+    weaponGroup.position.set(-0.01, -0.014, 0.028);
+    weaponGroup.rotation.set(blade ? 2.50 : 0.18, 0, blade ? -0.15 : 0);
+    weaponGroup.scale.setScalar(type === 'sword' ? 1.14 : 1.05);
     mount.add(weaponGroup);
   }
 
@@ -2445,6 +2649,7 @@ const WORLD = (function () {
     tint(charMats.hairDark, darken(pal ? pal.hair : C.hair, 0.7));
     // male characters: broader frame, no skirt (trousers instead), darker tights
     const male = C.gender === 'male';
+    limbs.orb.forEach(part => { part.visible = charId !== 'lyra'; });
     if (skirtGrpRef) skirtGrpRef.visible = !male;
     if (charMats.tights) tint(charMats.tights, male ? 0x24303c : (charId === 'lyra' ? 0x382D2D : 0x1B3A46));
     player.scale.set(male ? 1.06 : 1.0, male ? 1.03 : 1.0, male ? 1.06 : 1.0);
@@ -2514,6 +2719,7 @@ const WORLD = (function () {
       let x = Z.cx + Math.cos(ang) * rad;
       let z = Z.cz + Math.sin(ang) * rad;
       x = Math.max(-185, Math.min(185, x)); z = Math.max(-185, Math.min(185, z));
+      if (townDistance(x, z) < 3) continue;
       const roll = Math.random();
       const type = ENEMY_TYPES[roll < 0.55 ? 0 : roll < 0.82 ? 1 : 2];
       const group = buildEnemy(type.id);
@@ -2528,6 +2734,102 @@ const WORLD = (function () {
     }
   }
 
+  /* ---------- 60-second bond trial ---------- */
+  function makeTrialMote(def, index) {
+    const g = new THREE.Group();
+    const baseY = heightAt(def.x, def.z);
+    g.position.set(def.x, baseY, def.z);
+    const coreMat = new THREE.MeshBasicMaterial({ color: def.color, transparent: true, opacity: 1, depthWrite: false });
+    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(0.34, 1), coreMat);
+    core.position.y = 1.55;
+    g.add(core);
+    const ringMat = new THREE.MeshBasicMaterial({ color: def.color, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.63, 0.035, 8, 28), ringMat);
+    ring.position.y = 1.55;
+    ring.rotation.x = Math.PI / 2;
+    g.add(ring);
+    const glowMat = new THREE.SpriteMaterial({ map: fxGlow || (fxGlow = softDot(64)), color: def.color, transparent: true, opacity: 0.88, depthWrite: false });
+    const glow = new THREE.Sprite(glowMat);
+    glow.position.y = 1.55;
+    glow.scale.setScalar(2.35);
+    g.add(glow);
+    const floorMat = new THREE.MeshBasicMaterial({ color: def.color, transparent: true, opacity: 0.52, side: THREE.DoubleSide, depthWrite: false });
+    const floor = new THREE.Mesh(new THREE.RingGeometry(0.82, 1.02, 32), floorMat);
+    floor.rotation.x = -Math.PI / 2;
+    floor.position.y = 0.055;
+    g.add(floor);
+    const beamMat = new THREE.MeshBasicMaterial({ color: def.color, transparent: true, opacity: 0.24, side: THREE.DoubleSide, depthWrite: false });
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.13, 2.6, 8, 1, true), beamMat);
+    beam.position.y = 1.3;
+    g.add(beam);
+    scene.add(g);
+    return { group: g, def, index, alive: true, core, ring, glow, floor, beam, phase: index * 2.1 };
+  }
+
+  function startBondTrial(cfg) {
+    stopBondTrial();
+    const c = cfg || {};
+    const cx = Number.isFinite(c.x) ? c.x : player.position.x;
+    const cz = Number.isFinite(c.z) ? c.z : player.position.z - 5;
+    const defs = c.motes || [
+      { x: cx - 3.2, z: cz - 1.0, color: 0x3fd8ff, family: 'ionic', label: 'Ionic · electron transfer' },
+      { x: cx + 3.2, z: cz - 1.0, color: 0x5fd0a8, family: 'covalent', label: 'Covalent · shared electrons' },
+      { x: cx, z: cz - 2.8, color: 0xffc85f, family: 'metallic', label: 'Metallic · delocalised electrons' }
+    ];
+    bondTrial = { motes: defs.map(makeTrialMote), collected: 0, total: defs.length, complete: false, started: performance.now() };
+    return { total: bondTrial.total };
+  }
+
+  function clearTrialGroup(g) {
+    if (!g) return;
+    scene.remove(g);
+    g.traverse(o => {
+      if (o.geometry) o.geometry.dispose();
+      if (o.material) o.material.dispose();
+    });
+  }
+
+  function stopBondTrial() {
+    if (bondTrial) bondTrial.motes.forEach(m => clearTrialGroup(m.group));
+    bondTrial = null;
+  }
+
+  function setBondTrialHooks(h) { bondTrialHooks = h || null; }
+
+  function getBondTrialState() {
+    if (!bondTrial) return { active: false, collected: 0, total: 0, complete: false };
+    return { active: true, collected: bondTrial.collected, total: bondTrial.total, complete: bondTrial.complete, elapsed: (performance.now() - bondTrial.started) / 1000 };
+  }
+
+  function updateBondTrial(dt, totalTime) {
+    if (!bondTrial || bondTrial.complete) return;
+    bondTrial.motes.forEach(m => {
+      if (!m.alive) return;
+      m.core.rotation.y += dt * 2.4;
+      m.core.rotation.x += dt * 1.1;
+      m.core.position.y = 1.55 + Math.sin(totalTime * 2.4 + m.phase) * 0.12;
+      m.ring.position.y = m.core.position.y;
+      m.glow.position.y = m.core.position.y;
+      m.glow.material.opacity = 0.5 + Math.sin(totalTime * 3.1 + m.phase) * 0.18;
+      m.floor.material.opacity = 0.3 + Math.sin(totalTime * 2.2 + m.phase) * 0.12;
+      m.beam.material.opacity = 0.1 + Math.sin(totalTime * 2.6 + m.phase) * 0.05;
+      const dx = player.position.x - m.group.position.x;
+      const dz = player.position.z - m.group.position.z;
+      if (dx * dx + dz * dz < 1.35 * 1.35) {
+        m.alive = false;
+        m.group.visible = false;
+        bondTrial.collected++;
+        addFxRing(m.group.position.x, m.group.position.y, m.group.position.z, m.def.color, 2.2, 0.55);
+        addFxSpark(m.group.position.x, m.group.position.y, m.group.position.z, m.def.color);
+        if (bondTrialHooks && bondTrialHooks.onCollect) bondTrialHooks.onCollect(m.def, bondTrial.collected, bondTrial.total);
+        if (bondTrial.collected >= bondTrial.total) {
+          bondTrial.complete = true;
+          if (bondTrialHooks && bondTrialHooks.onComplete) bondTrialHooks.onComplete({ elapsed: (performance.now() - bondTrial.started) / 1000 });
+        }
+      }
+    });
+  }
+
   /* ---------- transient effects ---------- */
   function addFxRing(x, y, z, color, maxR, dur) {
     const mat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false });
@@ -2537,75 +2839,109 @@ const WORLD = (function () {
     scene.add(mesh);
     fx.push({ mesh: mesh, t: 0, dur: dur || 0.4, maxR: maxR || 2, kind: 'ring' });
   }
-  function addFxSlash(x, y, z, yawAng, color) {
-    const mat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false });
-    const mesh = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.09, 6, 20, Math.PI * 1.1), mat);
-    mesh.position.set(x, y + 1.4, z);
-    mesh.rotation.set(0, yawAng, -0.4);
+  function addBladeRibbon(attack) {
+    if (!weaponGroup) return;
+    const tipY = weaponGroup.userData.tipY;
+    const inner = weaponGroup.localToWorld(new THREE.Vector3(0, tipY * 0.3, 0));
+    const outer = weaponGroup.localToWorld(new THREE.Vector3(0, tipY, 0));
+    const previous = attack.blade;
+    attack.blade = { inner, outer };
+    if (!previous || previous.outer.distanceToSquared(outer) > 4) return;
+    const geometry = new THREE.BufferGeometry().setFromPoints([previous.inner, previous.outer, outer, inner]);
+    geometry.setIndex([0, 1, 2, 0, 2, 3]);
+    const material = new THREE.MeshBasicMaterial({
+      color: attack.weapon.glow, transparent: true, opacity: 0.65, side: THREE.DoubleSide, depthWrite: false
+    });
+    const mesh = new THREE.Mesh(geometry, material);
     scene.add(mesh);
-    fx.push({ mesh: mesh, t: 0, dur: 0.28, kind: 'slash' });
+    fx.push({ mesh, t: 0, dur: 0.13, kind: 'ribbon' });
   }
   function addFxSpark(x, y, z, color) {
-    const mat = new THREE.SpriteMaterial({ map: softDot(64), color: color, transparent: true, opacity: 1, depthWrite: false });
+    const mat = new THREE.SpriteMaterial({ map: fxGlow || (fxGlow = softDot(64)), color, transparent: true, opacity: 0.9, depthWrite: false });
     const sp = new THREE.Sprite(mat);
     sp.position.set(x, y + 1.1, z); sp.scale.setScalar(0.9);
     scene.add(sp);
-    fx.push({ mesh: sp, t: 0, dur: 0.45, kind: 'spark' });
+    fx.push({ mesh: sp, t: 0, dur: 0.23, kind: 'spark' });
+  }
+  function updateElementTrail(dt) {
+    trailClock += dt;
+    if (trailClock < 0.052 || !player) return;
+    if (velocity.lengthSq() < 0.35) return;
+    trailClock = 0;
+    const zone = zoneKeyAt(player.position.x, player.position.z);
+    const color = ZONE_TRAIL[zone] || ZONE_TRAIL.A;
+    const mat = new THREE.SpriteMaterial({ map: fxGlow || (fxGlow = softDot(64)), color, transparent: true, opacity: 0.52, depthWrite: false });
+    const sp = new THREE.Sprite(mat);
+    sp.position.set(
+      player.position.x + (Math.random() - 0.5) * 0.52,
+      player.position.y + 0.28 + Math.random() * 0.48,
+      player.position.z + (Math.random() - 0.5) * 0.52
+    );
+    sp.scale.setScalar(0.24 + Math.random() * 0.16);
+    scene.add(sp);
+    fx.push({ mesh: sp, t: 0, dur: 0.72 + Math.random() * 0.2, kind: 'trail',
+      vx: (Math.random() - 0.5) * 0.22, vy: 0.22 + Math.random() * 0.2, vz: (Math.random() - 0.5) * 0.22 });
   }
   function addFxDust(x, y, z) {
-    const mat = new THREE.SpriteMaterial({ map: softDot(64), color: 0xcfc8b8, transparent: true, opacity: 0.5, depthWrite: false });
+    const mat = new THREE.SpriteMaterial({ map: fxGlow || (fxGlow = softDot(64)), color: 0xcfc8b8, transparent: true, opacity: 0.5, depthWrite: false });
     const sp = new THREE.Sprite(mat);
     sp.position.set(x + (Math.random() - 0.5) * 0.5, y + 0.15, z + (Math.random() - 0.5) * 0.5);
     sp.scale.setScalar(0.55);
     scene.add(sp);
     fx.push({ mesh: sp, t: 0, dur: 0.7, kind: 'dust' });
   }
-  function addFxTrail(x, y, z, color) {
-    const mat = new THREE.SpriteMaterial({ map: softDot(64), color: color, transparent: true, opacity: 0.75, depthWrite: false });
-    const sp = new THREE.Sprite(mat);
-    sp.position.set(x, y, z); sp.scale.setScalar(0.85);
-    scene.add(sp);
-    fx.push({ mesh: sp, t: 0, dur: 0.22, kind: 'trail' });
+  function removeFx(index) {
+    const { mesh } = fx[index];
+    scene.remove(mesh);
+    if (mesh.isMesh) mesh.geometry.dispose();
+    mesh.material.dispose();
+    fx.splice(index, 1);
   }
   function updateFx(dt) {
     for (let i = fx.length - 1; i >= 0; i--) {
       const f = fx[i]; f.t += dt;
       const k = f.t / f.dur;
-      if (k >= 1) { scene.remove(f.mesh); if (f.mesh.geometry) f.mesh.geometry.dispose(); fx.splice(i, 1); continue; }
+      if (k >= 1) { removeFx(i); continue; }
       if (f.kind === 'ring') {
         const s = 1 + k * f.maxR; f.mesh.scale.setScalar(s);
         f.mesh.material.opacity = 0.9 * (1 - k);
-      } else if (f.kind === 'slash') {
-        f.mesh.material.opacity = 0.85 * (1 - k);
-        f.mesh.scale.setScalar(0.6 + k * 0.7);
+      } else if (f.kind === 'ribbon') {
+        f.mesh.material.opacity = 0.65 * (1 - k);
       } else if (f.kind === 'spark') {
         f.mesh.position.y += dt * 1.2; f.mesh.material.opacity = 1 - k;
-        f.mesh.scale.setScalar(0.9 + k * 0.8);
+        f.mesh.scale.setScalar(0.55 + k * 0.4);
       } else if (f.kind === 'dust') {
         f.mesh.position.y += dt * 0.5;
         f.mesh.scale.setScalar(0.55 + k * 0.9);
         f.mesh.material.opacity = 0.5 * (1 - k);
       } else if (f.kind === 'trail') {
-        f.mesh.scale.setScalar(0.85 - k * 0.4);
-        f.mesh.material.opacity = 0.75 * (1 - k);
+        f.mesh.position.x += (f.vx || 0) * dt;
+        f.mesh.position.y += (f.vy || 0) * dt;
+        f.mesh.position.z += (f.vz || 0) * dt;
+        f.mesh.material.opacity = 0.52 * (1 - k);
+        f.mesh.scale.setScalar((0.28 + k * 0.24) * (1 - k * 0.2));
       }
     }
   }
 
   function triggerShake(amp, dur) {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     shakeAmp = Math.max(shakeAmp, amp);
     shakeT = Math.max(shakeT, dur || 0.25);
   }
 
   /* ---------- trigger an attack pose ---------- */
-  function triggerAttack(style) {
-    const dur = style === 'heavy' ? 0.62 : style === 'cast' ? 0.5 : style === 'flurry' ? 0.24 : style === 'shoot' ? 0.3 : 0.42;
-    attackAnim = { t: 0, dur: dur, style: style };
+  function performAttack(weapon, comboStep, isSkill, onImpact) {
+    if (!combatEnabled || attackAnim) return false;
+    const style = isSkill ? 'cast' : weapon.anim;
+    const duration = isSkill ? 0.47 : weapon.rate;
+    attackAnim = { t: 0, duration, style, weapon, comboStep, isSkill, onImpact, impacted: false, blade: null };
+    return true;
   }
 
   /* ---------- perform a hit: damage enemies in front, fire hooks ---------- */
-  function performAttack(weapon, comboStep, isSkill) {
-    const w = weapon || (typeof WEAPONS !== 'undefined' && WEAPONS.find(x => x.id === weaponId)) || { damage: 12, reach: 3.4, glow: 0x8ff0c8, anim: 'slash' };
+  function resolveAttack(attack) {
+    const { weapon: w, comboStep, isSkill } = attack;
     const C = (typeof CHARACTERS !== 'undefined') && CHARACTERS.find(c => c.id === charId);
     const reach = w.reach * (isSkill ? 1.55 : 1);
     const comboMul = 1 + Math.min(COMBAT_RULES.comboCap, comboStep || 0) * COMBAT_RULES.comboBonus;
@@ -2613,11 +2949,7 @@ const WORLD = (function () {
     const px = player.position.x, py = player.position.y, pz = player.position.z;
     /* Player model faces local +z; world forward = (sin rotY, cos rotY). */
     const fwdX = Math.sin(player.rotation.y), fwdZ = Math.cos(player.rotation.y);
-    triggerAttack(isSkill ? 'cast' : w.anim);
-    addFxSlash(px, py, pz, player.rotation.y, w.glow);
-    triggerShake(isSkill ? 0.5 : 0.28, isSkill ? 0.4 : 0.24);
-    if (isSkill) addFxRing(px, py, pz, w.glow, 3.2, 0.6);
-    attackTrail = { t: 0, dur: (isSkill ? 0.5 : 0.42), color: w.glow };
+    if (isSkill) addFxRing(px, py, pz, w.glow, reach / 0.34 - 1, 0.45);
 
     let hitAny = false, killed = 0;
     enemies.forEach(en => {
@@ -2626,87 +2958,72 @@ const WORLD = (function () {
       const dist = Math.hypot(dx, dz);
       if (dist > reach) return;
       const dot = (dx * fwdX + dz * fwdZ) / (dist || 1);
-      if (dot < (isSkill ? -0.1 : 0.15)) return;   // must be roughly in front (skill = 360°)
+      if (!isSkill && dist > 0.65 && dot < (attack.style === 'shoot' ? 0.55 : 0.06)) return;
       hitAny = true;
       en.hp -= dmg;
       en.hitFlash = 0.22;
       en.group.position.x += fwdX * 0.35; en.group.position.z += fwdZ * 0.35;
-      addFxSpark(en.group.position.x, en.group.position.y, en.group.position.z, 0xffe08a);
+      addFxSpark(en.group.position.x, en.group.position.y, en.group.position.z, w.glow);
       if (combatHooks.onHit) combatHooks.onHit(en, dmg, comboStep, isSkill);
       if (en.hp <= 0) {
         en.alive = false; en.respawn = COMBAT_RULES.respawnDelay;
         en.dying = 0.45;                       // play a topple-and-shrink death animation
         addFxRing(en.group.position.x, en.group.position.y, en.group.position.z, 0xffc85f, 2.4, 0.55);
         killed++;
-        triggerShake(0.4, 0.3);
         if (combatHooks.onKill) combatHooks.onKill(en);
       }
     });
-    return { hit: hitAny, killed: killed, damage: dmg };
+    if (hitAny) triggerShake(isSkill ? 0.13 : 0.07, 0.14);
+    if (attack.onImpact) attack.onImpact({ hit: hitAny, killed, damage: dmg });
   }
 
   /* ---------- override limb poses during an attack (called after movePlayer) ---------- */
   function applyAttackPose(dt) {
-    if (!attackAnim || !limbs.arms.length) return;
-    attackAnim.t += dt;
-    const k = Math.min(1, attackAnim.t / attackAnim.dur);
-    const s = attackAnim.style;
-    const swing = Math.sin(k * Math.PI);           // 0→1→0
-    const wind = k < 0.3 ? k / 0.3 : 0;
-    const strike = k >= 0.3 ? (k - 0.3) / 0.7 : 0;
-    if (s === 'slash' || s === 'heavy') {
-      const amp = s === 'heavy' ? 2.3 : 1.9;
-      limbs.arms[1].rotation.x = -wind * 1.2 + strike * amp;
-      limbs.arms[1].rotation.z = 0.17 - strike * 1.1;
-      limbs.arms[1].userData.lower.rotation.x = -0.55 + swing * 0.92;
-      limbs.arms[1].userData.hand.rotation.z = -wind * 0.45 + strike * 0.65;
-      limbs.arms[0].rotation.x = -0.4 - swing * 0.5;
-      limbs.arms[0].userData.lower.rotation.x = -0.35 - swing * 0.35;
-      limbs.torso.rotation.y = -wind * 0.5 + strike * 0.9;
-    } else if (s === 'cast') {
-      limbs.arms[1].rotation.x = -1.6 - swing * 0.4;
-      limbs.arms[1].rotation.z = 0.5;
-      limbs.arms[1].userData.lower.rotation.x = -0.72;
-      limbs.arms[1].userData.hand.rotation.z = swing * 0.55;
-      limbs.arms[0].rotation.x = -0.9;
-      limbs.arms[0].userData.lower.rotation.x = -0.88;
-      limbs.torso.position.y = 1.7 + swing * 0.08;
-    } else if (s === 'shoot') {
-      limbs.arms[1].rotation.x = -1.5;
-      limbs.arms[1].rotation.z = 0.05;
-      limbs.arms[1].userData.lower.rotation.x = -0.18;
-      limbs.arms[0].rotation.x = -1.35;
-      limbs.arms[0].userData.lower.rotation.x = -1.10;
-      limbs.torso.rotation.y = 0.2;
-    } else if (s === 'flurry') {
-      const f = Math.sin(k * Math.PI * 6);
-      limbs.arms[0].rotation.x = -0.9 + f * 0.7;
-      limbs.arms[1].rotation.x = -0.9 - f * 0.7;
-      limbs.arms[0].userData.lower.rotation.x = -0.45 - f * 0.32;
-      limbs.arms[1].userData.lower.rotation.x = -0.45 + f * 0.32;
-      limbs.arms[0].userData.hand.rotation.z = f * 0.45;
-      limbs.arms[1].userData.hand.rotation.z = -f * 0.45;
-      limbs.torso.rotation.y = f * 0.25;
+    const attack = attackAnim;
+    if (!attack || !limbs.arms.length) return;
+    attack.t += dt;
+    const progress = Math.min(1, attack.t / attack.duration);
+    const { style } = attack;
+    const blade = style === 'slash' || style === 'heavy' || style === 'flurry';
+    const windEnd = blade ? 0.32 : 0.36;
+    const followEnd = blade ? 0.65 : 0.60;
+    const impact = blade ? 0.49 : 0.48;
+    const wind = style === 'heavy' ? [-1.30, 0.25, 0.49, -1.17, -0.22, 0.45, -0.52]
+      : blade ? [-0.48, 0.36, 0.55, -0.98, -0.20, 0.38, -0.35]
+      : style === 'shoot' ? [-1.38, -0.22, 0.14, -0.88, 0, 0.24, -1.12]
+      : [-0.85, 0.19, 0.42, -0.95, -0.1, 0.20, -0.62];
+    const follow = blade ? [-1.05, -0.92, -0.25, -0.38, 0.18, -0.46, -0.26]
+      : style === 'shoot' ? [-1.48, -0.24, 0.18, -0.28, 0, 0.22, -1.28]
+      : [-1.52, -0.15, 0.34, -0.40, 0.1, -0.12, -0.92];
+    const [left, right] = limbs.arms;
+    const elbow = right.userData.lower;
+    const wrist = right.userData.hand;
+    const torso = limbs.torso;
+    const rest = [right.rotation.x, right.rotation.y, right.rotation.z, elbow.rotation.x,
+      wrist.rotation.z, torso.rotation.y, left.rotation.x];
+    const [from, to, blend] = progress < windEnd
+      ? [rest, wind, progress / windEnd]
+      : progress < followEnd ? [wind, follow, (progress - windEnd) / (followEnd - windEnd)]
+      : [follow, rest, (progress - followEnd) / (1 - followEnd)];
+    const eased = blend * blend * (3 - 2 * blend);
+    [wind, follow].forEach(frame => {
+      [1, 2, 4, 5].forEach(index => { frame[index] *= -1; });
+    });
+    const pose = from.map((value, index) => THREE.MathUtils.lerp(value, to[index], eased));
+    [right.rotation.x, right.rotation.y, right.rotation.z, elbow.rotation.x,
+      wrist.rotation.z, torso.rotation.y, left.rotation.x] = pose;
+    if (blade && progress >= windEnd && progress <= followEnd + 0.12) addBladeRibbon(attack);
+    if (!attack.impacted && progress >= impact) {
+      attack.impacted = true;
+      resolveAttack(attack);
     }
-    if (k >= 1) {
-      attackAnim = null;
-      if (limbs.torso) { limbs.torso.rotation.y = 0; limbs.torso.position.y = 1.7; }
-    }
+    if (progress === 1) attackAnim = null;
   }
 
   /* ---------- enemy AI, animation, respawn ---------- */
   function updateCombat(dt) {
-    if (!combatEnabled) return;
+    if (!combatEnabled || locked) return;
     updateFx(dt);
-    /* weapon trail while attacking */
-    if (attackTrail) {
-      attackTrail.t += dt;
-      if (attackTrail.t < attackTrail.dur && weaponGroup) {
-        weaponGroup.updateWorldMatrix(true, false);
-        const tp = weaponGroup.getWorldPosition(new THREE.Vector3());
-        addFxTrail(tp.x, tp.y + (weaponGroup.userData.tipY || 0.8) * 0.85, tp.z, attackTrail.color);
-      } else attackTrail = null;
-    }
     const px = player.position.x, pz = player.position.z;
     enemies.forEach(en => {
       if (!en.alive) {
@@ -2729,9 +3046,12 @@ const WORLD = (function () {
       const g = en.group;
       const dx = px - g.position.x, dz = pz - g.position.z;
       const dist = Math.hypot(dx, dz);
-      if (dist < COMBAT_RULES.aggroRange && dist > COMBAT_RULES.attackRange) {
+      if (townDistance(px, pz) === 0) {
+        en.state = 'idle';
+      } else if (dist < COMBAT_RULES.aggroRange && dist > COMBAT_RULES.attackRange) {
         const sp = en.type.speed * dt;
-        g.position.x += (dx / dist) * sp; g.position.z += (dz / dist) * sp;
+        const chaseX = g.position.x + (dx / dist) * sp, chaseZ = g.position.z + (dz / dist) * sp;
+        if (townDistance(chaseX, chaseZ) > 1) g.position.set(chaseX, g.position.y, chaseZ);
         g.rotation.y = Math.atan2(-dx, -dz);
         en.state = 'chase';
       } else if (dist <= COMBAT_RULES.attackRange) {
@@ -2772,7 +3092,16 @@ const WORLD = (function () {
   }
 
   /* ---------- combat public helpers ---------- */
-  function setCombatEnabled(v) { combatEnabled = !!v; if (combatEnabled && enemies.length === 0) spawnEnemies(); }
+  function setCombatEnabled(enabled) {
+    combatEnabled = enabled;
+    enemies.forEach(enemy => { enemy.group.visible = enabled && enemy.alive; });
+    if (enabled && enemies.length === 0) spawnEnemies();
+    if (!enabled) {
+      attackAnim = null;
+      shakeT = 0;
+      for (let i = fx.length - 1; i >= 0; i--) removeFx(i);
+    }
+  }
   function setCombatHooks(h) { combatHooks = h || {}; }
   function getEnemies() { return enemies.map(e => ({ id: e.id, type: e.type.id, hp: e.hp, maxHp: e.maxHp, alive: e.alive, x: e.group.position.x, z: e.group.position.z })); }
 
@@ -2809,6 +3138,12 @@ const WORLD = (function () {
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(k, mx, my);
     }
+    const [townX, townY] = toMap(TOWN.left, TOWN.back);
+    const townWidth = (TOWN.right - TOWN.left) * sc, townHeight = (TOWN.front - TOWN.back) * sc;
+    ctx.fillStyle = 'rgba(224,193,137,.22)';
+    ctx.fillRect(townX, townY, townWidth, townHeight);
+    ctx.strokeStyle = 'rgba(245,213,150,.8)'; ctx.lineWidth = 1.5;
+    ctx.strokeRect(townX, townY, townWidth, townHeight);
 
     /* 任務節點 */
     allNodes.forEach(n => {
@@ -2901,8 +3236,11 @@ const WORLD = (function () {
   let lastT = 0;
   function update(dt, totalTime) {
     elapsed = totalTime;
+    if (windmillRotor) windmillRotor.rotation.z = totalTime * 0.32;
     if (scene.userData.grassWindTime) scene.userData.grassWindTime.value = totalTime;
     if (!locked) movePlayer(dt);
+    updateElementTrail(dt);
+    updateBondTrial(dt, totalTime);
     updateCombat(dt);
     updateCamera(dt);
     updateBeacon(totalTime);
@@ -2931,8 +3269,10 @@ const WORLD = (function () {
     /* combat API */
     setCombatEnabled, setCombatHooks, spawnEnemies, getEnemies,
     performAttack, equipWeapon, applyCharacterLook,
+    startBondTrial, stopBondTrial, setBondTrialHooks, getBondTrialState,
     get combatState() { return { weapon: weaponId, character: charId, skin: skinId, enabled: combatEnabled }; },
     get scene() { return scene; },
+    get townBounds() { return { ...TOWN }; },
     get camera() { return camera; },
     get renderer() { return renderer; },
     get player() { return player; },

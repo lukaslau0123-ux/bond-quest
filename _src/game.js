@@ -9,6 +9,20 @@
   let state = STATE.WORLD;
   let started = false;
   let paused = false;
+  let guided = false;
+  let recruitClaims = 0;
+  let LANG = 'en';
+  try { LANG = localStorage.getItem('bq_lang') === 'zh' ? 'zh' : 'en'; } catch (e) { }
+  let gachaOpen = false, gachaCurrent = null, gachaRevealed = false;
+  let dailyOpen = false, dailyPending = null;
+
+  function isZh() { return LANG === 'zh'; }
+  function bi(en, zh) { return isZh() && zh ? zh : en; }
+  function textOf(obj) { if (!obj) return ''; return (isZh() && obj.zh) ? obj.zh : (obj.en || ''); }
+  function todayKey() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
 
   const done = new Set();
   const nodeCorrect = new Map();
@@ -19,42 +33,6 @@
   let lastFrame = 0;
 
   const $ = id => document.getElementById(id);
-
-  const INTRO_HTML = `
-    <div class="introGrid" style="align-items:stretch">
-      <div class="qsBox qsMission">
-        <div class="qsHead">🌟 YOUR MISSION</div>
-        <p class="qsBig">🌱 <b>Learn chemistry by playing!</b><br>Walk around, meet the glowing helpers, and finish <b>9 little quests</b> about bonding.</p>
-      </div>
-
-      <div class="qsBox">
-        <div class="qsHead">🎮 PLAY IN 3 EASY STEPS</div>
-        <div class="ruleRow"><span class="rn rnBig">1</span><span><b>WALK</b> to the glowing person <em>(WASD keys / joystick)</em></span></div>
-        <div class="ruleRow"><span class="rn rnBig">2</span><span><b>PRESS</b> <kbd>E</kbd> <em>when you get close</em></span></div>
-        <div class="ruleRow"><span class="rn rnBig">3</span><span><b>PICK</b> the right answer → <b>quest done! +1</b> 🎉</span></div>
-        <p class="qsTiny">🎬 Your first task is a short <b>TRAINING</b> — you learn by <b>doing</b>, not reading. Just follow the big on-screen steps!</p>
-      </div>
-    </div>
-
-    <div class="qsBox">
-      <div class="qsHead">✨ EXTRA FUN (learn this after step 3 works)</div>
-      <div class="exRow">⚔ See an animal? <b>Click the LEFT MOUSE BUTTON</b> to attack it (tap ⚔ on mobile) — you earn <b>score + gold</b>! Press <kbd>K</kbd> for a super attack.</div>
-      <div class="exRow">◉ Spend gold in the <b>Shop</b> <kbd>B</kbd> — unlock cool weapons, outfits & characters!</div>
-      <div class="exRow">💎 Blue crystals teach you a <b>new science word</b>. Collect them all!</div>
-    </div>
-
-    <div class="ctrlRow">
-      <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</span>
-      <span><kbd>E</kbd> Interact</span>
-      <span><kbd>🖱L</kbd> Attack</span>
-      <span><kbd>K</kbd> Skill</span>
-      <span><kbd>B</kbd> Shop</span>
-      <span><kbd>C</kbd> Character</span>
-      <span><kbd>M</kbd> Map</span>
-      <span><kbd>T</kbd> Teleport</span>
-      <span><kbd>H</kbd> Help</span>
-    </div>
-`;
 
   /* ---------------- session ---------------- */
   const KEY = 'f4e_bonding_session_v1';
@@ -137,6 +115,10 @@
       click() { tone(660, 660, 0.05, 'sine', 0.1); },
       hurt() { tone(140, 70, 0.2, 'sawtooth', 0.18); },
       unlock() { tone(440, 660, 0.12, 'sine', 0.16); tone(660, 990, 0.18, 'sine', 0.16, 0.1); },
+      correct() { tone(740, 988, 0.11, 'sine', 0.15); tone(988, 1318, 0.16, 'triangle', 0.13, 0.07); tone(1480, 1760, 0.2, 'sine', 0.1, 0.16); },
+      perfect() { [523,659,784,1046,1318].forEach((f,i) => tone(f, f * 1.04, 0.34, i % 2 ? 'triangle' : 'sine', 0.13, i * 0.075)); noise(0.22, 0.07, 3800); },
+      gacha() { tone(180, 720, 0.5, 'sine', 0.13); tone(360, 1440, 0.42, 'triangle', 0.1, 0.08); noise(0.34, 0.1, 1800); },
+      rare(rarity) { const base = rarity >= 5 ? 392 : rarity >= 4 ? 330 : 262; [1,1.25,1.5,2].forEach((m,i) => tone(base*m, base*m*1.02, rarity >= 5 ? 0.5 : 0.3, 'sine', 0.12, i * 0.08)); if (rarity >= 5) noise(0.4, 0.11, 5200); },
       isMuted() { return muted; },
       toggleMute() { muted = !muted; try { localStorage.setItem('bq_mute', muted ? '1' : '0'); } catch (e) { } return muted; },
       resume() { ac(); }
@@ -160,7 +142,13 @@
     comboTimer: 0,
     skillCd: 0,
     lastHit: 0,
-    kills: 0
+    kills: 0,
+    crystals: 0,
+    spentCrystals: 0,
+    streak: 0,
+    bestStreak: 0,
+    pity: 0,
+    daily: { date: '', answers: [], done: false }
   };
   let shopTab = 'gear';          // gear | skins | characters
   let charModalOpen = false;
@@ -173,7 +161,10 @@
       const d = {
         score: COMBAT.score, gold: COMBAT.gold, weapons: COMBAT.weapons,
         characters: COMBAT.characters, skins: COMBAT.skins,
-        weapon: COMBAT.weapon, character: COMBAT.character, skin: COMBAT.skin, kills: COMBAT.kills
+        weapon: COMBAT.weapon, character: COMBAT.character, skin: COMBAT.skin, kills: COMBAT.kills,
+        crystals: COMBAT.crystals, spentCrystals: COMBAT.spentCrystals,
+        streak: COMBAT.streak, bestStreak: COMBAT.bestStreak, pity: COMBAT.pity,
+        gachaPulls: recruitClaims, daily: COMBAT.daily
       };
       localStorage.setItem('bq_combat_v1', JSON.stringify(d));
     } catch (e) { }
@@ -190,11 +181,66 @@
       COMBAT.character = CHR[d.character] ? d.character : 'lyra';
       COMBAT.skin = SKN[d.skin] ? d.skin : 'default';
       COMBAT.kills = d.kills || 0;
+      COMBAT.crystals = Math.max(0, Number(d.crystals) || 0);
+      COMBAT.spentCrystals = Math.max(0, Number(d.spentCrystals) || 0);
+      COMBAT.streak = Math.max(0, Number(d.streak) || 0);
+      COMBAT.bestStreak = Math.max(COMBAT.streak, Number(d.bestStreak) || 0);
+      COMBAT.pity = Math.max(0, Number(d.pity) || 0);
+      if (d.daily && typeof d.daily === 'object') COMBAT.daily = { date: String(d.daily.date || ''), answers: Array.isArray(d.daily.answers) ? d.daily.answers.slice(0, 3) : [], done: !!d.daily.done };
+      if (Number.isFinite(Number(d.gachaPulls))) recruitClaims = Math.max(0, Number(d.gachaPulls));
     } catch (e) { }
   }
 
   function addScore(n) { COMBAT.score += n; saveCombat(); updateCombatHUD(); }
   function addGold(n) { COMBAT.gold += n; saveCombat(); updateCombatHUD(); }
+  function addCrystals(n) { COMBAT.crystals = Math.max(0, COMBAT.crystals + n); saveCombat(); updateCombatHUD(); }
+
+  function ensureDaily() {
+    const key = todayKey();
+    if (!COMBAT.daily || COMBAT.daily.date !== key) {
+      COMBAT.daily = { date: key, answers: [], done: false };
+      saveCombat();
+    }
+    return COMBAT.daily;
+  }
+  function challengeDoneCount() {
+    return NODES.filter(n => (n.type === 'npc' || n.type === 'chest') && done.has(n.id)).length;
+  }
+  function drawsEarned() { return Math.floor(challengeDoneCount() / GACHA_RULES.challengesPerDraw); }
+  function drawCharges() { return Math.max(0, drawsEarned() - recruitClaims); }
+  function challengeToNextDraw() {
+    const rem = challengeDoneCount() % GACHA_RULES.challengesPerDraw;
+    return rem === 0 ? GACHA_RULES.challengesPerDraw : GACHA_RULES.challengesPerDraw - rem;
+  }
+  function rewardMultiplier() { return COMBAT.streak >= REWARD_RULES.streakAt ? REWARD_RULES.streakMultiplier : 1; }
+  function awardCorrectStep(baseXp, baseGold, opts) {
+    const o = opts || {};
+    COMBAT.streak = Math.max(0, COMBAT.streak) + 1;
+    COMBAT.bestStreak = Math.max(COMBAT.bestStreak, COMBAT.streak);
+    const mult = rewardMultiplier();
+    const dailyMult = o.daily ? REWARD_RULES.dailyMultiplier : 1;
+    const xp = Math.round(baseXp * mult * dailyMult);
+    const gold = Math.round(baseGold * mult * dailyMult);
+    COMBAT.score += xp;
+    COMBAT.gold += gold;
+    saveCombat();
+    updateCombatHUD();
+    return { xp, gold, mult, dailyMult, streak: COMBAT.streak };
+  }
+  function breakStreak() {
+    if (!COMBAT.streak) return;
+    COMBAT.streak = 0;
+    saveCombat();
+    updateCombatHUD();
+  }
+  function awardPerfectChallenge() {
+    COMBAT.score += REWARD_RULES.perfectXp;
+    COMBAT.gold += REWARD_RULES.perfectGold;
+    COMBAT.crystals += REWARD_RULES.perfectCrystals;
+    saveCombat();
+    updateCombatHUD();
+    return { xp: REWARD_RULES.perfectXp, gold: REWARD_RULES.perfectGold, crystals: REWARD_RULES.perfectCrystals };
+  }
 
   /* Hook the world combat engine to the reward economy. */
   function initCombat() {
@@ -212,7 +258,7 @@
         SFX.kill();
         COMBAT.kills++;
         addScore(enemy.type.score); addGold(enemy.type.gold);
-        toast('⚔ ' + enemy.type.name + ' defeated! <b>+' + enemy.type.score + ' score</b> · <b>+' + enemy.type.gold + ' gold</b>', 1800);
+        toast('⚔ ' + enemy.type.name + ' defeated! <b>+' + enemy.type.score + ' XP</b> · <b>+' + enemy.type.gold + ' gold</b>', 1800);
         floatReward('+' + enemy.type.score + '  +' + enemy.type.gold + 'g', enemy.group.position, true);
         saveCombat();
       },
@@ -225,11 +271,19 @@
     });
     WORLD.equipWeapon(COMBAT.weapon);
     WORLD.applyCharacterLook(COMBAT.character, COMBAT.skin);
-    /* combat stays OFF until the training mission is complete (tutComplete) */
-    WORLD.setCombatEnabled(tutSeen());
+    let enabled = false;
+    try { enabled = localStorage.getItem('bq_combat_enabled') === '1'; } catch (e) { }
+    setCombatMode(enabled);
     updateCombatHUD();
   }
   COMBAT.hurtCd = 0;
+
+  function setCombatMode(enabled) {
+    $('combatToggle').checked = enabled;
+    document.body.classList.toggle('combat-on', enabled);
+    WORLD.setCombatEnabled(enabled);
+    try { localStorage.setItem('bq_combat_enabled', enabled ? '1' : '0'); } catch (e) { }
+  }
 
   /* ================================================================
      INTERACTIVE TRAINING MISSION (do-it-yourself, CoD-style)
@@ -246,6 +300,8 @@
   let tutMoved = 0;           // metres actually walked in step 1
   let tutLastPos = null;      // last player position for move measuring
   let tutCelebrate = 0;
+  let introTrial = null;
+  let introTrialTicker = 0;
   const TUT_MOVE_GOAL = 8;
 
   function tutSeen() { try { return !!localStorage.getItem(TUT_KEY); } catch (e) { return false; } }
@@ -273,8 +329,11 @@
   }
 
   function tutStart() {
-    if (tutSeen()) return;
-    setTimeout(() => { tutShow(1); tutProgress(0); SFX.click(); }, 700);
+    if (tutSeen() || mainDone()) return;
+    setTimeout(() => {
+      if (guided || state !== STATE.WORLD) return;
+      tutShow(1); tutProgress(0); SFX.click();
+    }, 700);
   }
   function tutAdvance(next) {
     SFX.coin();
@@ -290,10 +349,91 @@
     SFX.unlock();
     tutCelebrate = performance.now() + 2600;
     try { localStorage.setItem(TUT_KEY, '1'); } catch (e) { }
-    /* combat unlocks here — the world is now "live" */
-    WORLD.setCombatEnabled(true);
-    setTimeout(() => toast('⚔ <b>Bonus unlocked!</b> Animals roam the fields — <b>click the LEFT MOUSE BUTTON</b> to fight them for gold. Skill: <kbd>K</kbd> · Shop: <kbd>B</kbd>', 5200), 2700);
   }
+  function formatTrialTime(sec) {
+    const s = Math.max(0, Math.floor(sec || 0));
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+  }
+
+  function startIntroTrial() {
+    if (!started) return;
+    tutStep = 0;
+    tutCelebrate = 0;
+    tutHide();
+    introTrial = { started: performance.now(), collected: 0, total: 3, done: false };
+    document.body.classList.add('intro-trial');
+    setQuestCollapsed(true);
+    const hud = $('trialHud');
+    hud.classList.add('show');
+    hud.classList.remove('complete');
+    $('trialTimer').textContent = '0:00';
+    $('trialGoal').textContent = 'Run through all 3 electron motes';
+    document.querySelectorAll('.trialPip').forEach(p => p.classList.remove('got'));
+    WORLD.setBondTrialHooks({
+      onCollect: function (def, count, total) {
+        if (!introTrial) return;
+        introTrial.collected = count;
+        const pip = document.querySelector('.trialPip[data-trial="' + def.family + '"]');
+        if (pip) pip.classList.add('got');
+        $('trialGoal').textContent = count + ' / ' + total + ' · ' + def.label;
+        COMBAT.score += 2;
+        COMBAT.gold += 1;
+        saveCombat();
+        updateCombatHUD();
+        SFX.correct();
+        burstAt(innerWidth / 2, innerHeight * 0.48, def.family === 'ionic' ? '#3fd8ff' : def.family === 'covalent' ? '#5fd0a8' : '#ffc85f', 26);
+        floatScreenText('+' + 2 + ' XP · +' + 1 + ' gold', innerWidth / 2, innerHeight * 0.46);
+        toast(def.label + ' collected!', 1100);
+        logEvent({ type: 'bond_trial_mote', family: def.family, collected: count });
+        if (count >= total) completeIntroTrial();
+      },
+      onComplete: function (info) { completeIntroTrial(info); }
+    });
+    const trial = WORLD.startBondTrial({ x: 0, z: -1.5 });
+    introTrial.total = trial ? trial.total : 3;
+    introTrialTicker = setInterval(function () {
+      if (!introTrial || introTrial.done) return;
+      $('trialTimer').textContent = formatTrialTime((performance.now() - introTrial.started) / 1000);
+    }, 250);
+  }
+
+  function completeIntroTrial(info) {
+    if (!introTrial || introTrial.done) return;
+    introTrial.done = true;
+    clearInterval(introTrialTicker);
+    introTrialTicker = 0;
+    const elapsed = info && info.elapsed ? info.elapsed : (performance.now() - introTrial.started) / 1000;
+    COMBAT.score += 10;
+    COMBAT.gold += 5;
+    COMBAT.bestStreak = Math.max(COMBAT.bestStreak, COMBAT.streak);
+    saveCombat();
+    updateCombatHUD();
+    const hud = $('trialHud');
+    hud.classList.add('complete');
+    $('trialTimer').textContent = formatTrialTime(elapsed);
+    $('trialGoal').textContent = 'FIRST BOND FORGED · ' + elapsed.toFixed(1) + 's · +10 XP · +5 gold';
+    showBanner('FIRST BOND', bi('Ionic cyan · Covalent green · Metallic gold · Combat unlocked', 'Ionic cyan · Covalent green · Metallic gold · Combat 已解鎖'));
+    SFX.perfect();
+    burstAt(innerWidth / 2, innerHeight * 0.46, '#ffd86a', 54);
+    setCombatMode(true);
+    hud.classList.add('celebrating');
+    setTimeout(function () { if (introTrial) hud.classList.remove('celebrating'); }, 2300);
+    logEvent({ type: 'bond_trial_complete', elapsed: +elapsed.toFixed(2) });
+  }
+
+  function finishIntroTrial() {
+    if (!introTrial) return;
+    clearInterval(introTrialTicker);
+    introTrialTicker = 0;
+    WORLD.stopBondTrial();
+    WORLD.setBondTrialHooks(null);
+    introTrial = null;
+    document.body.classList.remove('intro-trial');
+    $('trialHud').classList.remove('show', 'complete', 'celebrating');
+    setQuestCollapsed(false);
+    openNextLab();
+  }
+
   function tickTutorial() {
     if (tutCelebrate && performance.now() > tutCelebrate) { tutCelebrate = 0; tutHide(); return; }
     if (tutCelebrate) return;
@@ -342,22 +482,23 @@
 
   /* Perform a player attack. combo advances within a short window. */
   function playerAttack(isSkill) {
-    if (!started || paused || state !== STATE.WORLD) return;
+    if (!started || paused || state !== STATE.WORLD || !WORLD.combatState.enabled) return;
     const now = performance.now() / 1000;
     if (now - COMBAT.lastHit > COMBAT_RULES.comboWindow) COMBAT.combo = 0;
-    if (isSkill) {
-      if (COMBAT.skillCd > 0) { toast('Skill recharging — ' + COMBAT.skillCd.toFixed(1) + 's'); return; }
-      COMBAT.skillCd = COMBAT_RULES.skillCooldown;
-    }
+    if (isSkill && COMBAT.skillCd > 0) { toast('Skill recharging — ' + COMBAT.skillCd.toFixed(1) + 's'); return; }
     const w = WPN[COMBAT.weapon];
-    if (now - COMBAT.lastHit < w.rate * 0.75 && !isSkill) return;  // rate limit
-    if (isSkill) SFX.skill(); else SFX.swing();
+    if (now - COMBAT.lastHit < w.rate && !isSkill) return;
     const comboStep = isSkill ? 0 : COMBAT.combo;
-    const res = WORLD.performAttack(w, comboStep, !!isSkill);
+    if (!WORLD.performAttack(w, comboStep, isSkill, updateAttackCombo)) return;
+    if (isSkill) { COMBAT.skillCd = COMBAT_RULES.skillCooldown; SFX.skill(); }
+    else SFX.swing();
     COMBAT.lastHit = now;
+  }
+
+  function updateAttackCombo(res) {
     if (res.hit) {
       COMBAT.combo = Math.min(COMBAT_RULES.comboCap, COMBAT.combo + 1);
-      COMBAT.comboTimer = now + COMBAT_RULES.comboWindow;
+      COMBAT.comboTimer = performance.now() / 1000 + COMBAT_RULES.comboWindow;
       const cb = $('comboBadge');
       if (cb) { cb.textContent = COMBAT.combo + ' HIT COMBO'; cb.classList.add('show'); clearTimeout(COMBAT._comboHide); COMBAT._comboHide = setTimeout(() => cb.classList.remove('show'), 1300); }
     }
@@ -380,6 +521,7 @@
     return 1;
   }
   function isLockedNode(n) {
+    if (n.main) return { locked: false };
     const t = tierOfNode(n);
     if (t >= 2 && correctCount < 3) return { locked: true, need: 3 };
     if (t >= 3 && correctCount < 6) return { locked: true, need: 6 };
@@ -395,6 +537,7 @@
     return {
       v: 1,
       done: [...done],
+      recruitClaims,
       correct: correctCount,
       freePass: freePass,
       wp: [...unlockedWp],
@@ -403,7 +546,10 @@
       combat: {
         score: COMBAT.score, gold: COMBAT.gold, weapons: COMBAT.weapons.slice(),
         characters: COMBAT.characters.slice(), skins: COMBAT.skins.slice(),
-        weapon: COMBAT.weapon, character: COMBAT.character, skin: COMBAT.skin, kills: COMBAT.kills
+        weapon: COMBAT.weapon, character: COMBAT.character, skin: COMBAT.skin, kills: COMBAT.kills,
+        crystals: COMBAT.crystals, spentCrystals: COMBAT.spentCrystals,
+        streak: COMBAT.streak, bestStreak: COMBAT.bestStreak, pity: COMBAT.pity,
+        gachaPulls: recruitClaims, daily: COMBAT.daily
       }
     };
   }
@@ -413,6 +559,7 @@
     done.clear();
     nodeCorrect.clear();
     (p.done || []).forEach(function (id) { done.add(id); nodeCorrect.set(id, true); });
+    recruitClaims = Math.max(0, Number(p.recruitClaims) || 0);
     correctCount = p.correct || 0;
     freePass = p.freePass || 0;
 
@@ -431,6 +578,13 @@
       COMBAT.weapon = WPN[c.weapon] ? c.weapon : 'sword';
       COMBAT.character = CHR[c.character] ? c.character : 'lyra';
       COMBAT.skin = SKN[c.skin] ? c.skin : 'default';
+      COMBAT.crystals = Math.max(0, Number(c.crystals) || 0);
+      COMBAT.spentCrystals = Math.max(0, Number(c.spentCrystals) || 0);
+      COMBAT.streak = Math.max(0, Number(c.streak) || 0);
+      COMBAT.bestStreak = Math.max(COMBAT.streak, Number(c.bestStreak) || 0);
+      COMBAT.pity = Math.max(0, Number(c.pity) || 0);
+      if (Number.isFinite(Number(c.gachaPulls))) recruitClaims = Math.max(0, Number(c.gachaPulls));
+      if (c.daily && typeof c.daily === 'object') COMBAT.daily = { date: String(c.daily.date || ''), answers: Array.isArray(c.daily.answers) ? c.daily.answers.slice(0, 3) : [], done: !!c.daily.done };
       WORLD.equipWeapon(COMBAT.weapon);
       WORLD.applyCharacterLook(COMBAT.character, COMBAT.skin);
       saveCombat();
@@ -606,8 +760,58 @@
     const gn = $('goldNum'); if (gn) gn.textContent = COMBAT.gold;
     const wn = $('weaponName'); if (wn) wn.textContent = (WPN[COMBAT.weapon] || WPN.sword).name;
     const cn = $('charName'); if (cn) cn.textContent = (CHR[COMBAT.character] || CHR.lyra).name;
+    const st = $('streakNum'); if (st) st.textContent = COMBAT.streak;
+    const sm = $('streakMul'); if (sm) sm.textContent = '×' + rewardMultiplier().toFixed(1);
+    const sp = $('streakPill'); if (sp) sp.classList.toggle('hot', COMBAT.streak >= REWARD_RULES.streakAt);
+    const d = ensureDaily();
+    const db = $('dailyBadge'); if (db) db.textContent = d.done ? '✓' : (d.answers.length + '/3');
+    const dailyBtn = $('dailyBtn'); if (dailyBtn) dailyBtn.classList.toggle('ready', !d.done);
+    const charges = drawCharges();
+    const gb = $('gachaBadge'); if (gb) gb.textContent = charges > 0 ? String(charges) : '';
+    const gachaBtn = $('gachaBtn'); if (gachaBtn) {
+      gachaBtn.classList.toggle('ready', charges > 0);
+      gachaBtn.title = 'Companion draw · ' + charges + ' charge(s) · pity ' + COMBAT.pity + '/' + GACHA_RULES.pityMax;
+    }
     const wp = $('weaponPill'); if (wp) wp.title = 'Equipped weapon · press 1–5 to swap';
     const cp = $('charPill'); if (cp) cp.title = 'Active character · press C to switch';
+  }
+
+  /* ---------------- language toggle ---------------- */
+  function syncLanguageUI() {
+    document.body.classList.toggle('lang-zh', isZh());
+    const lb = $('langBtn'); if (lb) lb.textContent = isZh() ? '中文' : 'EN';
+    document.querySelectorAll('[data-lang-toggle]').forEach(b => { b.textContent = isZh() ? '中文 / EN' : 'EN / 中文'; });
+  }
+  function toggleLanguage() {
+    LANG = isZh() ? 'en' : 'zh';
+    try { localStorage.setItem('bq_lang', LANG); } catch (e) { }
+    syncLanguageUI();
+    if (state === STATE.DIALOG && dlg) {
+      $('npcLine').textContent = guided
+        ? bi('Challenge · Classify ' + dlg.c.f, '挑戰 · 分類 ' + dlg.c.f)
+        : bi('Classify ' + dlg.c.f + ' in three steps.', '用三個步驟分類 ' + dlg.c.f + '。');
+      if (dlg.lastAnswer) renderDialogFeedback(); else renderDialogStep();
+      $('dialogHintBtn').textContent = bi('Hint', '提示');
+      $('dialogCloseBtn').textContent = bi('Leave', '離開');
+    }
+    if (state === STATE.DOTCROSS && dcq) {
+      $('dcTitle').textContent = dcq.q.compound + ' — ' + bi('Dot-and-cross diagram', 'Dot-and-cross 圖');
+      $('dcHintBtn').textContent = bi('Hint', '提示');
+      $('dcResetBtn').textContent = bi('Reset', '重設');
+      $('dcCloseBtn').textContent = bi('Leave', '離開');
+      $('dcCheckBtn').textContent = dcq.solved ? bi('Back to world', '返回世界') : bi('Check', '檢查');
+      const dht = $('dcHowTitle');
+      if (dht) dht.textContent = bi('How to do it — follow these steps', '做法 — 按步驟完成');
+      const dl = $('dcLegend');
+      if (dl) dl.textContent = bi('One click fills a complete electron pair. Use Erase to clear a pair, or Auto-fill shell for 1 crystal.', '一下點擊會填入完整 electron pair。用 Erase 清除整對，或用 Auto-fill shell（1 crystal）自動填滿。');
+      const tb = $('dcToolbar').querySelector('[data-tool="pair"]');
+      const eb = $('dcToolbar').querySelector('[data-tool="erase"]');
+      if (tb) tb.textContent = '✚ ' + bi('Pair', '電子對');
+      if (eb) eb.textContent = '⌫ ' + bi('Erase', '擦除');
+      const bb = $('dcBracketBtn'); if (bb) bb.textContent = '[ ] ' + bi('Brackets', '括號');
+      renderDC();
+    }
+    if (dailyOpen) renderDaily();
   }
 
   /* ---------------- interaction prompt ---------------- */
@@ -645,7 +849,7 @@
 
   /* ---------------- modal helpers ---------------- */
   function syncPaused() {
-    paused = (state !== STATE.WORLD) || helpOpen || mapOpen || coachOn || shopOpen || guildOpen || beaconOpen || wpOpen || charModalOpen || $('glossaryDrawer').classList.contains('show');
+    paused = (state !== STATE.WORLD) || helpOpen || mapOpen || coachOn || shopOpen || guildOpen || beaconOpen || wpOpen || charModalOpen || gachaOpen || dailyOpen || $('glossaryDrawer').classList.contains('show');
     if (paused) { const cb = $('comboBadge'); if (cb) cb.classList.remove('show'); }
   }
   function openModal(id) {
@@ -662,42 +866,106 @@
     syncPaused();
   }
 
+  function openNextLab() {
+    if (!started || paused || state !== STATE.WORLD || CLOUD.isOpen()) return;
+    const node = nextMainNode();
+    guided = true;
+    tutStep = 0;
+    tutCelebrate = 0;
+    tutHide();
+    if (!node) { showSummary(); return; }
+    WORLD.teleportTo(node.x, node.z);
+    if (node.type === 'npc') openDialog(node);
+    else openDotCross(node);
+  }
+
+  function labCompletionActions(container, close) {
+    const actions = document.createElement('div');
+    actions.className = 'labChoices';
+    const next = document.createElement('button');
+    next.className = 'primary';
+    next.textContent = nextMainNode() ? 'Next challenge' : 'See revision summary';
+    next.addEventListener('click', () => { close(true); openNextLab(); });
+    actions.appendChild(next);
+    if (recruitsAvailable() > 0) {
+      const recruit = document.createElement('button');
+      recruit.className = 'ghost';
+      recruit.textContent = bi('Open companion draw', '開啟伙伴抽卡');
+      recruit.addEventListener('click', () => { close(true); openGacha(); });
+      actions.appendChild(recruit);
+    }
+    container.appendChild(actions);
+  }
+
+  function startSession(openLab, introLevel) {
+    $('startScreen').classList.remove('show');
+    started = true;
+    WORLD.setLocked(false);
+    lastFrame = performance.now();
+    SESSION.startTime = Date.now();
+    logEvent({ type: 'start', mode: introLevel ? 'bond_trial' : openLab ? 'lab' : 'explore' });
+    if (introLevel) { WORLD.requestLock(); startIntroTrial(); }
+    else if (openLab) openNextLab();
+    else { WORLD.requestLock(); tutStart(); }
+    if (!storeOk) toast('Browser storage is blocked. Use Export data to keep a copy of your session.', 5000);
+  }
+
   /* ================= DIALOG (classification) ================= */
   let dlg = null;
 
   function optionSets(c) {
     const s1 = [
-      { v: 1, en: 'A metal + a non-metal', zh: '' },
-      { v: 2, en: 'Non-metal atoms only', zh: '' },
-      { v: 3, en: 'Metal atoms only', zh: '' }
+      { v: 1, en: 'A metal + a non-metal', zh: '金屬 + 非金屬 (metal + non-metal)' },
+      { v: 2, en: 'Non-metal atoms only', zh: '只有非金屬原子 (non-metal atoms only)' },
+      { v: 3, en: 'Metal atoms only', zh: '只有金屬原子 (metal atoms only)' }
     ];
     const s2 = [
-      { v: 1, en: 'Electron transfer', zh: '' },
-      { v: 2, en: 'Electron sharing', zh: '' },
-      { v: 3, en: 'Delocalised electrons', zh: '' }
+      { v: 1, en: c.id === 'nh4cl' ? 'Attraction between NH₄⁺ and Cl⁻ ions' : 'Electron transfer',
+        zh: c.id === 'nh4cl' ? 'NH₄⁺ 與 Cl⁻ 離子之間的吸引力 (ionic attraction)' : '電子轉移 (electron transfer)' },
+      { v: 2, en: 'Electron sharing', zh: '共用電子 (electron sharing)' },
+      { v: 3, en: 'Delocalised electrons', zh: '離域電子 (delocalised electrons)' }
     ];
     const s3 = [
-      { v: 1, en: 'Ionic bond', zh: '' },
-      { v: 2, en: 'Covalent bond', zh: '' },
-      { v: 3, en: 'Metallic bond', zh: '' }
+      { v: 1, en: 'Ionic bond', zh: 'Ionic bond（離子鍵）' },
+      { v: 2, en: 'Covalent bond', zh: 'Covalent bond（共價鍵）' },
+      { v: 3, en: 'Metallic bond', zh: 'Metallic bond（金屬鍵）' }
     ];
     return [s1, s2, s3];
   }
 
   function explain(c, step) {
+    if (c.id === 'nh4cl') {
+      return [
+        { en: 'N, H and Cl are all non-metals. This compound is an exception to the usual element-type shortcut.',
+          zh: 'N、H、Cl 全部都是 non-metal。這題是元素分類捷徑嘅例外。' },
+        { en: 'N and H share electrons within NH₄⁺. The salt itself is made of NH₄⁺ and Cl⁻ ions.',
+          zh: 'NH₄⁺ 內部由 N 與 H 共用電子 (electron sharing)。整種鹽則由 NH₄⁺ 與 Cl⁻ 離子組成。' },
+        { en: 'NH₄⁺ and Cl⁻ attract electrostatically in a giant ionic lattice. The N–H bonds within NH₄⁺ are covalent.',
+          zh: 'NH₄⁺ 與 Cl⁻ 在 giant ionic lattice 中以靜電吸引。NH₄⁺ 內部嘅 N–H bonds 是 covalent。' }
+      ][step - 1];
+    }
     if (step === 1) {
-      if (c.comp === 1) return { en: 'One metal + one non-metal: the metal will lose electrons and the non-metal will gain them.', zh: '' };
-      if (c.comp === 2) return { en: 'All the atoms are non-metals, so no atom easily loses electrons — they share electrons instead.', zh: '' };
-      return { en: 'Only metal atoms are present: their valence electrons are free to move through the whole structure.', zh: '' };
+      if (c.comp === 1) return { en: 'One metal + one non-metal: the metal will lose electrons and the non-metal will gain them.',
+        zh: '一種金屬 + 一種非金屬：金屬會失去電子，非金屬會得到電子 (electron transfer)。' };
+      if (c.comp === 2) return { en: 'All the atoms are non-metals, so no atom easily loses electrons — they share electrons instead.',
+        zh: '所有原子都是 non-metal，沒有原子容易失去電子，所以改為共用電子 (electron sharing)。' };
+      return { en: 'Only metal atoms are present: their valence electrons are free to move through the whole structure.',
+        zh: '只有金屬原子：valence electrons 可以在整個結構中自由移動 (delocalised)。' };
     }
     if (step === 2) {
-      if (c.ebeh === 1) return { en: 'Electrons are transferred from the metal to the non-metal, forming positive and negative ions.', zh: '' };
-      if (c.ebeh === 2) return { en: 'Each atom shares pairs of electrons so both reach a full outer shell.', zh: '' };
-      return { en: 'Valence electrons are delocalised into a "sea of electrons" shared by all the metal ions.', zh: '' };
+      if (c.ebeh === 1) return { en: 'Electrons are transferred from the metal to the non-metal, forming positive and negative ions.',
+        zh: '電子由金屬轉移 (electron transfer) 到非金屬，形成正、負離子。' };
+      if (c.ebeh === 2) return { en: 'Atoms share electron pairs. Hydrogen can fill its shell with two electrons. Some atoms, such as B in BF₃, bond with fewer than eight.',
+        zh: '原子共用電子對 (shared electron pairs)。H 只需 2 粒電子填滿 shell；B in BF₃ 等原子亦可以少於八隅體。' };
+      return { en: 'Valence electrons are delocalised into a "sea of electrons" shared by all the metal ions.',
+        zh: 'Valence electrons 離域成 electron sea，由所有金屬離子共同吸引。' };
     }
-    if (c.bond === 1) return { en: 'Oppositely charged ions attract each other electrostatically — that is the ionic bond.', zh: '' };
-    if (c.bond === 2) return { en: 'The shared electron pairs are attracted to both nuclei — that is the covalent bond.', zh: '' };
-    return { en: 'The positive metal ions are held by the delocalised electrons around them — that is the metallic bond.', zh: '' };
+    if (c.bond === 1) return { en: 'Oppositely charged ions attract each other electrostatically — that is the ionic bond.',
+      zh: '相反電荷的離子互相靜電吸引，這就是 ionic bond。' };
+    if (c.bond === 2) return { en: 'The shared electron pairs are attracted to both nuclei — that is the covalent bond.',
+      zh: '共用電子對 (shared electron pair) 同時受兩個原子核吸引，這就是 covalent bond。' };
+    return { en: 'The positive metal ions are held by the delocalised electrons around them — that is the metallic bond.',
+      zh: '正金屬離子被周圍的 delocalised electrons 吸引，這就是 metallic bond。' };
   }
 
   /* ---------------- three-part error feedback ---------------- */
@@ -706,63 +974,53 @@
   function wxCard(you, why, rule, title, opts) {
     const o = opts || {};
     const attr = o.atom === undefined ? '' : ' data-hi="' + o.atom + '"';
+    const zh = isZh();
+    const youTxt = zh && you.zh ? you.zh : you.en;
+    const whyTxt = zh && why.zh ? why.zh : why.en;
+    const ruleTxt = zh && rule.zh ? rule.zh : rule.en;
     return '<div class="wx"' + attr + '>' +
       (title ? '<div class="wxTitle">' + title + '</div>' : '') +
-      '<div class="wxRow"><div class="wxTag you">YOUR ANSWER</div>' +
-        '<div class="wxTxt"><span class="wxEn">' + you.en + '</span></div></div>' +
-      '<div class="wxRow"><div class="wxTag why">WHY IT FAILS</div>' +
-        '<div class="wxTxt"><span class="wxEn">' + why.en + '</span></div></div>' +
-      '<div class="wxRow"><div class="wxTag rule">THE RULE</div>' +
-        '<div class="wxTxt"><span class="wxEn">' + rule.en + '</span></div></div>' +
+      '<div class="wxRow"><div class="wxTag you">' + (zh ? '你的答案<br><em>YOUR ANSWER</em>' : 'YOUR ANSWER') + '</div>' +
+        '<div class="wxTxt"><span class="wxEn">' + youTxt + '</span>' + (!zh && you.zh ? '<span class="wxZh">' + you.zh + '</span>' : '') + '</div></div>' +
+      '<div class="wxRow"><div class="wxTag why">' + (zh ? '為何不成立<br><em>WHY IT FAILS</em>' : 'WHY IT FAILS') + '</div>' +
+        '<div class="wxTxt"><span class="wxEn">' + whyTxt + '</span>' + (!zh && why.zh ? '<span class="wxZh">' + why.zh + '</span>' : '') + '</div></div>' +
+      '<div class="wxRow"><div class="wxTag rule">' + (zh ? '正確規則<br><em>THE RULE</em>' : 'THE RULE') + '</div>' +
+        '<div class="wxTxt"><span class="wxEn">' + ruleTxt + '</span>' + (!zh && rule.zh ? '<span class="wxZh">' + rule.zh + '</span>' : '') + '</div></div>' +
       (o.tapHint ? '<div class="wxTap">' + o.tapHint + '</div>' : '') +
       '</div>';
   }
 
-  function stepRule(step) {
-    if (step === 1) return {
-      en: 'Read the formula first: metal + non-metal → electrons are transferred; non-metals only → electrons are shared; metal only → electrons are delocalised.',
-      zh: ''
-    };
-    if (step === 2) return {
-      en: 'Electron behaviour follows the composition: transfer for metal + non-metal, sharing for non-metals only, delocalised for metals only.',
-      zh: ''
-    };
-    return {
-      en: 'The bond type follows the electron behaviour: transfer → ionic bond; sharing → covalent bond; delocalised → metallic bond.',
-      zh: ''
-    };
-  }
-
   function stepWhy(c, step, chosen) {
+    if (c.id === 'nh4cl' && step > 1) return explain(c, step);
     const f = c.f;
     if (step === 1) {
       if (c.comp === 1) {
         if (chosen === 2) return {
           en: f + ' contains a metal as well as a non-metal, so "non-metals only" cannot be right.',
-          zh: f + ''
+          zh: f + ' 同時含金屬與非金屬，所以「只有 non-metal atoms」不正確。'
         };
         return {
           en: f + ' contains a non-metal as well as a metal, so it is not "metal atoms only".',
-          zh: f + ''
+          zh: f + ' 同時含非金屬與金屬，所以不是「只有 metal atoms」。'
         };
       }
       if (c.comp === 2) {
         if (chosen === 1) return {
           en: 'There is no metal in ' + f + ' — every atom is a non-metal, so it cannot be metal + non-metal.',
-          zh: f + ''
+          zh: f + ' 沒有金屬；每粒原子都是 non-metal，所以不是 metal + non-metal。'
         };
         return {
           en: 'There is no metal atom in ' + f + '; all the atoms are non-metals.',
-          zh: f + ''
+          zh: f + ' 沒有金屬原子；全部都是 non-metal atoms。'
         };
       }
       if (chosen === 1) return {
         en: f + ' is a single metal — there is no non-metal in the formula.',
-        zh: f + ''
+        zh: f + ' 是單一金屬，formula 中沒有 non-metal。'
       };
       return {
         en: 'The atom in ' + f + ' is a metal, not a non-metal.',
-        zh: f + ''
+        zh: f + ' 中的原子是 metal，不是 non-metal。'
       };
     }
 
@@ -770,70 +1028,73 @@
       if (c.ebeh === 1) {
         if (chosen === 2) return {
           en: 'In ' + f + ' the metal loses its outer electron(s) and the non-metal gains them. The electron moves completely from one atom to the other — that is transfer, not sharing.',
-          zh: f + ''
+          zh: '在 ' + f + ' 中，金屬失去外層電子，非金屬得到電子。電子完全轉移 (transfer) 到另一粒原子，不是共用 (sharing)。'
         };
         return {
-          en: 'Delocalisation only happens in a metal lattice. In ' + f + ' the electrons stay with a particular ion, so they are not free to move around.',
-          zh: '' + f + ''
+          en: 'In ' + f + ' the electrons remain associated with individual ions. There is no sea of delocalised electrons.',
+          zh: '在 ' + f + ' 中，電子仍屬於個別離子 (individual ions)，沒有 delocalised electron sea。'
         };
       }
       if (c.ebeh === 2) {
         if (chosen === 1) return {
           en: 'Both atoms in ' + f + ' are non-metals; neither loses electrons easily, so no complete transfer happens.',
-          zh: f + ''
+          zh: f + ' 的原子都是 non-metal，兩者都不易失去電子，所以沒有完整 electron transfer。'
         };
         return {
           en: 'There is no metal lattice in ' + f + ', so there is no "sea" of delocalised electrons.',
-          zh: f + ''
+          zh: f + ' 沒有 metal lattice，所以沒有 delocalised electron sea。'
         };
       }
       if (chosen === 1) return {
         en: 'The outer electrons in ' + f + ' do not move to a particular atom — they leave their atoms and move through the whole structure.',
-        zh: f + ''
+        zh: f + ' 的外層電子不是轉移給某一粒原子，而是離開原子並在整個結構中移動 (delocalised)。'
       };
       return {
         en: 'Metals do not form fixed shared pairs; their valence electrons are delocalised.',
-        zh: ''
+        zh: '金屬不會形成固定的 shared pairs；其 valence electrons 是 delocalised。'
       };
     }
 
     if (c.bond === 1) {
       if (chosen === 2) return {
         en: 'A covalent bond comes from a shared pair. In ' + f + ' the electrons were transferred to make ions, so the attraction is between ions — not a shared pair.',
-        zh: '' + f + ''
+        zh: 'Covalent bond 來自 shared pair。在 ' + f + ' 中，電子已轉移而形成 ions，所以吸引力在 ions 之間，不是 shared pair。'
       };
       return {
         en: 'A metallic bond needs a metal lattice with delocalised electrons. ' + f + ' is an ionic lattice.',
-        zh: '' + f + ''
+        zh: 'Metallic bond 需要 metal lattice 和 delocalised electrons；' + f + ' 是 ionic lattice。'
       };
     }
     if (c.bond === 2) {
       if (chosen === 1) return {
         en: 'An ionic bond needs positive and negative ions. ' + f + ' has no ions — only shared electron pairs.',
-        zh: '' + f + ''
+        zh: 'Ionic bond 需要正、負 ions；' + f + ' 沒有 ions，只有 shared electron pairs。'
       };
       return {
         en: f + ' is not a metal, so there is no electron sea and no metallic bond.',
-        zh: f + ''
+        zh: f + ' 不是 metal，所以沒有 electron sea，也沒有 metallic bond。'
       };
     }
     if (chosen === 1) return {
       en: 'There are no positive and negative ions in ' + f + '; it is positive metal ions surrounded by delocalised electrons.',
-      zh: f + ''
+      zh: f + ' 沒有正、負 ions；它是由正金屬離子與周圍 delocalised electrons 組成。'
     };
     return {
       en: 'There are no shared pairs in ' + f + '; the valence electrons are delocalised.',
-      zh: f + ''
+      zh: f + ' 沒有 shared pairs；其 valence electrons 是 delocalised。'
     };
   }
 
   function openDialog(node) {
     const c = COMP[node.compound];
-    dlg = { node, c, step: 0, picks: [], hintUsed: false, wrongSteps: 0 };
+    dlg = { node, c, step: 0, picks: [], hintUsed: false, wrongSteps: 0, lastAnswer: null };
     if (tutStep === 3) tutAdvance(4);   // training: the player actually pressed E!
     $('npcName').textContent = node.label.en + ' · ' + c.f;
     $('npcAvatar').textContent = c.f.replace(/[₀-₉]/g, '').slice(0, 2);
-    $('npcLine').textContent = '📖 LEARNING: classify ' + c.f + ' — three quick questions and the quest is done!';
+    const mission = NODES.filter(n => n.main).indexOf(node) + 1;
+    $('npcLine').textContent = guided
+      ? bi('Challenge ' + mission + ' of ' + MAIN_TOTAL + ' · Classify ' + c.f, '第 ' + mission + ' / ' + MAIN_TOTAL + ' 題 · 分類 ' + c.f)
+      : bi('Classify ' + c.f + ' in three steps.', '用三個步驟分類 ' + c.f + '。');
     setState(STATE.DIALOG);
     openModal('dialogModal');
     renderDialogStep();
@@ -841,13 +1102,30 @@
 
   function renderDialogStep() {
     const c = dlg.c;
+    $('dialogActions').replaceChildren();
     const sets = optionSets(c);
-    const stepLabel = ['Step 1 · Composition', 'Step 2 · Electron behaviour', 'Step 3 · Bond type'][dlg.step];
+    const structure = dlg.step === 3;
+    const total = dlg.node.id === 'n9' ? 4 : 3;
+    const stepLabel = isZh() ? [
+      c.f + ' 含有哪類元素？',
+      c.id === 'nh4cl' ? '固體 NH₄Cl 中的 ions 靠什麼互相吸引？' : c.f + ' 的外層電子 (outer electrons) 會怎樣？',
+      '什麼 bond 把 ' + c.f + ' 結合在一起？',
+      'BF₃ 與 diamond 都有 covalent bonds。兩者結構有何分別？'
+    ][dlg.step] : [
+      'What types of elements are in ' + c.f + '?',
+      c.id === 'nh4cl' ? 'What holds the ions in solid NH₄Cl together?' : 'What happens to the outer electrons in ' + c.f + '?',
+      'What type of bond holds ' + c.f + ' together?',
+      'BF₃ and diamond both have covalent bonds. What is the difference in structure?'
+    ][dlg.step];
 
-    let opts = sets[dlg.step].slice();
-    const expected = [c.comp, c.ebeh, c.bond][dlg.step];
+    const opts = structure ? [
+      { v: 1, en: 'BF₃ forms separate molecules. Diamond is a giant network.', zh: 'BF₃ 形成獨立分子 (separate molecules)；diamond 是 giant covalent network。' },
+      { v: 2, en: 'Both form separate molecules because both are covalent.', zh: '兩者都是 covalent，所以都形成獨立分子 (separate molecules)。' },
+      { v: 3, en: 'Diamond is a metallic lattice because its structure is giant.', zh: 'Diamond 是 giant structure，所以是 metallic lattice。' }
+    ] : sets[dlg.step].slice();
+    const expected = [c.comp, c.ebeh, c.bond, 1][dlg.step];
     if (c.trap && c.trap.step === dlg.step + 1) {
-      opts.push({ v: -1, en: c.trap.en, trap: true });
+      opts.push({ v: -1, en: c.trap.en, zh: c.trap.zh, trap: true });
     }
     if (dlg.shuffleSeed === undefined) dlg.shuffleSeed = Math.floor(Math.random() * 999);
     // stable-ish shuffle per step
@@ -860,22 +1138,82 @@
     }
     const shuffled = order.map(i => opts[i]);
 
-    $('stepDots').innerHTML = [0, 1, 2].map(i =>
+    $('stepDots').innerHTML = Array.from({ length: total }, (_, i) => i).map(i =>
       '<div class="d ' + (i < dlg.step ? 'done' : i === dlg.step ? 'on' : '') + '"></div>').join('');
 
     $('dialogBody').innerHTML =
       '<div class="qBlock">' + stepLabel + '</div>' +
-      '<div class="qZh">Choose the best answer, then press Next.</div>' +
+      '<div class="qZh">' + bi('Question ' + (dlg.step + 1) + ' of ' + total + ' · Choose one answer.', '第 ' + (dlg.step + 1) + ' / ' + total + ' 題 · 選一個答案。') + '</div>' +
       '<div class="options" id="dlgOpts">' +
       shuffled.map((o, i) =>
-        '<button class="opt" data-v="' + o.v + '" data-i="' + i + '">' + o.en + '</button>').join('') +
+        '<button class="opt" data-v="' + o.v + '" data-i="' + i + '">' + textOf(o) + '</button>').join('') +
       '</div>' +
-      '<div class="fb" id="dlgFb"></div>';
+      '<div class="fb" id="dlgFb" role="status" aria-live="polite"></div>';
 
     $('dlgOpts').querySelectorAll('.opt').forEach(btn => {
       btn.addEventListener('click', () => pickOption(btn, expected, opts));
     });
     $('dialogHintBtn').style.display = dlg.hintUsed ? 'none' : '';
+    $('dialogHintBtn').textContent = bi('Hint', '提示');
+    $('dialogBody').closest('.modalBody').scrollTop = 0;
+  }
+
+  function structureExplanation() {
+    return { en: 'BF₃ forms separate molecules. In diamond, each carbon atom bonds to four other carbon atoms, making a continuous covalent network.',
+      zh: 'BF₃ 形成獨立分子 (separate molecules)。Diamond 中每粒 carbon atom 與四粒其他 carbon atoms 形成 covalent bonds，構成連續的 giant covalent network。' };
+  }
+
+  function burstAt(x, y, color, count) {
+    const layer = $('floatLayer'); if (!layer) return;
+    const n = count || 18;
+    for (let i = 0; i < n; i++) {
+      const el = document.createElement('i');
+      el.className = 'correctParticle';
+      const ang = Math.random() * Math.PI * 2;
+      const dist = 42 + Math.random() * 76;
+      el.style.left = x + 'px'; el.style.top = y + 'px';
+      el.style.setProperty('--bx', Math.cos(ang) * dist + 'px');
+      el.style.setProperty('--by', Math.sin(ang) * dist + 'px');
+      el.style.setProperty('--pc', color || (Math.random() < .5 ? '#8ff0c8' : '#ffd86a'));
+      el.style.animationDelay = (Math.random() * .06) + 's';
+      layer.appendChild(el);
+      setTimeout(() => el.remove(), 850);
+    }
+  }
+  function floatScreenText(text, x, y, cls) {
+    const layer = $('floatLayer'); if (!layer) return;
+    const el = document.createElement('div');
+    el.className = 'floatScreenText ' + (cls || '');
+    el.textContent = text;
+    el.style.left = x + 'px'; el.style.top = y + 'px';
+    layer.appendChild(el);
+    setTimeout(() => el.remove(), 1100);
+  }
+  function feedbackShake(el) {
+    const card = el && el.closest ? el.closest('.modalCard') : null;
+    if (!card || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    card.classList.remove('feedbackShake');
+    void card.offsetWidth;
+    card.classList.add('feedbackShake');
+    setTimeout(() => card.classList.remove('feedbackShake'), 340);
+  }
+  function showBanner(title, subtext) {
+    const el = $('perfectBanner'); if (!el) return;
+    const main = el.querySelector('b'); if (main) main.textContent = title;
+    const sub = $('perfectSub'); if (sub) sub.textContent = subtext || '';
+    el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+    setTimeout(() => el.classList.remove('show'), 2400);
+  }
+  function showPerfectBond(subtext) {
+    showBanner('PERFECT BOND', subtext || bi('All steps clean · bonus secured', '全部一次答對 · 額外獎勵已取得'));
+  }
+  function answerJuice(btn, reward, perfect) {
+    const r = btn && btn.getBoundingClientRect ? btn.getBoundingClientRect() : { left: innerWidth / 2, top: innerHeight / 2, width: 0, height: 0 };
+    const x = r.left + r.width / 2, y = r.top + r.height / 2;
+    burstAt(x, y, perfect ? '#ffd86a' : '#8ff0c8', perfect ? 34 : 20);
+    floatScreenText('+' + reward.xp + ' XP  +' + reward.gold + 'g', x, y - 12, perfect ? 'perfect' : '');
+    if (reward.streak >= REWARD_RULES.streakAt) floatScreenText('STREAK ×' + reward.mult.toFixed(1), x, y + 24, 'streak');
+    feedbackShake(btn);
   }
 
   function pickOption(btn, expected, opts) {
@@ -884,87 +1222,127 @@
     const c = dlg.c;
     const ok = v === expected;
     const fb = $('dlgFb');
-    $('dlgOpts').querySelectorAll('.opt').forEach(b => {
-      b.disabled = true;
-      const bv = Number(b.dataset.v);
-      if (bv === expected) b.classList.add('correct');
-      else if (b === btn) b.classList.add('wrong');
-      else b.classList.add('dim');
-    });
+    const optionList = $('dlgOpts');
+    optionList.querySelectorAll('.opt').forEach(b => { b.disabled = true; });
+    optionList.hidden = true;
+    $('dialogBody').querySelector('.qZh').textContent = bi('Question ' + (dlg.step + 1) + ' review', '第 ' + (dlg.step + 1) + ' 題回顧');
 
-    let ex = explain(c, dlg.step + 1);
-    if (!ok) {
+    const structure = dlg.step === 3;
+    const ex = structure ? structureExplanation() : explain(c, dlg.step + 1);
+    const correctOption = opts.find(o => o.v === expected);
+    const chosenOpt = opts.find(o => o.v === v) || { en: '—', zh: '—' };
+    const why = structure ? ex : (v === -1 && c.trap) ? c.trap.why : stepWhy(c, dlg.step + 1, v);
+    if (ok) {
+      const reward = awardCorrectStep(REWARD_RULES.stepXp, REWARD_RULES.stepGold);
+      SFX.correct();
+      answerJuice(btn, reward, false);
+      dlg.lastAnswer = { ok, v, expected, opts, ex, why, correctOption, chosenOpt, structure, reward };
+    } else {
       SFX.bad();
       dlg.wrongSteps++;
-      const chosenOpt = opts.find(o => o.v === v) || { en: '—' };
-      const why = (v === -1 && c.trap) ? c.trap.why : stepWhy(c, dlg.step + 1, v);
-      const rule = stepRule(dlg.step + 1);
-      fb.className = 'fb show no';
-      fb.innerHTML = '<div class="fbHead">✗ Not quite — check the three parts below</div>' +
-        wxCard(chosenOpt, why, rule, '');
-      setTimeout(() => { try { fb.scrollIntoView({ block: 'start' }); } catch (e) { } }, 30);
-    } else {
-      SFX.good();
-      fb.className = 'fb show ok';
-      fb.innerHTML = '✓ ' + ex.en;
+      breakStreak();
+      dlg.lastAnswer = { ok, v, expected, opts, ex, why, correctOption, chosenOpt, structure, reward: null };
     }
-    if (c.note && dlg.step === 2) {
-      fb.innerHTML += '<span class="fbZh" style="margin-top:8px">💡 ' + c.note.en + '</span>';
-    }
+    renderDialogFeedback();
 
+    dlg.tries = (dlg.tries || 0) + 1;
     attempts.push({
       type: 'classify', compound: c.f, step: dlg.step + 1,
-      chosen: v, correct: ok, hintUsed: dlg.hintUsed, attempt: 1
+      chosen: v, correct: ok, hintUsed: dlg.hintUsed, attempt: dlg.tries
     });
     logEvent({ type: 'classify', compound: c.f, step: dlg.step + 1, chosen: v, correct: ok, hintUsed: dlg.hintUsed });
 
-    const foot = document.createElement('div');
-    foot.style.marginTop = '14px';
-    foot.style.display = 'flex';
-    foot.style.justifyContent = 'flex-end';
+    const foot = $('dialogActions');
+    foot.replaceChildren();
+    $('dialogHintBtn').style.display = 'none';
+    if (!ok) {
+      const retry = document.createElement('button');
+      retry.className = 'ghost';
+      retry.textContent = bi('Try again', '再試一次');
+      retry.addEventListener('click', () => {
+        renderDialogStep();
+        $('dlgOpts').querySelector('button').focus();
+      });
+      foot.appendChild(retry);
+    }
     const nb = document.createElement('button');
     nb.className = 'primary';
     nb.style.width = 'auto';
-    nb.textContent = dlg.step < 2 ? 'Next' : 'Finish';
+    const hasNext = dlg.step < (dlg.node.id === 'n9' ? 3 : 2);
+    nb.textContent = hasNext ? bi('Next question', '下一題') : bi('Finish challenge', '完成挑戰');
     nb.addEventListener('click', () => {
-      if (dlg.step < 2) { dlg.step++; renderDialogStep(); }
+      if (hasNext) { dlg.step++; dlg.tries = 0; renderDialogStep(); }
       else finishDialog();
     });
-    const old = $('dialogBody').querySelector('.dlgNext');
-    if (old) old.remove();
-    foot.className = 'dlgNext';
     foot.appendChild(nb);
-    $('dialogBody').appendChild(foot);
+    nb.focus({ preventScroll: true });
+  }
+
+  function renderDialogFeedback() {
+    if (!dlg || !dlg.lastAnswer) return;
+    const a = dlg.lastAnswer;
+    const fb = $('dlgFb'); if (!fb) return;
+    const whyText = textOf(a.why);
+    const exText = textOf(a.ex);
+    const detail = whyText === exText ? '' : '<p>' + whyText + '</p>';
+    const rewardHtml = a.reward
+      ? '<div class="rewardChip">+' + a.reward.xp + ' XP · +' + a.reward.gold + ' gold' + (a.reward.streak >= REWARD_RULES.streakAt ? ' · STREAK ×' + a.reward.mult.toFixed(1) : '') + '</div>'
+      : '';
+    fb.className = 'fb show answerFeedback ' + (a.ok ? 'isCorrect' : 'isWrong');
+    fb.innerHTML = '<div class="answerKey"><span>' + (a.ok ? bi('✓ Correct', '✓ 正確') : bi('✓ Correct answer', '✓ 正確答案')) + '</span><strong>' +
+      textOf(a.correctOption) + '</strong><p>' + exText + '</p>' + rewardHtml + '</div>';
+    if (!a.ok) {
+      fb.innerHTML += '<div class="answerMiss"><span>' + bi('× Your answer', '× 你的答案') + '</span><strong>' + textOf(a.chosenOpt) + '</strong>' + detail + '</div>';
+    }
+    if (dlg.c.note && dlg.step === 2) {
+      fb.innerHTML += '<span class="fbZh" style="margin-top:8px">💡 ' + textOf(dlg.c.note) + '</span>';
+    }
   }
 
   function finishDialog() {
     const c = dlg.c;
+    const wasDone = done.has(dlg.node.id);
     const clean = dlg.wrongSteps === 0;
     const perfect = clean && !dlg.hintUsed;
     if (clean && !nodeCorrect.get(dlg.node.id)) {
       correctCount++;
       nodeCorrect.set(dlg.node.id, true);
     }
+    let bonus = null;
+    if (perfect && !wasDone) {
+      bonus = awardPerfectChallenge();
+      SFX.perfect();
+      showPerfectBond(bi('All steps clean · bonus secured', '全部一次答對 · 完美獎勵已取得'));
+    }
     done.add(dlg.node.id); questCelebrate();
     WORLD.setNodeState(dlg.node.id, 'done');
     $('dialogBody').innerHTML =
-      '<div class="fb show ok" style="margin-top:0">' +
-      (perfect ? '★ Perfect! You have fully mastered the classification of ' + c.f + '.'
-               : clean ? '✓ ' + c.f + ' classified. You used a hint — try explaining the reasoning again yourself.'
-                       : '✓ ' + c.f + ' classified. You missed a step — review the explanation above.') +
-      '<span class="fbZh">Main progress: ' + mainDone() + ' / ' + MAIN_TOTAL + '</span></div>';
+      '<div class="fb show ok ' + (perfect ? 'perfectResult' : '') + '" style="margin-top:0">' +
+      (perfect ? bi('★ PERFECT BOND — ' + c.f + ' classified correctly at every step.', '★ PERFECT BOND — 你每一步都正確分類 ' + c.f + '。')
+               : clean ? bi('✓ ' + c.f + ' classified. You used a hint — try explaining the reasoning again yourself.', '✓ 已分類 ' + c.f + '。你使用了提示，試著自己再解釋一次。')
+                       : bi('✓ ' + c.f + ' classified. Review the rule below.', '✓ 已分類 ' + c.f + '。請重溫下方規則。')) +
+      '<p>' + textOf(explain(c, 3)) + '</p>' +
+      (bonus ? '<div class="rewardChip perfect">+' + bonus.xp + ' XP · +' + bonus.gold + ' gold · +' + bonus.crystals + ' crystal</div>' : '') +
+      '<span class="fbZh">' + bi('Main progress: ' + mainDone() + ' / ' + MAIN_TOTAL, '主線進度：' + mainDone() + ' / ' + MAIN_TOTAL) + '</span></div>';
     $('dialogHintBtn').style.display = 'none';
-    $('dialogCloseBtn').textContent = 'Back to world';
+    $('dialogActions').replaceChildren();
+    $('dialogCloseBtn').textContent = bi('Back to world', '返回世界');
     refreshLocks();
+    updateHUD();
+    updateCombatHUD();
+    if (guided) labCompletionActions($('dialogBody'), closeDialog);
+    persist();
     toast((dlg.node.main ? '✓ Quest complete! +1 — ' : '✓ Side quest complete — ') + c.f + ' classified');
   }
 
-  function closeDialog() {
+  function closeDialog(next) {
     closeModal('dialogModal');
     setState(STATE.WORLD);
-    $('dialogCloseBtn').textContent = 'Leave';
+    $('dialogCloseBtn').textContent = bi('Leave', '離開');
     dlg = null;
     updateHUD();
+    guided = false;
+    if (next === true) return;
     checkAllMainDone();
     WORLD.relock();
   }
@@ -975,10 +1353,10 @@
     dlg.hintUsed = true;
     $('dialogHintBtn').style.display = 'none';
     const c = dlg.c;
-    const ex = explain(c, dlg.step + 1);
+    const ex = dlg.step === 3 ? structureExplanation() : explain(c, dlg.step + 1);
     const fb = $('dlgFb');
     fb.className = 'fb show no';
-    fb.innerHTML = 'Hint: ' + ex.en + '<span class="fbZh">(Using a hint means this attempt will not count as perfect.)</span>';
+    fb.innerHTML = bi('Hint: ', '提示：') + textOf(ex);
   });
 
   /* ================= DOT-AND-CROSS ================= */
@@ -993,23 +1371,34 @@
   function openDotCross(node) {
     dcq = {
       node, q: DC[node.dc], marks: {}, charges: {}, bracket: false,
-      tool: 'dot', tries: 0, hintUsed: false, hintSlot: null, solved: false, hiAtom: -1
+      tool: 'pair', tries: 0, hintUsed: false, hintSlot: null, solved: false, hiAtom: -1, autoFilled: false
     };
     const q = dcq.q;
-    $('dcTitle').textContent = q.compound + ' — Dot-and-cross diagram';
+    $('dcTitle').textContent = q.compound + ' — ' + bi('Dot-and-cross diagram', 'Dot-and-cross 圖');
     $('dcSub').textContent = q.type === 'ionic'
-      ? 'Ionic compound: draw the outer-shell electrons of each ion, then add square brackets and charges'
-      : 'Covalent compound: draw shared electron pairs (one dot + one cross) and lone pairs';
+      ? bi('One click fills a complete pair. Use crosses for the non-metal’s original electrons and dots for electrons transferred from the metal. Include brackets and charges.',
+           '一下點擊即可填入完整電子對。用 crosses 表示非金屬原有電子，用 dots 表示由金屬轉移 (transferred) 的電子，並加上 brackets 與 charges。')
+      : bi('One click fills a complete pair. Use dots for the first atom (' + q.atoms[0].sym + ') and crosses for its bonding partners.',
+           '一下點擊即可填入完整電子對。第一粒原子 (' + q.atoms[0].sym + ') 用 dots，成鍵伙伴用 crosses。');
     $('dcFeedback').className = 'dcFeedback';
     $('dcFeedback').innerHTML = '';
-    $('dcCheckBtn').textContent = 'Check';
+    $('dcCheckBtn').textContent = bi('Check', '檢查');
+    $('dcHintBtn').disabled = false;
+    $('dcHintBtn').textContent = bi('Hint', '提示');
+    $('dcResetBtn').disabled = false;
+    $('dcResetBtn').textContent = bi('Reset', '重設');
+    $('dcCloseBtn').textContent = bi('Leave', '離開');
+    const dht = $('dcHowTitle');
+    if (dht) dht.textContent = bi('How to do it — follow these steps', '做法 — 按步驟完成');
+    const dl = $('dcLegend');
+    if (dl) dl.textContent = bi('One click fills a complete electron pair. Use Erase to clear a pair, or Auto-fill shell for 1 crystal.',
+      '一下點擊會填入完整 electron pair。用 Erase 清除整對，或用 Auto-fill shell（1 crystal）自動填滿。');
     $('dcToolbar').className = 'dcToolbar' + (q.type === 'ionic' ? ' ionic' : '');
     $('dcToolbar').innerHTML =
-      '<button class="toolBtn active" data-tool="dot">• Dot</button>' +
-      '<button class="toolBtn" data-tool="cross">× Cross</button>' +
-      '<button class="toolBtn" data-tool="erase">⌫ Erase</button>' +
+      '<button class="toolBtn active" data-tool="pair">✚ ' + bi('Pair', '電子對') + '</button>' +
+      '<button class="toolBtn" data-tool="erase">⌫ ' + bi('Erase', '擦除') + '</button>' +
       '<span class="toolSep"></span>' +
-      '<button class="toolBtn ionOnly" id="dcBracketBtn">[ ] Brackets</button>';
+      '<button class="toolBtn ionOnly" id="dcBracketBtn">[ ] ' + bi('Brackets', '括號') + '</button>';
     $('dcToolbar').querySelectorAll('[data-tool]').forEach(b => {
       b.addEventListener('click', () => {
         dcq.tool = b.dataset.tool;
@@ -1018,6 +1407,7 @@
     });
     const bb = $('dcBracketBtn');
     if (bb) bb.addEventListener('click', () => {
+      if (dcq.solved) return;
       dcq.bracket = !dcq.bracket;
       bb.classList.toggle('active', dcq.bracket);
       renderDC();
@@ -1070,6 +1460,19 @@
     return slots;
   }
 
+  function autoPairForSlot(si) {
+    const s = dcq.slots[si];
+    if (!s) return [];
+    if (s.kind === 'bond') return ['dot', 'cross'];
+    if (dcq.q.type === 'ionic') {
+      const target = dcq.q.atoms.reduce((sum, a) => sum + Math.max(0, a.charge || 0), 0);
+      let usedDots = 0;
+      Object.keys(dcq.marks).forEach(k => { (dcq.marks[k] || []).forEach(m => { if (m === 'dot') usedDots++; }); });
+      return usedDots < target ? ['dot', 'cross'] : ['cross', 'cross'];
+    }
+    return s.atom === 0 ? ['dot', 'dot'] : ['cross', 'cross'];
+  }
+
   function dcState() {
     const q = dcq.q;
     const slots = dcq.slots || [];
@@ -1084,12 +1487,13 @@
   function renderDCHelp() {
     if (!dcq) return;
     const st = dcState();
-    const steps = [{ txt: 'Fill every electron slot on the diagram', note: st.filled + ' / ' + st.total + ' pairs', done: st.total > 0 && st.filled === st.total }];
+    const steps = [{ txt: bi('Fill every electron slot on the diagram', '填滿圖中每個 electron slot'),
+      note: st.filled + ' / ' + st.total + ' ' + bi('pairs', '對'), done: st.total > 0 && st.filled === st.total }];
     if (st.ionic) {
-      steps.push({ txt: 'Put square brackets [ ] around each ion', done: st.bracket });
-      steps.push({ txt: 'Set the charge of each ion', done: st.chargesOk });
+      steps.push({ txt: bi('Put square brackets [ ] around each ion', '用 [ ] square brackets 包住每個 ion'), done: st.bracket });
+      steps.push({ txt: bi('Set the charge of each ion', '設定每個 ion 的 charge'), done: st.chargesOk });
     }
-    steps.push({ txt: 'Press "Check" to see your result', done: false, act: true });
+    steps.push({ txt: bi('Press "Check" to see your result', '按 "Check" 查看結果'), done: false, act: true });
 
     const firstTodo = steps.findIndex(s => !s.done);
     $('dcSteps').innerHTML = steps.map((s, i) => {
@@ -1102,23 +1506,28 @@
 
     const graded = steps.length - 1;
     const doneCount = steps.slice(0, graded).filter(s => s.done).length;
-    $('dcHowProg').textContent = doneCount + ' / ' + graded + ' done';
+    $('dcHowProg').textContent = doneCount + ' / ' + graded + ' ' + bi('done', '完成');
 
     let msg;
     if (firstTodo < 0 || steps[firstTodo].act) {
-      msg = 'All steps done — press <b>"Check"</b> at the bottom right.';
+      msg = bi('All steps done — press <b>"Check"</b> at the bottom right.', '全部完成 — 按右下角 <b>"Check"</b>。');
     } else if (firstTodo === 0) {
       const left = st.total - st.filled;
-      msg = '<b>Click a dashed slot twice</b>: the 1st click places •, the 2nd adds another electron. ' +
-        'Lone pairs use <b>••</b>; bond pairs use <b>• + ×</b>. <b>' + left + '</b> pair(s) still to place.';
+      msg = bi('<b>Tap a dashed slot</b> to place a complete electron pair. <b>' + left + '</b> pair(s) still to place.',
+        '<b>點擊虛線 slot</b> 會直接填入完整 electron pair。還差 <b>' + left + '</b> 對。');
     } else if (!st.bracket) {
-      msg = 'Click the <b>[ ] Brackets</b> button above to enclose every ion — this shows which electrons belong to that ion.';
+      msg = bi('Click the <b>[ ] Brackets</b> button to enclose every ion.', '按 <b>[ ] Brackets</b> 包住每個 ion。');
     } else if (!st.chargesOk) {
-      msg = 'Choose the charges below: <b>metal ions are positive</b> (they lost electrons), <b>non-metal ions are negative</b> (they gained electrons).';
+      msg = bi('Choose the charges below: metal ions are positive, non-metal ions are negative.', '在下方選擇 charges：metal ions 為正，non-metal ions 為負。');
     } else {
-      msg = 'Press <b>"Check"</b> at the bottom right to see if you got it right.';
+      msg = bi('Press <b>"Check"</b> at the bottom right to see if you got it right.', '按右下角 <b>"Check"</b> 查看結果。');
     }
     $('dcNow').innerHTML = msg;
+    const auto = $('dcAutoBtn');
+    if (auto) {
+      auto.textContent = bi('Auto-fill shell · 1 ◈', '自動填滿殼層 · 1 ◈');
+      auto.disabled = dcq.solved || shardBalance() < REWARD_RULES.autoFillCrystals;
+    }
   }
 
   function renderDC() {
@@ -1127,10 +1536,16 @@
     dcq.slots = slots;
     const atoms = q.atoms;
 
-    let svg = '<svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg">';
+    const left = Math.min(...atoms.map(a => a.x - a.r)) - 62;
+    const top = Math.min(...atoms.map(a => a.y - a.r)) - 55;
+    const right = Math.max(...atoms.map(a => a.x + a.r)) + 82;
+    const bottom = Math.max(...atoms.map(a => a.y + a.r)) + 55;
+    let svg = '<svg viewBox="' + [left, top, right - left, bottom - top].join(' ') + '" xmlns="http://www.w3.org/2000/svg">';
     atoms.forEach((a, i) => {
       if (dcq.bracket) {
-        svg += '<rect x="' + (a.x - a.r - 15) + '" y="' + (a.y - a.r - 15) + '" width="' + (a.r * 2 + 30) + '" height="' + (a.r * 2 + 30) + '" rx="8" fill="none" stroke="#8ff0c8" stroke-width="2"/>';
+        const radius = a.r + (a.lonePairs ? 46 : 14);
+        const x = a.x - radius, y = a.y - radius, width = radius * 2;
+        svg += '<path d="M' + (x + 12) + ' ' + y + ' h-12 v' + width + ' h12 M' + (x + width - 12) + ' ' + y + ' h12 v' + width + ' h-12" fill="none" stroke="#8ff0c8" stroke-width="3"/>';
       }
       svg += '<circle cx="' + a.x + '" cy="' + a.y + '" r="' + a.r + '" fill="rgba(60,120,110,.15)" stroke="#7fd8bd" stroke-width="2"/>';
       svg += '<text x="' + a.x + '" y="' + (a.y + 10) + '" text-anchor="middle" font-family="sans-serif" font-size="34" font-weight="600" fill="#eafff7">' + a.sym + '</text>';
@@ -1138,7 +1553,8 @@
         const ch = dcq.charges[i] || 0;
         if (ch !== 0) {
           const lbl = ch === 1 ? '+' : ch === -1 ? '−' : ch === 2 ? '2+' : '2−';
-          svg += '<text x="' + (a.x + a.r + 12) + '" y="' + (a.y - a.r - 4) + '" font-family="sans-serif" font-size="26" font-weight="700" fill="#ffd27a">' + lbl + '</text>';
+          const offset = a.r + (a.lonePairs ? 46 : 14);
+          svg += '<text x="' + (a.x + offset + 5) + '" y="' + (a.y - offset + 5) + '" font-family="sans-serif" font-size="26" font-weight="700" fill="#ffd27a">' + lbl + '</text>';
         }
       }
       if (dcq.hiAtom === i) {
@@ -1149,14 +1565,18 @@
     slots.forEach((s, si) => {
       const marks = dcq.marks[si] || [];
       const empty = marks.length === 0;
-      svg += '<circle class="slot ' + (dcq.hintSlot === si ? 'slotHint' : '') + '" data-si="' + si + '" data-kind="' + s.kind + '" data-atom="' + (s.atom !== undefined ? s.atom : '') + '" cx="' + s.x + '" cy="' + s.y + '" r="' + (s.kind === 'bond' ? 24 : 20) + '" stroke="' + (empty ? 'rgba(143,240,200,.5)' : 'rgba(255,255,255,.2)') + '" stroke-width="' + (empty ? 1.4 : 1) + '"' + (empty ? ' stroke-dasharray="4 4"' : '') + '/>';
+      const slotLabel = s.kind === 'bond' ? 'Bond pair' : atoms[s.atom].sym + ' lone pair';
+      svg += '<circle class="slot ' + (dcq.hintSlot === si ? 'slotHint' : '') + '" role="button" tabindex="0" aria-label="' +
+        slotLabel + ', slot ' + (si + 1) + ', ' + marks.length + ' of 2 electrons" data-si="' + si + '" cx="' + s.x + '" cy="' + s.y +
+        '" r="' + (s.kind === 'bond' ? 24 : 20) + '" stroke="' + (empty ? 'rgba(143,240,200,.5)' : 'rgba(255,255,255,.2)') +
+        '" stroke-width="' + (empty ? 1.4 : 1) + '"' + (empty ? ' stroke-dasharray="4 4"' : '') + '/>';
       if (empty) {
-        svg += '<circle cx="' + s.x + '" cy="' + s.y + '" r="2" fill="rgba(143,240,200,.45)"/>';
+        svg += '<circle cx="' + s.x + '" cy="' + s.y + '" r="2" fill="rgba(143,240,200,.45)" pointer-events="none"/>';
       }
       marks.forEach((m, mi) => {
         const ox = marks.length === 1 ? 0 : (mi === 0 ? -8 : 8);
         svg += '<text x="' + (s.x + ox) + '" y="' + (s.y + 8) + '" text-anchor="middle" font-family="sans-serif" font-size="23" font-weight="700" fill="' +
-          (m === 'dot' ? '#9ff5d0' : '#ffd27a') + '">' + (m === 'dot' ? '•' : '×') + '</text>';
+          (m === 'dot' ? '#9ff5d0' : '#ffd27a') + '" pointer-events="none">' + (m === 'dot' ? '•' : '×') + '</text>';
       });
     });
     svg += '</svg>';
@@ -1177,25 +1597,36 @@
       const bare = atoms.filter(a => a.lonePairs === 0).map(a => a.sym);
       const withE = atoms.filter(a => a.lonePairs > 0).map(a => a.sym);
       if (bare.length && withE.length) {
-        extra += '<div class="dcNote">The outer electrons of ' + bare.join(' and ') +
-          ' have been transferred away, so there are <b>no slots</b> around them — place electrons only around ' +
+        extra += '<div class="dcNote">' + bare.join(' and ') +
+          ' transferred its original valence electrons. This diagram omits its inner shells. Place electrons only around ' +
           withE.join(' and ') + '.</div>';
       }
     }
     $('dcStage').innerHTML = svg + extra;
 
     $('dcStage').querySelectorAll('.slot').forEach(el => {
-      el.addEventListener('click', () => {
+      const placeElectron = keyboard => {
+        if (dcq.solved) return;
         const si = Number(el.dataset.si);
-        const slot = dcq.slots[si];
-        dcq.marks[si] = dcq.marks[si] || [];
         if (dcq.tool === 'erase') dcq.marks[si] = [];
-        else if (dcq.marks[si].length < slot.max) dcq.marks[si].push(dcq.tool);
+        else dcq.marks[si] = autoPairForSlot(si);
+        dcq.hintSlot = null;
         renderDC();
+        if (keyboard) {
+          const next = $('dcStage').querySelector('[data-si="' + si + '"]');
+          if (next) next.focus();
+        }
+      };
+      el.addEventListener('click', () => placeElectron(false));
+      el.addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        event.preventDefault();
+        placeElectron(true);
       });
     });
     $('dcStage').querySelectorAll('[data-ch]').forEach(b => {
       b.addEventListener('click', () => {
+        if (dcq.solved) return;
         const parts = b.dataset.ch.split(':');
         dcq.charges[Number(parts[0])] = Number(parts[1]);
         dcq.hiAtom = -1;
@@ -1214,13 +1645,14 @@
     const errs = [];
     const loneCount = {};
     atoms.forEach((_, i) => { loneCount[i] = 0; });
-    let bondShort = 0, bondMix = 0, loneMix = 0;
+    let bondShort = 0, bondMix = 0, loneMix = 0, transferred = 0;
 
     slots.forEach((s, si) => {
       const m = dcq.marks[si] || [];
       if (s.kind === 'lone') {
         loneCount[s.atom] += m.length;
-        if (m.length === 2 && m[0] !== m[1]) loneMix++;
+        if (q.type === 'ionic') transferred += m.filter(mark => mark === 'dot').length;
+        else if (m.some(mark => mark !== (s.atom === 0 ? 'dot' : 'cross'))) loneMix++;
       } else if (m.length !== 2) {
         bondShort++;
       } else if (!(m.includes('dot') && m.includes('cross'))) {
@@ -1252,12 +1684,20 @@
 
     if (loneMix) errs.push({
       title: 'Lone-pair symbols',
-      you: { en: loneMix + ' lone pair(s) use one dot and one cross.',
+      you: { en: loneMix + ' lone pair slot(s) use a symbol from the other atom.',
              zh: '' + loneMix + '' },
-      why: { en: 'A lone pair is supplied by ONE atom, so its two electrons are drawn with the same symbol (both dots or both crosses). Only a shared pair mixes the symbols.',
+      why: { en: 'A covalent lone pair stays on its own atom, so use that atom’s symbol for both electrons.',
              zh: '' },
       rule: { en: 'Lone pair = same symbol. Bond pair = 1 dot + 1 cross.',
               zh: '' }
+    });
+
+    const transferTarget = atoms.reduce((sum, atom) => sum + Math.max(0, atom.charge || 0), 0);
+    if (q.type === 'ionic' && transferred !== transferTarget) errs.push({
+      title: 'Transferred electrons',
+      you: { en: 'Your diagram shows ' + transferred + ' transferred electron(s) as dots.' },
+      why: { en: 'The metal transfers ' + transferTarget + ' electron(s). The remaining electrons on the non-metal came from the non-metal itself.' },
+      rule: { en: 'Use dots for electrons from the metal and crosses for the non-metal’s original electrons.' }
     });
 
     if (bondShort) errs.push({
@@ -1328,34 +1768,52 @@
     if (ok) {
       dcq.solved = true;
       if (tutStep === 4) tutComplete();   // training via a chest works too
-      SFX.good();
-      fb.innerHTML = '<div class="fbBanner ok"><span class="fbIcon">✓</span><div>' +
-        '<b>Perfect diagram!</b>' +
-        '<em>' + (q.type === 'ionic'
-          ? 'Electrons were transferred completely: the cation lost electrons, the anion reached a full outer shell, and every ion has brackets and a charge.'
-          : 'Every shared pair is 1 dot + 1 cross; lone pairs stay with their own atom and are not shared.') + '</em>' +
+      const perfect = dcq.tries === 1 && !dcq.hintUsed;
+      const stepReward = awardCorrectStep(REWARD_RULES.stepXp, REWARD_RULES.stepGold);
+      let bonus = null;
+      if (perfect) {
+        bonus = awardPerfectChallenge();
+        SFX.perfect();
+        showPerfectBond(bi('Diagram clean on the first check · bonus secured', '第一次檢查即完全正確 · 完美獎勵已取得'));
+      } else {
+        SFX.correct();
+      }
+      answerJuice($('dcCheckBtn'), stepReward, perfect);
+      fb.innerHTML = '<div class="fbBanner ok' + (perfect ? ' perfectResult' : '') + '"><span class="fbIcon">✓</span><div>' +
+        '<b>' + bi('Bond diagram complete!', 'Dot-and-cross 圖完成！') + '</b>' +
+        '<em>' + textOf(q.hint) + '</em>' +
+        '<div class="rewardChip">+' + stepReward.xp + ' XP · +' + stepReward.gold + ' gold' + (stepReward.streak >= REWARD_RULES.streakAt ? ' · STREAK ×' + stepReward.mult.toFixed(1) : '') + '</div>' +
+        (bonus ? '<div class="rewardChip perfect">+' + bonus.xp + ' XP · +' + bonus.gold + ' gold · +' + bonus.crystals + ' crystal</div>' : '') +
         '</div></div>';
-      correctCount++;
-      nodeCorrect.set(dcq.node.id, true);
+      if (!nodeCorrect.get(dcq.node.id)) {
+        correctCount++;
+        nodeCorrect.set(dcq.node.id, true);
+      }
       done.add(dcq.node.id); questCelebrate();
       WORLD.setNodeState(dcq.node.id, 'done');
-      $('dcCheckBtn').textContent = 'Back to world';
-      toast((dcq.node.main ? '✓ Quest complete! +1 — ' : '✓ Chest complete — ') + q.compound + ' mastered');
-      logEvent({ type: 'dotcross', compound: q.compound, correct: true, attempt: dcq.tries, hintUsed: dcq.hintUsed });
+      $('dcCheckBtn').textContent = bi('Back to world', '返回世界');
+      $('dcHintBtn').disabled = true;
+      $('dcResetBtn').disabled = true;
+      if (guided) labCompletionActions(fb, closeDC);
+      toast((dcq.node.main ? '✓ Quest complete! +1 — ' : '✓ Chest complete — ') + q.compound + ' mastered · +' + stepReward.xp + ' XP');
+      logEvent({ type: 'dotcross', compound: q.compound, correct: true, attempt: dcq.tries, hintUsed: dcq.hintUsed, xp: stepReward.xp, gold: stepReward.gold, perfect });
       refreshLocks();
       updateHUD();
+      updateCombatHUD();
     } else {
+      SFX.bad();
+      breakStreak();
       const MAXW = 2;
       fb.innerHTML = '<div class="fbBanner bad"><span class="fbIcon">✗</span><div>' +
-        '<b>' + errs.length + ' thing(s) still need fixing</b>' +
-        '<em>No worries — read each card: what you drew, why it fails, and the correct rule. <b>Tap a card</b> to highlight the spot on the diagram.</em>' +
+        '<b>' + errs.length + ' ' + bi('thing(s) still need fixing', '項需要修正') + '</b>' +
+        '<em>' + bi('Read each card: what you drew, why it fails, and the correct rule. Tap a card to highlight the spot.', '閱讀每張卡：你畫了什麼、為何不成立、正確規則是什麼。點擊卡片可標示位置。') + '</em>' +
         '</div></div>' +
         errs.slice(0, MAXW).map((e, i) => wxCard(e.you, e.why, e.rule, NUMC[i] + ' ' + e.title,
-          { atom: e.atom, tapHint: e.atom === undefined ? '' : 'Tap → highlighted with a <b>yellow ring</b> on the diagram' })).join('') +
-        (errs.length > MAXW ? '<div class="wxRest"><b>' + (errs.length - MAXW) + ' more to fix:</b>' +
+          { atom: e.atom, tapHint: e.atom === undefined ? '' : bi('Tap → highlighted with a yellow ring on the diagram', '點擊 → 圖中以黃圈標示') })).join('') +
+        (errs.length > MAXW ? '<div class="wxRest"><b>' + (errs.length - MAXW) + ' ' + bi('more to fix:', '項待修正：') + '</b>' +
           errs.slice(MAXW).map(e => e.title).join(', ') + '</div>' : '') +
         (dcq.tries >= 3 ? '<div class="wxRest" style="border-color:rgba(255,220,120,.4);background:rgba(255,220,120,.08);color:#ffe8b0">' +
-          'You have tried 3 times — press <b>Hint</b> to reveal exactly where the next electron goes.</div>' : '');
+          bi('You have tried 3 times — press Hint to reveal exactly where the next electron goes.', '你已嘗試 3 次 — 按 Hint 顯示下一個電子對的位置。') + '</div>' : '');
 
       // Tap a card → highlight the matching atom on the diagram
       fb.querySelectorAll('.wx[data-hi]').forEach(el => {
@@ -1374,22 +1832,42 @@
     attempts.push({ type: 'dotcross', compound: q.compound, correct: ok, attempt: dcq.tries, hintUsed: dcq.hintUsed });
   }
 
-  function closeDC() {
+  function closeDC(next) {
     closeModal('dotcrossModal');
     setState(STATE.WORLD);
-    $('dcCheckBtn').textContent = 'Check';
+    $('dcCheckBtn').textContent = bi('Check', '檢查');
     dcq = null;
     updateHUD();
+    guided = false;
+    if (next === true) return;
     checkAllMainDone();
     WORLD.relock();
   }
 
   $('dcCheckBtn').addEventListener('click', () => { if (dcq && dcq.solved) closeDC(); else checkDC(); });
   $('dcCloseBtn').addEventListener('click', closeDC);
+  $('dcAutoBtn').addEventListener('click', () => {
+    if (!dcq || dcq.solved) return;
+    if (shardBalance() < REWARD_RULES.autoFillCrystals) { toast(bi('Not enough crystals', 'Crystal 不足')); return; }
+    COMBAT.spentCrystals += REWARD_RULES.autoFillCrystals;
+    dcq.hintUsed = true;
+    dcq.autoFilled = true;
+    dcq.hintSlot = null;
+    const slots = dcq.slots || dcSlots(dcq.q);
+    dcq.slots = slots;
+    slots.forEach((slot, si) => {
+      if ((dcq.marks[si] || []).length < 2) dcq.marks[si] = autoPairForSlot(si);
+    });
+    saveCombat();
+    updateCombatHUD();
+    renderDC();
+    SFX.unlock();
+    toast(bi('Shell auto-filled — now add brackets and charges if needed.', '殼層已自動填滿 — 如需要，請加上 brackets 與 charges。'));
+  });
   $('dcResetBtn').addEventListener('click', () => {
     if (!dcq) return;
     dcq.marks = {}; dcq.hintSlot = null; dcq.solved = false;
-    $('dcCheckBtn').textContent = 'Check';
+    $('dcCheckBtn').textContent = bi('Check', '檢查');
     renderDC();
     $('dcFeedback').className = 'dcFeedback';
   });
@@ -1413,19 +1891,20 @@
         ? q.atoms[s.atom].sym + ' lone pair'
         : q.atoms[s.a].sym + ' — ' + q.atoms[s.b].sym + ' bond pair';
       fb.innerHTML =
-        '<div class="hintBox"><b>①</b> Find the <b>glowing slot</b> on the diagram (' + owner + ')<br>' +
-        '<b>②</b> Click that slot <b>twice</b> to place a pair of electrons<br>' +
-        '<b>③</b> ' + (s.kind === 'lone' ? 'A lone pair uses the <b>same symbol</b> (two dots ••)' : 'A bond pair needs <b>one • and one ×</b>') + '</div>' +
-        '<div class="fbSub">' + q.hint.en + '</div>';
+        '<div class="hintBox"><b>①</b> ' + bi('Find the <b>glowing slot</b> on the diagram', '在圖中找出 <b>發光的 slot</b>') + ' (' + owner + ')<br>' +
+        '<b>②</b> ' + bi('Click that slot <b>once</b> to place the full pair<br>', '點擊該 slot <b>一次</b>，會填入完整電子對<br>') +
+        '<b>③</b> ' + (q.type === 'ionic' ? bi('Use dots for transferred electrons and crosses for the original electrons.', 'transferred electrons 用 dots，原有電子用 crosses。') :
+          s.kind === 'lone' ? bi('Use ' + (s.atom === 0 ? 'two dots (••)' : 'two crosses (××)') + ' for this lone pair.', '這對 lone pair 用 ' + (s.atom === 0 ? '兩個 dots (••)' : '兩個 crosses (××)') + '。') : bi('A bond pair needs <b>one • and one ×</b>', 'Bond pair 需要 <b>一個 • 和一個 ×</b>')) + '</div>' +
+        '<div class="fbSub">' + textOf(q.hint) + '</div>';
     } else if (q.type === 'ionic' && !dcq.bracket) {
-      fb.innerHTML = '<div class="hintBox">All electrons are placed — now click <b>[ ] Brackets</b> above to enclose each ion.</div>';
+      fb.innerHTML = '<div class="hintBox">' + bi('All electrons are placed — now click <b>[ ] Brackets</b> above to enclose each ion.', '電子已全部放好 — 按上方 <b>[ ] Brackets</b> 包住每個 ion。') + '</div>';
     } else if (q.type === 'ionic' && q.atoms.some((a, i) => (dcq.charges[i] || 0) !== a.charge)) {
       fb.innerHTML = '<div class="hintBox">Last step: choose the charges below.<br>' +
         '<b>Metals</b> lose electrons → become <b>positive</b>; <b>non-metals</b> gain electrons → become <b>negative</b>.<br>' +
         'The charge number equals the number of electrons lost or gained.</div>';
     } else {
-      fb.innerHTML = '<div class="hintBox">The diagram is complete — press <b>"Check"</b> at the bottom right to see your result.</div>' +
-        '<div class="fbSub">' + q.hint.en + '</div>';
+      fb.innerHTML = '<div class="hintBox">' + bi('The diagram is complete — press <b>"Check"</b> at the bottom right to see your result.', '圖已完成 — 按右下角 <b>"Check"</b> 查看結果。') + '</div>' +
+        '<div class="fbSub">' + textOf(q.hint) + '</div>';
     }
     try { $('dcStage').scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { }
   });
@@ -1501,12 +1980,12 @@
     if (by.metallic.t && by.metallic.c / by.metallic.t < 0.75) weak.push('Metallic bonding (electrons are delocalised, not transferred)');
     $('sumWeak').innerHTML = weak.length
       ? '<b>Review:</b> ' + weak.join('; ') + '. Open the glossary to check the definitions.'
-      : '<b>Well done!</b> You have a solid grasp of all three bond types. Try the unfamiliar compounds in Crystal Cavern.';
+      : '<b>Review the three bonding models below.</b> The bars show answers from this session.';
 
     const mins = activeTime / 60;
     $('sumFootNote').textContent = 'Suggested play time: 6–10 minutes. You used ' + mins.toFixed(1) +
       ' minutes' + (mins < 6 ? ' — take your time and read the explanations.' : mins > 10 ? ' — no rush, you can revisit in several sessions.' : ' — nicely paced.') +
-      '  Your data stays on this device and is never uploaded.';
+      ' Guest progress stays on this device. Signed-in progress syncs to your account.';
 
     setState(STATE.SUMMARY);
     openModal('summaryModal');
@@ -1528,7 +2007,7 @@
   function checkAllMainDone() {
     const mains = NODES.filter(n => n.main);
     if (mains.every(n => done.has(n.id)) && !SESSION.summary) {
-      setTimeout(showSummary, 550);
+      setTimeout(() => { if (state === STATE.WORLD && !paused && !CLOUD.isOpen() && !SESSION.summary) showSummary(); }, 550);
     }
   }
 
@@ -1812,7 +2291,7 @@
   $('wpMapBtn').addEventListener('click', () => { closeWpList(); setTimeout(openBigMap, 60); });
 
   /* ================= BIG MAP ================= */
-  const BM = { canvas: null, zoom: 1, cx: 0, cz: 0, base: 1, dragging: false, moved: false, sx: 0, sy: 0, cx0: 0, cz0: 0 };
+  const BM = { canvas: null, zoom: 1, cx: 0, cz: 0, base: 1, labelScale: 1, dragging: false, moved: false, sx: 0, sy: 0, cx0: 0, cz0: 0 };
 
   function initBigMap() {
     BM.canvas = $('bigMap');
@@ -1848,26 +2327,34 @@
   }
 
   function mapLabel(ctx, text, x, y, hot, boxes) {
-    ctx.font = '500 12px sans-serif';
-    const w = ctx.measureText(text).width + 14;
-    const rx = x - w / 2, ry = y - 10, rw = w, rh = 20;
-    if (boxes) {
-      for (let i = 0; i < boxes.length; i++) {
-        const b = boxes[i];
-        if (rx < b.x + b.w + 4 && rx + rw + 4 > b.x && ry < b.y + b.h + 3 && ry + rh + 3 > b.y) return false;
-      }
-      boxes.push({ x: rx, y: ry, w: rw, h: rh });
+    const u = BM.labelScale;
+    const { width, height } = ctx.canvas;
+    const gap = 5 * u;
+    if (x < 0 || x > width || y < -24 * u || y > height + 24 * u) return;
+    ctx.font = '650 ' + (hot ? 17 : 15) * u + 'px "Segoe UI", sans-serif';
+    const w = ctx.measureText(text).width + 18 * u;
+    const h = (hot ? 28 : 25) * u;
+    if (w + 2 * gap > width) return;
+    const rx = Math.max(gap, Math.min(width - w - gap, x - w / 2));
+    const offsets = hot ? [0] : [0, 25, -25];
+    for (const offset of offsets) {
+      const ry = Math.max(gap, Math.min(height - h - gap, y + offset * u - h / 2));
+      if (boxes.some(b => rx < b.x + b.w + gap && rx + w + gap > b.x &&
+        ry < b.y + b.h + gap && ry + h + gap > b.y)) continue;
+      boxes.push({ x: rx, y: ry, w, h });
+      ctx.fillStyle = hot ? '#163b33' : '#101a20';
+      ctx.fillRect(rx, ry, w, h);
+      ctx.strokeStyle = hot ? '#8ff0c8' : '#4b635f';
+      ctx.lineWidth = u;
+      ctx.strokeRect(rx, ry, w, h);
+      ctx.fillStyle = hot ? '#dbfff0' : '#edf6f2';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, rx + w / 2, ry + h / 2);
+      ctx.textBaseline = 'alphabetic';
+      ctx.textAlign = 'left';
+      return;
     }
-    ctx.fillStyle = hot ? 'rgba(9,30,23,.95)' : 'rgba(8,16,20,.82)';
-    ctx.fillRect(rx, ry, rw, rh);
-    ctx.strokeStyle = hot ? 'rgba(143,240,200,.85)' : 'rgba(255,255,255,.14)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(rx, ry, rw, rh);
-    ctx.fillStyle = hot ? '#dbfff0' : 'rgba(205,228,220,.8)';
-    ctx.textAlign = 'center';
-    ctx.fillText(text, x, y + 4);
-    ctx.textAlign = 'left';
-    return true;
   }
 
   let mapTex = null;
@@ -1928,6 +2415,8 @@
     const W = c.width, H = c.height, s = bmScale();
     const t = trackedNode();
     const p = WORLD.player.position;
+    const u = BM.labelScale;
+    $('mapObjective').textContent = t ? nodeTitle(t) + ' · ' + Math.round(Math.hypot(t.x - p.x, t.z - p.z)) + ' m' : 'All main challenges complete';
 
     ctx.clearRect(0, 0, W, H);
     ctx.fillStyle = '#030910';
@@ -1944,6 +2433,15 @@
     ctx.drawImage(tex2, x0, y0, ww, wh);
     ctx.globalAlpha = 1;
 
+    const town = WORLD.townBounds;
+    ctx.fillStyle = 'rgba(229,201,143,.21)';
+    ctx.strokeStyle = 'rgba(246,219,163,.62)';
+    ctx.lineWidth = 1.5 * u;
+    const townX = bmX(town.left), townZ = bmY(town.back);
+    const townWidth = (town.right - town.left) * s, townDepth = (town.front - town.back) * s;
+    ctx.fillRect(townX, townZ, townWidth, townDepth);
+    ctx.strokeRect(townX, townZ, townWidth, townDepth);
+
     ctx.strokeStyle = 'rgba(255,255,255,.045)';
     ctx.lineWidth = 1;
     for (let g = -200; g <= 200; g += 50) {
@@ -1954,7 +2452,6 @@
 
 
     const boxes = [];
-    let tLabel = null;
     if (t) {
       ctx.save();
       ctx.setLineDash([11, 9]);
@@ -1964,24 +2461,13 @@
       ctx.beginPath(); ctx.moveTo(bmX(p.x), bmY(p.z)); ctx.lineTo(bmX(t.x), bmY(t.z)); ctx.stroke();
       ctx.restore();
 
-      const dTxt = Math.round(Math.hypot(t.x - p.x, t.z - p.z)) + ' m';
-      const ddx = bmX(t.x) - bmX(p.x), ddy = bmY(t.z) - bmY(p.z);
-      const dlen = Math.hypot(ddx, ddy) || 1;
-      const lx = bmX(p.x) + ddx * 0.22, ly = bmY(p.z) + ddy * 0.22;
-      mapLabel(ctx, dTxt, lx - ddy / dlen * 26, ly + ddx / dlen * 26, false, boxes);
-
-      const tx = bmX(t.x), ty = bmY(t.z) - 62;
-      ctx.font = '500 12px sans-serif';
-      const lw = ctx.measureText(nodeTitle(t)).width + 14;
-      boxes.push({ x: tx - lw / 2 - 8, y: ty - 16, w: lw + 16, h: 34 });
-      tLabel = { x: tx, y: ty };
     }
 
     NODES.forEach(n => {
       const isDone = done.has(n.id);
       const lock = isLockedNode(n).locked;
       const isTarget = t && t.id === n.id;
-      const R = n.main ? 10 : (n.type === 'guild' || n.type === 'shop' ? 9 : 7);
+      const R = (n.main ? 10 : 7.5) * u;
       const fill = isDone ? '#5b6f68'
         : lock ? '#4a4f52'
           : n.type === 'npc' ? '#4fd6a4'
@@ -2020,9 +2506,9 @@
 
       if (n.main && !isDone) {
         ctx.fillStyle = 'rgba(8,18,15,.85)';
-        ctx.font = '600 10px sans-serif';
+        ctx.font = '700 ' + 12 * u + 'px "Segoe UI", sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText(String(NODES.filter(x => x.main).indexOf(n) + 1), bmX(n.x), bmY(n.z) + 3.5);
+        ctx.fillText(String(NODES.filter(x => x.main).indexOf(n) + 1), bmX(n.x), bmY(n.z) + 4 * u);
         ctx.textAlign = 'left';
       }
     });
@@ -2075,22 +2561,23 @@
       if (!isLandmark && BM.zoom < 0.9) return;
       cands.push({ n, isTarget: false, pri: isLandmark ? 1 : 2 });
     });
-    cands.sort((a, b) => a.pri - b.pri);
+    ctx.restore();
+    if (t) mapLabel(ctx, nodeTitle(t), bmX(t.x), bmY(t.z) - 43 * u, true, boxes);
+    mapLabel(ctx, 'You', bmX(p.x), bmY(p.z) + 24 * u, false, boxes);
+    mapLabel(ctx, 'Windvale', townX + townWidth / 2, townZ + townDepth + 20 * u, false, boxes);
+    cands.sort((a, b) => b.pri - a.pri);
     cands.forEach(cd => {
       const n = cd.n;
-      const yOff = (n.main ? 10 : 7) + 16;
+      const yOff = (n.main ? 26 : 23) * u;
       mapLabel(ctx, shortLabel(n), bmX(n.x), bmY(n.z) - yOff, false, boxes);
     });
 
     if (BM.zoom >= 1.7) {
       WAYPOINTS.forEach(w => {
         if (!unlockedWp.has(w.id)) return;
-        mapLabel(ctx, w.name.en, bmX(w.x), bmY(w.z) - 26, false, boxes);
+        mapLabel(ctx, w.name.en, bmX(w.x), bmY(w.z) - 25 * u, false, boxes);
       });
     }
-
-    if (t && tLabel) mapLabel(ctx, nodeTitle(t), tLabel.x, tLabel.y, true, null);
-    mapLabel(ctx, 'YOU', bmX(p.x), bmY(p.z) + 34, false, boxes);
 
     ctx.save();
     ctx.translate(bmX(p.x), bmY(p.z));
@@ -2108,14 +2595,12 @@
     ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 1.5; ctx.stroke();
     ctx.restore();
 
-    ctx.restore();
-
     ctx.strokeStyle = 'rgba(140,240,200,.4)';
     ctx.lineWidth = 2;
     ctx.strokeRect(x0, y0, ww, wh);
 
     ctx.fillStyle = 'rgba(200,225,215,.45)';
-    ctx.font = '600 13px sans-serif';
+    ctx.font = '700 ' + 15 * u + 'px "Segoe UI", sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('N', W / 2, Math.max(16, y0 - 8));
     ctx.textAlign = 'left';
@@ -2128,12 +2613,12 @@
     ctx.beginPath(); ctx.moveTo(bx, by - 5); ctx.lineTo(bx, by + 5); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(bx + barW, by - 5); ctx.lineTo(bx + barW, by + 5); ctx.stroke();
     ctx.fillStyle = 'rgba(220,240,232,.6)';
-    ctx.font = '11px sans-serif';
+    ctx.font = '600 ' + 13 * u + 'px "Segoe UI", sans-serif';
     ctx.fillText('50 m', bx + barW + 8, by + 4);
   }
 
   function hitTest(px, py) {
-    let best = null, bestD = 16;
+    let best = null, bestD = 16 * BM.labelScale;
     NODES.forEach(n => {
       const d = Math.hypot(bmX(n.x) - px, bmY(n.z) - py);
       if (d < bestD) { bestD = d; best = n; }
@@ -2235,11 +2720,11 @@
 
   function sizeMapCanvas() {
     const c = BM.canvas, wrap = $('mapWrap');
-    const rect = wrap.getBoundingClientRect();
-    if (!rect.width) return;
+    if (!wrap.clientWidth || !wrap.clientHeight) return;
     const dpr = Math.min(2, window.devicePixelRatio || 1);
-    const w = Math.round(rect.width * dpr);
-    const h = Math.round(rect.width * (620 / 960) * dpr);
+    BM.labelScale = dpr;
+    const w = Math.round(wrap.clientWidth * dpr);
+    const h = Math.round(wrap.clientHeight * dpr);
     if (c.width !== w || c.height !== h) {
       c.width = w; c.height = h;
       BM.base = Math.min(w, h) / 410;
@@ -2317,13 +2802,10 @@
     syncPaused();
   }
   function refreshGlossary() {
-    const collected = new Set(NODES.filter(n => n.type === 'crystal').map(n => n.term));
-    const collectedDone = new Set(NODES.filter(n => n.type === 'crystal' && done.has(n.id)).map(n => n.term));
     $('glossaryList').innerHTML = GLOSSARY.map(g => {
-      const unlocked = termUnlocked(g.id);
-      return '<div class="glItem ' + (unlocked ? '' : 'locked') + '">' +
-        '<div><span class="t">' + g.en + '</span></div>' +
-        '<div class="d">' + (unlocked ? g.def.en : '🔒 Find the glowing shard in the world to unlock') + '</div>' +
+      return '<div class="glItem">' +
+        '<div><span class="t">' + g.en + '</span>' + (termUnlocked(g.id) ? ' ✓' : '') + '</div>' +
+        '<div class="d">' + g.def.en + '</div>' +
         '</div>';
     }).join('');
   }
@@ -2334,11 +2816,11 @@
   });
 
   /* ================= SHOP & GUILD ================= */
-  let shardsSpent = 0, freePass = 0;
+  let freePass = 0;
   const boughtTerms = new Set();
   let guildOpen = false, shopOpen = false;
 
-  function shardBalance() { return Math.max(0, countCollected() - shardsSpent); }
+  function shardBalance() { return Math.max(0, countCollected() + COMBAT.crystals - COMBAT.spentCrystals); }
   function termUnlocked(id) {
     if (boughtTerms.has(id)) return true;
     return NODES.some(n => n.type === 'crystal' && n.term === id && done.has(n.id));
@@ -2361,7 +2843,7 @@
         let label, dis = '';
         if (equipped) { label = 'Equipped'; dis = ' disabled'; }
         else if (owned) { label = 'Equip'; }
-        else if (!gateOk) { label = '🔒 ' + w.scoreReq + ' pts'; dis = ' disabled'; }
+        else if (!gateOk) { label = '🔒 ' + w.scoreReq + ' XP'; dis = ' disabled'; }
         else if (!afford) { label = w.gold + ' gold'; dis = ' disabled'; }
         else { label = 'Buy · ' + w.gold + ' gold'; }
         html += shopCard(w.id, w.name, w.desc, '⚔ ' + w.damage + ' dmg · ' + w.type.toUpperCase(),
@@ -2376,7 +2858,7 @@
         let label, dis = '';
         if (equipped) { label = 'Wearing'; dis = ' disabled'; }
         else if (owned) { label = 'Wear'; }
-        else if (!gateOk) { label = '🔒 ' + s.scoreReq + ' pts'; dis = ' disabled'; }
+        else if (!gateOk) { label = '🔒 ' + s.scoreReq + ' XP'; dis = ' disabled'; }
         else if (!afford) { label = s.gold + ' gold'; dis = ' disabled'; }
         else { label = 'Buy · ' + s.gold + ' gold'; }
         html += shopCard(s.id, s.name, s.desc, 'Outfit colour theme', s.gold, s.scoreReq, owned, equipped, gateOk, label, dis, 'skins');
@@ -2389,7 +2871,7 @@
         let label, dis = '';
         if (active) { label = 'Active'; dis = ' disabled'; }
         else if (owned) { label = 'Play as'; }
-        else if (!gateOk) { label = '🔒 ' + c.scoreReq + ' pts'; dis = ' disabled'; }
+        else if (!gateOk) { label = '🔒 ' + c.scoreReq + ' XP'; dis = ' disabled'; }
         else { label = 'Unlock'; }
         const cost = 0;
         html += shopCard(c.id, c.name, c.desc, (c.gender === 'male' ? '♂' : '♀') + ' ' + c.role, cost, c.scoreReq, owned, active, gateOk, label, dis, 'characters');
@@ -2412,7 +2894,7 @@
   }
 
   function shopCard(id, name, desc, meta, gold, scoreReq, owned, equipped, gateOk, label, dis, tab) {
-    const gateTag = scoreReq > 0 ? '<span class="siGate' + (gateOk ? ' ok' : '') + '">' + (gateOk ? '✓ ' : '🔒 ') + scoreReq + ' pts</span>' : '';
+    const gateTag = scoreReq > 0 ? '<span class="siGate' + (gateOk ? ' ok' : '') + '">' + (gateOk ? '✓ ' : '🔒 ') + scoreReq + ' XP</span>' : '';
     const priceTag = gold > 0 ? '<span class="siPrice">' + gold + ' g</span>' : (owned ? '' : '<span class="siPrice free">Free</span>');
     const ownedTag = owned ? '<span class="siOwned">Owned</span>' : '';
     return '<div class="shopItem' + (equipped ? ' equipped' : '') + '" data-kind="' + tab + '">' +
@@ -2429,7 +2911,7 @@
     if (act === 'gear') {
       const w = WPN[id]; if (!w) return;
       if (COMBAT.weapons.indexOf(id) < 0) {
-        if (COMBAT.score < w.scoreReq) { toast('Need ' + w.scoreReq + ' score points to buy this'); return; }
+        if (COMBAT.score < w.scoreReq) { toast('Need ' + w.scoreReq + ' unlock XP to buy this'); return; }
         if (COMBAT.gold < w.gold) { toast('Not enough gold'); return; }
         COMBAT.gold -= w.gold; COMBAT.weapons.push(id);
         SFX.unlock(); toast('⚔ Purchased <b>' + w.name + '</b>!');
@@ -2441,7 +2923,7 @@
     if (act === 'skins') {
       const s = SKN[id]; if (!s) return;
       if (COMBAT.skins.indexOf(id) < 0) {
-        if (COMBAT.score < s.scoreReq) { toast('Need ' + s.scoreReq + ' score points to buy this'); return; }
+        if (COMBAT.score < s.scoreReq) { toast('Need ' + s.scoreReq + ' unlock XP to buy this'); return; }
         if (COMBAT.gold < s.gold) { toast('Not enough gold'); return; }
         COMBAT.gold -= s.gold; COMBAT.skins.push(id);
         SFX.unlock(); toast('✦ Purchased <b>' + s.name + '</b>!');
@@ -2452,7 +2934,7 @@
     if (act === 'characters') {
       const c = CHR[id]; if (!c) return;
       if (COMBAT.characters.indexOf(id) < 0) {
-        if (COMBAT.score < c.scoreReq) { toast('Need ' + c.scoreReq + ' score points to unlock ' + c.name); return; }
+        if (COMBAT.score < c.scoreReq) { toast('Need ' + c.scoreReq + ' unlock XP to unlock ' + c.name); return; }
         COMBAT.characters.push(id);
         SFX.unlock(); toast('☻ Unlocked <b>' + c.name + '</b> — ' + c.role + '!');
       }
@@ -2462,12 +2944,13 @@
   }
 
   function buyTerm() {
-    if (shardBalance() < 1) { toast('Not enough shards'); return; }
+    if (shardBalance() < 1) { toast('Not enough crystals'); return; }
     const pool = GLOSSARY.filter(g => !termUnlocked(g.id));
     if (!pool.length) { toast('All words are already unlocked'); return; }
     const pick = pool[Math.floor(Math.random() * pool.length)];
     boughtTerms.add(pick.id);
-    shardsSpent += 1;
+    COMBAT.spentCrystals += 1;
+    saveCombat();
     refreshGlossary();
     renderShop();
     updateHUD();
@@ -2475,8 +2958,9 @@
   }
 
   function buyPass() {
-    if (shardBalance() < 2) { toast('Not enough shards'); return; }
-    shardsSpent += 2;
+    if (shardBalance() < 2) { toast('Not enough crystals'); return; }
+    COMBAT.spentCrystals += 2;
+    saveCombat();
     freePass += 1;
     renderShop();
     toast('✓ Guild Pass purchased — you now hold ' + freePass + '.');
@@ -2497,18 +2981,207 @@
     WORLD.relock();
   }
 
-  /* ---------------- character switcher ---------------- */
-  function renderCharList() {
+  /* ---------------- gacha / character switcher ---------------- */
+  function recruitPool() {
+    return CHARACTERS.filter(character => !COMBAT.characters.includes(character.id));
+  }
+
+  function rarityOf(c) { return Number(c.rarity) || 3; }
+  function starText(n) { return '★'.repeat(Math.max(1, Math.min(5, n || 3))); }
+  function hexColor(n) { return '#' + (Number(n) || 0).toString(16).padStart(6, '0'); }
+
+  function recruitsAvailable() {
+    return Math.min(recruitPool().length, drawCharges());
+  }
+
+  function gachaStatusText() {
+    const pool = recruitPool();
+    if (!pool.length) return bi('Every companion is already bonded to you.', '所有伙伴都已加入你的隊伍。');
+    const charges = recruitsAvailable();
+    if (charges > 0) return bi(charges + ' draw charge(s) ready · pity ' + COMBAT.pity + '/' + GACHA_RULES.pityMax,
+      charges + ' 次抽卡機會 · pity ' + COMBAT.pity + '/' + GACHA_RULES.pityMax);
+    return bi('Complete ' + challengeToNextDraw() + ' more chemistry challenge(s) for the next draw.', '再完成 ' + challengeToNextDraw() + ' 個 chemistry challenge 即可獲得下次抽卡。');
+  }
+
+  function chooseGachaCharacter() {
+    let pool = recruitPool();
+    if (!pool.length) return null;
+    const forceFive = COMBAT.pity >= GACHA_RULES.pityMax - 1;
+    if (forceFive) {
+      const five = pool.filter(c => rarityOf(c) >= 5);
+      if (five.length) pool = five;
+      else {
+        const best = Math.max.apply(null, pool.map(rarityOf));
+        pool = pool.filter(c => rarityOf(c) === best);
+      }
+    }
+    const weights = GACHA_RULES.weights;
+    const total = pool.reduce((sum, c) => sum + (weights[rarityOf(c)] || 1), 0);
+    let roll = Math.random() * total;
+    for (const c of pool) {
+      roll -= weights[rarityOf(c)] || 1;
+      if (roll <= 0) return c;
+    }
+    return pool[pool.length - 1];
+  }
+
+  function gachaFigure(c) {
+    const male = c.gender === 'male';
+    const quote = {
+      lyra: 'A steady blade and a steadier mind.',
+      kael: 'Hold the line. The lattice will not break.',
+      mira: 'Orbitals align — let the electrons dance.',
+      dorian: 'Every arrow follows the strongest bond.',
+      vex: 'Two sigils, one perfect resonance.'
+    }[c.id] || 'A new bond joins the party.';
+    return '<div class="gachaPortrait ' + (male ? 'male' : 'female') + '" style="--cc:' + hexColor(c.color) + ';--hair:' + hexColor(c.hair) + '">' +
+      '<div class="gachaHalo"></div>' +
+      '<svg class="gachaFigure" viewBox="0 0 280 390" aria-hidden="true">' +
+        '<ellipse class="gShadow" cx="140" cy="365" rx="76" ry="13"/>' +
+        '<g class="gPose">' +
+          '<path class="gCape" d="M94 148 Q42 252 68 344 L116 320 L140 178 Z"/>' +
+          '<path class="gCape gCapeR" d="M186 148 Q238 252 212 344 L164 320 L140 178 Z"/>' +
+          '<path class="gBody" d="M103 140 Q140 118 177 140 L196 285 Q168 305 140 306 Q112 305 84 285 Z"/>' +
+          '<path class="gLegL" d="M112 286 L132 356 L146 356 L143 284 Z"/>' +
+          '<path class="gLegR" d="M168 286 L148 356 L134 356 L137 284 Z"/>' +
+          '<path class="gArmL" d="M105 157 Q72 205 75 263 L91 269 Q101 216 121 178 Z"/>' +
+          '<path class="gArmR" d="M175 157 Q218 190 221 239 L203 250 Q192 208 160 178 Z"/>' +
+          '<circle class="gNeck" cx="140" cy="125" r="16"/>' +
+          '<ellipse class="gHead" cx="140" cy="88" rx="42" ry="49"/>' +
+          '<path class="gHair" d="M102 84 Q103 30 143 28 Q187 27 181 95 Q161 64 143 65 Q120 66 102 84 Z"/>' +
+          '<path class="gHair gBang" d="M108 65 Q119 49 134 48 Q119 68 112 94 Z M144 48 Q162 42 177 60 Q160 64 151 91 Z"/>' +
+          '<circle class="gEye" cx="124" cy="91" r="3.4"/><circle class="gEye" cx="156" cy="91" r="3.4"/>' +
+          '<path class="gScarf" d="M116 129 Q140 143 164 129 L171 146 Q140 162 109 146 Z"/>' +
+          '<path class="gAccent" d="M140 155 L150 179 L140 203 L130 179 Z"/>' +
+        '</g>' +
+      '</svg>' +
+      '<div class="gachaQuote">“' + quote + '”</div>' +
+      '</div>';
+  }
+
+  function renderGachaIdle() {
+    const pool = recruitPool();
+    gachaCurrent = null; gachaRevealed = false;
+    const charges = recruitsAvailable();
+    $('gachaCard').classList.remove('flipped');
+    $('gachaModal').classList.remove('revealed', 'rarity-3', 'rarity-4', 'rarity-5');
+    $('gachaFront').innerHTML = '';
+    $('gachaBeams').innerHTML = '';
+    $('gachaSub').textContent = gachaStatusText();
+    $('gachaMeta').textContent = 'Pity ' + COMBAT.pity + ' / ' + GACHA_RULES.pityMax + ' · ' +
+      (COMBAT.pity >= GACHA_RULES.pityMax - 1 ? bi('5-star guaranteed next draw', '下次保證 5-star') : bi('A 5-star is guaranteed by pity', 'Pity 保證會出 5-star'));
+    const btn = $('gachaDrawBtn');
+    btn.disabled = !pool.length || charges <= 0;
+    btn.textContent = !pool.length ? bi('All companions collected', '所有伙伴已收集') : charges > 0 ? bi('Draw companion', '抽伙伴') : bi('No draw charge yet', '暫無抽卡機會');
+  }
+
+  function openGacha() {
+    if (!started || CLOUD.isOpen()) return;
+    gachaOpen = true;
+    renderGachaIdle();
+    $('gachaModal').classList.add('show');
+    $('gachaModal').setAttribute('aria-hidden', 'false');
+    const bh = $('gachaCard').querySelector('.gachaBackHint');
+    if (bh) bh.textContent = bi('Tap to reveal', '點擊揭示');
+    $('gachaDoneBtn').textContent = bi('Close', '關閉');
+    WORLD.setLocked(true);
+    syncPaused();
+    SFX.click();
+  }
+
+  function closeGacha() {
+    gachaOpen = false;
+    $('gachaModal').classList.remove('show');
+    $('gachaModal').setAttribute('aria-hidden', 'true');
+    syncPaused();
+    if (state === STATE.WORLD && !charModalOpen) WORLD.relock();
+  }
+
+  function drawGacha() {
+    const character = chooseGachaCharacter();
+    if (!character || recruitsAvailable() <= 0) {
+      toast(gachaStatusText());
+      return;
+    }
+    recruitClaims++;
+    COMBAT.characters.push(character.id);
+    const rarity = rarityOf(character);
+    COMBAT.pity = rarity >= 5 ? 0 : Math.min(GACHA_RULES.pityMax, COMBAT.pity + 1);
+    saveCombat();
+    logEvent({ type: 'gacha', character: character.id, rarity, pity: COMBAT.pity });
+    gachaCurrent = character;
+    gachaRevealed = false;
+    const front = $('gachaFront');
+    front.innerHTML = '<div class="gachaFrontInner rarity-' + rarity + '">' +
+      '<div class="gachaRarityLine">' + starText(rarity) + '</div>' +
+      gachaFigure(character) +
+      '<div class="gachaName">' + character.name + '</div>' +
+      '<div class="gachaRole">' + character.role + ' · ' + starText(rarity) + '</div>' +
+      '<div class="gachaElement">' + (character.gender === 'male' ? 'VANGUARD BOND' : 'RESONANCE BOND') + '</div>' +
+      '</div>';
+    $('gachaCard').classList.remove('flipped');
+    $('gachaModal').classList.remove('revealed', 'rarity-3', 'rarity-4', 'rarity-5');
+    $('gachaModal').classList.add('rarity-' + rarity);
+    const beamCount = rarity >= 5 ? 18 : rarity >= 4 ? 12 : 8;
+    $('gachaBeams').innerHTML = Array.from({ length: beamCount }, (_, i) =>
+      '<i style="--i:' + i + ';--n:' + beamCount + '"></i>').join('');
+    $('gachaSub').textContent = bi('The bond is forming…', '化學鍵正在形成…');
+    $('gachaMeta').textContent = bi('Pity ' + COMBAT.pity + ' / ' + GACHA_RULES.pityMax, 'Pity ' + COMBAT.pity + ' / ' + GACHA_RULES.pityMax);
+    const btn = $('gachaDrawBtn');
+    btn.disabled = true;
+    btn.textContent = bi('Revealing…', '揭示中…');
+    SFX.gacha();
+    clearTimeout(drawGacha._timer);
+    drawGacha._timer = setTimeout(revealGacha, 420);
+  }
+
+  function revealGacha() {
+    if (!gachaCurrent || gachaRevealed) return;
+    gachaRevealed = true;
+    const c = gachaCurrent;
+    const rarity = rarityOf(c);
+    $('gachaCard').classList.add('flipped');
+    $('gachaModal').classList.add('revealed', 'rarity-' + rarity);
+    $('gachaSub').textContent = bi(c.name + ' joined your party!', c.name + ' 已加入你的隊伍！');
+    $('gachaMeta').textContent = starText(rarity) + ' · ' + bi('Pity ' + COMBAT.pity + ' / ' + GACHA_RULES.pityMax, 'Pity ' + COMBAT.pity + ' / ' + GACHA_RULES.pityMax);
+    setTimeout(() => {
+      const fig = $('gachaFront').querySelector('.gachaPortrait');
+      if (fig) fig.classList.add('entrance');
+      SFX.rare(rarity);
+      burstAt(innerWidth * .5, innerHeight * .5, rarity >= 5 ? '#ffd86a' : rarity >= 4 ? '#c9a7ff' : '#8ff0c8', rarity >= 5 ? 52 : 34);
+    }, 380);
+    const left = recruitsAvailable();
+    const btn = $('gachaDrawBtn');
+    btn.disabled = left <= 0;
+    btn.textContent = left > 0 ? bi('Draw again', '再抽一次') : bi('No draw charge yet', '暫無抽卡機會');
+    renderCharList();
+    updateCombatHUD();
+  }
+
+  function renderCharList(message) {
     const box = $('charList'); if (!box) return;
+    const pool = recruitPool();
+    const available = recruitsAvailable();
+    $('recruitStatus').textContent = [
+      typeof message === 'string' ? message : '',
+      pool.length ? gachaStatusText() : bi('You have unlocked every companion.', '所有伙伴都已解鎖。')
+    ].filter(Boolean).join(' ');
+    const pity = $('gachaPity');
+    if (pity) pity.textContent = 'Pity ' + COMBAT.pity + ' / ' + GACHA_RULES.pityMax;
+    const rb = $('recruitBtn');
+    if (rb) {
+      rb.disabled = !pool.length;
+      rb.textContent = available > 0 ? bi('Open companion draw · ' + available + ' ready', '開啟伙伴抽卡 · ' + available + ' 次') : bi('Open companion draw', '開啟伙伴抽卡');
+    }
     box.innerHTML = CHARACTERS.map(c => {
       const owned = COMBAT.characters.indexOf(c.id) >= 0;
       const active = COMBAT.character === c.id;
       const gateOk = COMBAT.score >= c.scoreReq || owned;
-      let label = active ? 'Active' : owned ? 'Play as' : (gateOk ? 'Unlock free' : '🔒 ' + c.scoreReq + ' pts');
+      let label = active ? bi('Active', '使用中') : owned ? bi('Play as', '使用此角色') : (gateOk ? bi('Unlock free', '免費解鎖') : '🔒 ' + c.scoreReq + ' XP');
       const dis = active || !gateOk ? ' disabled' : '';
       return '<div class="charCard' + (active ? ' active' : '') + (owned ? '' : ' locked') + '" data-id="' + c.id + '">' +
-        '<div class="charAvatar ca-' + c.id + '" style="--cc:#' + c.color.toString(16).padStart(6, '0') + '">' + (c.gender === 'male' ? '♂' : '♀') + '</div>' +
-        '<div class="charInfo"><div class="charName">' + c.name + '</div>' +
+        '<div class="charAvatar ca-' + c.id + '" style="--cc:' + hexColor(c.color) + '">' + (c.gender === 'male' ? '♂' : '♀') + '</div>' +
+        '<div class="charInfo"><div class="charName">' + c.name + ' <span class="charRarity">' + starText(rarityOf(c)) + '</span></div>' +
         '<div class="charRole">' + c.role + '</div><div class="charDesc">' + c.desc + '</div></div>' +
         '<button data-id="' + c.id + '"' + dis + '>' + label + '</button></div>';
     }).join('');
@@ -2518,6 +3191,7 @@
     }));
   }
   function openCharModal() {
+    if (!started || paused || CLOUD.isOpen()) return;
     charModalOpen = true;
     renderCharList();
     $('charModal').classList.add('show');
@@ -2531,7 +3205,7 @@
   }
   function cycleCharacter() {
     const owned = COMBAT.characters;
-    if (owned.length < 2) { toast('Unlock more characters at the shop to switch'); return; }
+    if (owned.length < 2) { toast('Unlock more characters at the shop or companion draw'); return; }
     const i = owned.indexOf(COMBAT.character);
     const next = owned[(i + 1) % owned.length];
     COMBAT.character = next;
@@ -2549,6 +3223,120 @@
     saveCombat(); updateCombatHUD();
     toast('⚔ Equipped <b>' + WPN[next].name + '</b>');
   }
+
+  /* ---------------- daily 3-question set ---------------- */
+  function dailySeed() {
+    const key = todayKey();
+    let h = 2166136261;
+    for (let i = 0; i < key.length; i++) { h ^= key.charCodeAt(i); h = Math.imul(h, 16777619); }
+    return h >>> 0;
+  }
+  function dailyQuestions() {
+    let seed = dailySeed();
+    const pickOne = arr => { seed = (seed * 1664525 + 1013904223) >>> 0; return arr[seed % arr.length]; };
+    return [1, 2, 3].map(bond => {
+      const pool = COMPOUNDS.filter(c => c.bond === bond && c.tier <= 2);
+      return { c: pickOne(pool.length ? pool : COMPOUNDS.filter(c => c.bond === bond)), step: 3 };
+    });
+  }
+  function dailyRewardText() {
+    const nextStreak = Math.max(0, COMBAT.streak) + 1;
+    const mult = nextStreak >= REWARD_RULES.streakAt ? REWARD_RULES.streakMultiplier : 1;
+    return '+' + Math.round(REWARD_RULES.stepXp * REWARD_RULES.dailyMultiplier * mult) + ' XP · +' + Math.round(REWARD_RULES.stepGold * REWARD_RULES.dailyMultiplier * mult) + ' gold';
+  }
+  function openDaily() {
+    if (!started || CLOUD.isOpen()) return;
+    ensureDaily();
+    dailyOpen = true;
+    dailyPending = null;
+    renderDaily();
+    $('dailyModal').classList.add('show');
+    WORLD.setLocked(true);
+    syncPaused();
+  }
+  function closeDaily() {
+    dailyOpen = false;
+    $('dailyModal').classList.remove('show');
+    syncPaused();
+    if (state === STATE.WORLD && !gachaOpen) WORLD.relock();
+  }
+  function renderDaily() {
+    const d = ensureDaily();
+    const qs = dailyQuestions();
+    const answered = d.answers.length;
+    const idx = Math.min(answered, 3);
+    $('dailyProgress').innerHTML = qs.map((q, i) => {
+      const a = d.answers[i];
+      return '<span class="dailyDot ' + (a ? (a.correct ? 'ok' : 'bad') : i === idx ? 'now' : '') + '">' + (a ? (a.correct ? '✓' : '×') : (i + 1)) + '</span>';
+    }).join('') + '<span class="dailyBonusTag">' + bi('2× REWARDS', '雙倍獎勵') + '</span>';
+    $('dailyTitle').textContent = bi('Daily 3-question set', '每日三題挑戰');
+    $('dailySub').textContent = bi('One set per day · each correct answer pays double XP and gold.', '每日一組 · 每題答對可獲雙倍 XP 與 gold。');
+    $('dailyCloseBtn').textContent = bi('Close', '關閉');
+
+    if (dailyPending) {
+      const a = dailyPending;
+      const c = qs[a.index].c;
+      const explainText = textOf(explain(c, 3));
+      $('dailyBody').innerHTML = '<div class="qBlock">' + bi('What type of bond holds ' + c.f + ' together?', '什麼 bond 把 ' + c.f + ' 結合在一起？') + '</div>' +
+        '<div class="fb show answerFeedback ' + (a.ok ? 'isCorrect' : 'isWrong') + '"><div class="answerKey"><span>' + (a.ok ? bi('✓ Correct · double reward', '✓ 正確 · 雙倍獎勵') : bi('✓ Correct answer', '✓ 正確答案')) + '</span>' +
+        '<strong>' + textOf({ v: c.bond, en: ['', 'Ionic bond', 'Covalent bond', 'Metallic bond'][c.bond], zh: ['', 'Ionic bond（離子鍵）', 'Covalent bond（共價鍵）', 'Metallic bond（金屬鍵）'][c.bond] }) + '</strong><p>' + explainText + '</p></div>' +
+        '<div class="answerMiss"><span>' + bi('× Your answer', '× 你的答案') + '</span><strong>' + textOf(a.chosen) + '</strong></div>' +
+        (a.reward ? '<div class="rewardChip">+' + a.reward.xp + ' XP · +' + a.reward.gold + ' gold' + (a.reward.streak >= REWARD_RULES.streakAt ? ' · STREAK ×' + a.reward.mult.toFixed(1) : '') + '</div>' : '') + '</div>' +
+        '<button class="primary dailyNextBtn" id="dailyNextBtn">' + (answered >= 3 ? bi('Finish daily set', '完成每日挑戰') : bi('Next question', '下一題')) + '</button>';
+      $('dailyNextBtn').addEventListener('click', () => {
+        dailyPending = null;
+        if (COMBAT.daily.answers.length >= 3) COMBAT.daily.done = true;
+        saveCombat(); updateCombatHUD(); renderDaily();
+      });
+      return;
+    }
+
+    if (d.done || answered >= 3) {
+      if (!d.done) { d.done = true; saveCombat(); updateCombatHUD(); }
+      const right = d.answers.filter(a => a.correct).length;
+      $('dailyBody').innerHTML = '<div class="dailyDone"><b>' + bi('Daily drill complete', '每日挑戰完成') + '</b>' +
+        '<p>' + bi(right + ' / 3 correct · rewards already added.', '答對 ' + right + ' / 3 · 獎勵已加入。') + '</p>' +
+        '<span>' + bi('A fresh set unlocks tomorrow.', '明日會解鎖新一組。') + '</span></div>';
+      return;
+    }
+
+    const c = qs[idx].c;
+    const opts = [
+      { v: 1, en: 'Ionic bond', zh: 'Ionic bond（離子鍵）' },
+      { v: 2, en: 'Covalent bond', zh: 'Covalent bond（共價鍵）' },
+      { v: 3, en: 'Metallic bond', zh: 'Metallic bond（金屬鍵）' }
+    ];
+    $('dailyBody').innerHTML = '<div class="qBlock">' + bi('What type of bond holds ' + c.f + ' together?', '什麼 bond 把 ' + c.f + ' 結合在一起？') + '</div>' +
+      '<div class="qZh">' + bi('Daily question ' + (idx + 1) + ' of 3 · double rewards', '每日第 ' + (idx + 1) + ' / 3 題 · 雙倍獎勵') + '</div>' +
+      '<div class="options dailyOptions">' + opts.map(o => '<button class="opt" data-v="' + o.v + '">' + textOf(o) + '</button>').join('') + '</div>' +
+      '<div class="dailyRewardHint">' + dailyRewardText() + '</div>';
+    $('dailyBody').querySelectorAll('.opt').forEach(btn => btn.addEventListener('click', () => answerDaily(btn, c, opts)));
+  }
+
+  function answerDaily(btn, c, opts) {
+    const d = ensureDaily();
+    if (dailyPending || d.done || d.answers.length >= 3) return;
+    const idx = d.answers.length;
+    const chosen = opts.find(o => o.v === Number(btn.dataset.v)) || { v: 0, en: '—', zh: '—' };
+    const ok = chosen.v === c.bond;
+    let reward = null;
+    if (ok) {
+      reward = awardCorrectStep(REWARD_RULES.stepXp, REWARD_RULES.stepGold, { daily: true });
+      SFX.correct();
+      answerJuice(btn, reward, false);
+    } else {
+      SFX.bad();
+      breakStreak();
+      feedbackShake(btn);
+    }
+    d.answers.push({ compound: c.id, value: chosen.v, correct: ok });
+    dailyPending = { index: idx, ok, chosen, reward };
+    saveCombat();
+    logEvent({ type: 'daily', compound: c.f, chosen: chosen.v, correct: ok, reward });
+    updateCombatHUD();
+    renderDaily();
+  }
+
 
   function renderGuild() {
     const p = WORLD.player.position;
@@ -2609,7 +3397,7 @@
   function exportData() {
     SESSION.endTime = Date.now();
     SESSION.summary = SESSION.summary || { done: mainDone(), attempts: attempts.length };
-    SESSION.combat = { score: COMBAT.score, gold: COMBAT.gold, kills: COMBAT.kills, weapons: COMBAT.weapons.slice(), characters: COMBAT.characters.slice() };
+    SESSION.combat = { score: COMBAT.score, gold: COMBAT.gold, crystals: COMBAT.crystals, spentCrystals: COMBAT.spentCrystals, streak: COMBAT.streak, bestStreak: COMBAT.bestStreak, pity: COMBAT.pity, kills: COMBAT.kills, weapons: COMBAT.weapons.slice(), characters: COMBAT.characters.slice(), daily: COMBAT.daily };
     persist();
     download('bondquest_session.json', JSON.stringify(SESSION, null, 2), 'application/json');
     const rows = [['type', 'compound', 'step', 'chosen', 'correct', 'hintUsed', 'attempt']];
@@ -2640,7 +3428,7 @@
 
   /* ================= INTERACTION ================= */
   function interact() {
-    if (state !== STATE.WORLD || !started) return;
+    if (state !== STATE.WORLD || !started || paused || CLOUD.isOpen()) return;
     SFX.click();
     tutHide();   // clear the training banner while a modal is open
     const wpNear = nearWpInfo(3.9);
@@ -2675,6 +3463,8 @@
       if (coachOn) { coachEnd(); return; }
       if (wpOpen) { closeWpList(); return; }
       if (beaconOpen) { closeBeacon(); return; }
+      if (gachaOpen) { closeGacha(); return; }
+      if (dailyOpen) { closeDaily(); return; }
       if (shopOpen) { closeShop(); return; }
       if (charModalOpen) { closeCharModal(); return; }
       if (guildOpen) { closeGuild(); return; }
@@ -2724,7 +3514,7 @@
     loadWaypoints();
     WORLD.onZoneChange = k => {
       const Z = ZONES[k];
-      toast('Now entering ' + Z.en);
+      if (!introTrial) toast('Now entering ' + Z.en);
       if (!SESSION.exploration.zonesVisited.includes(k)) SESSION.exploration.zonesVisited.push(k);
       persist();
     };
@@ -2751,8 +3541,21 @@
       syncMute();
       muteBtn.addEventListener('click', () => { SFX.toggleMute(); syncMute(); });
     }
-    $('startIntro').innerHTML = INTRO_HTML;
-    $('helpBody').innerHTML = INTRO_HTML;
+    $('combatToggle').addEventListener('change', e => setCombatMode(e.target.checked));
+    $('recruitBtn').addEventListener('click', openGacha);
+    $('gachaBtn').addEventListener('click', openGacha);
+    $('dailyBtn').addEventListener('click', openDaily);
+    $('gachaCloseBtn').addEventListener('click', closeGacha);
+    $('gachaDoneBtn').addEventListener('click', closeGacha);
+    $('gachaDrawBtn').addEventListener('click', drawGacha);
+    $('gachaCard').addEventListener('click', () => {
+      if (!gachaCurrent) drawGacha();
+      else if (!gachaRevealed) revealGacha();
+    });
+    $('dailyCloseBtn').addEventListener('click', closeDaily);
+    $('langBtn').addEventListener('click', toggleLanguage);
+    document.querySelectorAll('[data-lang-toggle]').forEach(b => b.addEventListener('click', toggleLanguage));
+    $('labBtn').addEventListener('click', openNextLab);
     $('qpFoldBtn').addEventListener('click', () => {
       setQuestCollapsed(true);
       setTimeout(() => { try { $('qpTab').focus({ preventScroll: true }); } catch (e) { } }, 60);
@@ -2766,8 +3569,11 @@
       l.classList.toggle('open');
       $('qpCaret').textContent = l.classList.contains('open') ? '▴' : '▾';
     });
+    syncLanguageUI();
+    ensureDaily();
     refreshLocks();
     updateHUD();
+    updateCombatHUD();
     WORLD.setBeacon(trackedNode());
 
     // ---- Account system ----
@@ -2783,21 +3589,14 @@
       console.warn('account init failed', err);
     });
 
-    $('startBtn').addEventListener('click', () => {
-      $('startScreen').classList.remove('show');
-      started = true;
-      lastFrame = performance.now();
-      SESSION.startTime = Date.now();
-      logEvent({ type: 'start' });
-      WORLD.requestLock();
-      tutStart();   // interactive training mission replaces the text coach
-      if (!storeOk) setTimeout(() => toast('⚠️ Browser storage is blocked — progress will not save automatically. Use "↓" to export your data.', 5000), 1200);
-      toast('Follow the arrow in the quest panel on the left — when you arrive, press E to interact.');
-    });
+    $('startBtn').addEventListener('click', () => startSession(false, true));
+    $('exploreBtn').addEventListener('click', () => startSession(false, false));
+    $('trialContinueBtn').addEventListener('click', finishIntroTrial);
+    WORLD.setLocked(true);
 
     lastFrame = performance.now();
     window.__world = WORLD;
-    window.__bq = { openDialog, openDotCross, openVocab, showSummary, interact, state: () => state, DC, COMP, TERM, NODES, attempts, openBigMap, getState: () => ({ state, helpOpen, mapOpen, wpOpen }), wp: { list: () => [...unlockedWp], open: openWpList, tp: doTeleport, pop: showTpPop, all: WAYPOINTS, dbg: () => { const c = BM.canvas, r = c.getBoundingClientRect(), wr = $('mapWrap').getBoundingClientRect(); return { cw: c.width, ch: c.height, rw: r.width, rh: r.height, rl: r.left - wr.left, rt: r.top - wr.top, s: bmScale(), zoom: BM.zoom, cx: BM.cx, cz: BM.cz }; } } };
+    window.__bq = { openDialog, openDotCross, openVocab, showSummary, interact, state: () => state, DC, COMP, TERM, NODES, attempts, openBigMap, openGacha, drawGacha, openDaily, toggleLanguage, startIntroTrial, completeIntroTrial, finishIntroTrial, combat: () => COMBAT, getState: () => ({ state, helpOpen, mapOpen, wpOpen }), wp: { list: () => [...unlockedWp], open: openWpList, tp: doTeleport, pop: showTpPop, all: WAYPOINTS, dbg: () => { const c = BM.canvas, r = c.getBoundingClientRect(), wr = $('mapWrap').getBoundingClientRect(); return { cw: c.width, ch: c.height, rw: r.width, rh: r.height, rl: r.left - wr.left, rt: r.top - wr.top, s: bmScale(), zoom: BM.zoom, cx: BM.cx, cz: BM.cz }; } } };
     requestAnimationFrame(loop);
   }
 
@@ -2807,9 +3606,9 @@
     const dt = Math.max(0, Math.min(0.05, (now - lastFrame) / 1000)) || 0.016;
     lastFrame = now;
 
+    if (started && !document.hidden && (!paused || state === STATE.DIALOG || state === STATE.DOTCROSS)) activeTime += dt;
     const moving = started && !paused && state === STATE.WORLD;
     if (moving) {
-      activeTime += dt;
       const p = WORLD.player.position;
       if (!loop._lastPos) loop._lastPos = { x: p.x, z: p.z, t: 0 };
       const dx = p.x - loop._lastPos.x, dz = p.z - loop._lastPos.z;
@@ -2829,6 +3628,7 @@
 
     tickCombat(dt);
     tickTutorial();
+    if (introTrial && !introTrial.done) $('trialTimer').textContent = formatTrialTime((performance.now() - introTrial.started) / 1000);
     WORLD.update(dt, now / 1000);
 
     if (++mapTick % 4 === 0) {

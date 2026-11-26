@@ -16,11 +16,16 @@
     <div class="pill" id="zoneLabel">Ionic Plains</div>
     <div class="pill" id="counterPill"><b id="counterNum">0</b> / <b id="counterTotal">9</b></div>
     <div class="pill" id="timerPill">00:00</div>
-    <div class="pill" id="scorePill"><span class="pico">✦</span> <b id="scoreNum">0</b></div>
+    <div class="pill" id="scorePill" title="Unlock XP from combat and chemistry"><span class="pico">⚡</span> XP <b id="scoreNum">0</b></div>
     <div class="pill" id="goldPill"><span class="pico">◉</span> <b id="goldNum">0</b></div>
+    <div class="pill" id="streakPill" title="Consecutive correct chemistry answers"><span class="pico">🔥</span> <b id="streakNum">0</b> <span id="streakMul">×1.0</span></div>
     <div class="pill" id="weaponPill"><span class="pico">⚔</span> <b id="weaponName">Bond Blade</b></div>
     <div class="pill" id="charPill"><span class="pico">☻</span> <b id="charName">Elara</b></div>
     <div class="spacer"></div>
+    <button class="iconBtn labBtn" id="labBtn" title="Open the next chemistry challenge">Chem Lab</button>
+    <button class="iconBtn dailyHudBtn" id="dailyBtn" title="Daily 3-question set · double rewards">☀ <span id="dailyBadge">0/3</span></button>
+    <button class="iconBtn gachaHudBtn" id="gachaBtn" title="Companion draw · one charge per 2 challenges">✦ <span id="gachaBadge"></span></button>
+    <button class="iconBtn langBtn" id="langBtn" title="Switch challenge language">EN</button>
     <button class="iconBtn" id="authBtn" title="Sign in / Register">◎</button>
     <button class="iconBtn" id="mapBtn" title="World map (M)">▦</button>
     <button class="iconBtn" id="helpBtn" title="How to play">?</button>
@@ -36,6 +41,17 @@
     <div class="bhText">WALK to the glowing person</div>
     <div class="bhSub">Follow the green light beam!</div>
     <div class="bhBar"><i id="bhFill"></i></div>
+  </div>
+
+  <div id="trialHud" aria-live="polite">
+    <div class="trialTop"><span class="trialKicker">BOND TRIAL</span><span id="trialTimer">0:00</span></div>
+    <div class="trialPips">
+      <span class="trialPip ionic" data-trial="ionic"><i></i><b>Ionic</b></span>
+      <span class="trialPip covalent" data-trial="covalent"><i></i><b>Covalent</b></span>
+      <span class="trialPip metallic" data-trial="metallic"><i></i><b>Metallic</b></span>
+    </div>
+    <div id="trialGoal">Run through all 3 electron motes</div>
+    <button id="trialContinueBtn" type="button">Enter Chem Lab</button>
   </div>
 
   <div id="questPanel">
@@ -80,7 +96,7 @@
   <canvas id="minimap" width="360" height="360"></canvas>
 
   <div id="prompt">Press <kbd>E</kbd> to interact</div>
-  <div id="controlsHint">WASD move · Space jump · Mouse look · Left-click attack · E interact · K skill · C swap · 1-5 weapons · B shop · M map · T warp · H help</div>
+  <div id="controlsHint">WASD move · Mouse look · E interact · H help</div>
   <div id="lockHint">Click to lock mouse</div>
   <div id="skillMeter">
     <span class="skillLabel">SKILL (K)</span>
@@ -104,6 +120,7 @@
 <div id="toastWrap"></div>
 <div id="floatLayer"></div>
 <div id="comboBadge">5 HIT COMBO</div>
+<div id="perfectBanner" aria-live="assertive"><b>PERFECT BOND</b><span id="perfectSub">All steps clean · bonus secured</span></div>
 <div id="hurtFlash"></div>
 
 <div id="startScreen" class="screen show">
@@ -111,19 +128,13 @@
     <div class="startScroll">
     <div class="kicker">F4E Interdisciplinary Project</div>
     <h1>Bond Quest</h1>
-    <p class="sub">Learn chemistry by playing!<span class="en">A 3D open-world learning game about chemical bonding</span></p>
-    <div class="combatTeaser">⚔ Action combat · collect weapons &amp; characters · earn gold &amp; score</div>
-
-    <div id="startIntro"></div>
-
-    <div class="startMeta">
-      <span>About 8 minutes</span>
-      <span>Progress is saved on this device — no personal data collected</span>
-    </div>
-    <div id="touchTip"><b>Touch mode</b> enabled: left stick to move · drag on the right to look · bottom-right buttons to jump / interact. Use a computer (WASD + mouse) for a smoother experience.</div>
+    <p class="sub">Start with a fast action level: run through three electron motes, forge your first bond, and unlock the chemistry challenge.</p>
+    <p class="labIntro">60-second Bond Trial first · Ionic cyan · Covalent green · Metallic gold</p>
+    <div class="startMeta"><span>⚡ Instant movement</span><span>◉ Pickup rewards</span><span>✦ First bond celebration</span></div>
     </div>
     <div class="startFoot">
-      <button id="startBtn" class="primary">▶ Start training</button>
+      <button id="startBtn" class="primary">Start 60-Second Bond Trial</button>
+      <button id="exploreBtn" class="ghost">Free roam</button>
     </div>
   </div>
 </div>
@@ -132,7 +143,13 @@
   <div class="modalCard">
     <div class="kicker">How to play</div>
     <h2 class="helpTitle">Game guide</h2>
-    <div id="helpBody" class="modalBody"></div>
+      <div class="modalBody">
+        <p>Open <b>Chem Lab</b> to continue the next chemistry challenge. Correct steps earn <b>5 XP + 3 gold</b>; a perfect challenge adds <b>30 XP + 20 gold + 1 crystal</b>. A 3+ answer streak earns <b>×1.5</b>.</p>
+        <p>Use <b>Daily</b> for a 3-question set with double rewards. Open a companion draw from the HUD <b>✦</b> button or the party menu after every 2 challenges.</p>
+        <p class="labIntro">In the world, use WASD to move, the mouse to look and E to interact. On touchscreens, use the left stick, drag to look and tap Interact.</p>
+        <label class="labToggle"><input id="combatToggle" type="checkbox"> Enable combat while exploring</label>
+        <p class="labIntro">With combat enabled, left-click or press J to attack, K for a skill and B for the gear shop.</p>
+      </div>
     <div class="modalFoot">
       <button class="ghost" id="helpCoachBtn">Replay text guide</button>
       <button class="primary" id="helpCloseBtn">Got it, let's play</button>
@@ -144,8 +161,8 @@
   <div class="modalCard mapCard">
     <div class="mapTop">
       <div>
-        <div class="kicker">World map</div>
-        <div class="mapTitle">World map · drag to pan, scroll to zoom</div>
+        <h2 class="mapTitle">World map</h2>
+        <p id="mapObjective" class="mapObjective"></p>
       </div>
       <div class="mapTools">
         <button class="toolBtn" id="mapZoomOut" title="Zoom out">−</button>
@@ -156,7 +173,7 @@
     </div>
     <div class="mapWrap" id="mapWrap">
       <canvas id="bigMap" width="960" height="620"></canvas>
-      <div class="mapHint" id="mapHint">Drag to pan · scroll to zoom · click a beacon to warp · click a quest pin to track it</div>
+      <div class="mapHint" id="mapHint">Drag to pan · scroll to zoom · select a pin to track</div>
       <div id="tpPop" class="tpPop">
         <div class="tpName" id="tpName">—</div>
         <div class="tpMeta" id="tpMeta"></div>
@@ -197,6 +214,7 @@
         <div class="npcName" id="npcName">Guide</div>
         <div class="npcLine" id="npcLine"></div>
       </div>
+      <button class="langToggle" type="button" data-lang-toggle>EN / 中文</button>
     </div>
     <div class="modalBody">
       <div id="stepDots" class="stepDots"></div>
@@ -205,6 +223,7 @@
     <div class="modalFoot">
       <button class="ghost" id="dialogHintBtn">Hint</button>
       <button class="ghost" id="dialogCloseBtn">Leave</button>
+      <div id="dialogActions" class="labChoices"></div>
     </div>
   </div>
 </div>
@@ -217,22 +236,24 @@
         <div class="npcName" id="dcTitle">📖 LEARNING · Dot-and-cross diagram</div>
         <div class="npcLine" id="dcSub"></div>
       </div>
+      <button class="langToggle" type="button" data-lang-toggle>EN / 中文</button>
     </div>
     <div class="modalBody">
       <div id="dcToolbar" class="dcToolbar"></div>
       <div id="dcHow" class="dcHow">
         <div class="dcHowHead">
-          <span class="dcHowTitle">How to do it — follow these steps</span>
+          <span class="dcHowTitle" id="dcHowTitle">How to do it — follow these steps</span>
           <span id="dcHowProg" class="dcHowProg"></span>
         </div>
         <ol id="dcSteps" class="dcSteps"></ol>
         <div id="dcNow" class="dcNow"></div>
-        <div class="dcLegend">Dashed circles = slots for electrons · click <b>twice</b> to place a pair · Backspace to erase</div>
+        <div class="dcLegend" id="dcLegend">One click fills a complete electron pair. Use Erase to clear a pair, or Auto-fill shell for 1 crystal.</div>
       </div>
       <div id="dcStage" class="dcStage"></div>
       <div id="dcFeedback" class="dcFeedback"></div>
     </div>
     <div class="modalFoot">
+      <button class="ghost dcAutoBtn" id="dcAutoBtn">Auto-fill shell · 1 ◈</button>
       <button class="ghost" id="dcHintBtn">Hint</button>
       <button class="ghost" id="dcResetBtn">Reset</button>
       <button class="ghost" id="dcCloseBtn">Leave</button>
@@ -310,11 +331,16 @@
 <div id="summaryModal" class="modal">
   <div class="modalCard">
     <div class="kicker">Session complete</div>
-    <h2 id="sumTitle">Exploration complete</h2>
+    <h2 id="sumTitle">Chemical bonding review</h2>
     <div class="modalBody">
       <div id="sumStats" class="sumStats"></div>
       <div id="sumBars" class="sumBars"></div>
       <div id="sumWeak" class="sumWeak"></div>
+      <div class="labReview">
+        <p><strong>Ionic · NaCl</strong> Electron transfer forms Na⁺ and Cl⁻. Oppositely charged ions attract throughout a giant lattice. NaCl gives their ratio.</p>
+        <p><strong>Covalent · H₂ and diamond</strong> Atoms share electron pairs. H₂ forms separate molecules. Diamond forms a giant covalent network.</p>
+        <p><strong>Metallic · Fe</strong> Positive metal ions attract delocalised electrons throughout the metal lattice.</p>
+      </div>
       <div id="sumFootNote" class="sumFootNote"></div>
     </div>
     <div class="modalFoot">
@@ -345,7 +371,7 @@
     <div class="kicker">Chem Supply Shop</div>
     <h2 class="helpTitle">Chem Supply Shop</h2>
     <div class="modalBody">
-      <div class="shopWallet">Gold: <b id="shopGold">0</b> · Score: <b id="shopScore">0</b> · Crystals: <b id="shopShards">0</b></div>
+      <div class="shopWallet">Gold: <b id="shopGold">0</b> · Unlock XP: <b id="shopScore">0</b> · Crystals: <b id="shopShards">0</b></div>
       <div id="shopTabs" class="shopTabs">
         <button class="shopTab active" data-tab="gear">⚔ Weapons</button>
         <button class="shopTab" data-tab="skins">✦ Outfits</button>
@@ -353,7 +379,7 @@
         <button class="shopTab" data-tab="supplies">◈ Supplies</button>
       </div>
       <div id="shopItems" class="shopItems"></div>
-      <div class="shopNote">Earn gold and score by defeating enemies; find crystals while exploring. Spend them here.</div>
+      <div class="shopNote">Earn gold and unlock XP from chemistry and combat; crystals come from exploring and perfect challenges. Spend them here.</div>
     </div>
     <div class="modalFoot">
       <button class="primary" id="shopCloseBtn">Leave</button>
@@ -364,8 +390,15 @@
 <div id="charModal" class="modal">
   <div class="modalCard">
     <div class="kicker">Party</div>
-    <h2 class="helpTitle">Switch Character</h2>
+    <h2 class="helpTitle">Companions</h2>
     <div class="modalBody">
+      <div class="labRecruit">
+        <p id="recruitStatus" aria-live="polite"></p>
+        <div class="recruitActions">
+          <button class="ghost" id="recruitBtn">Open companion draw</button>
+          <span class="gachaPity" id="gachaPity">Pity 0 / 10</span>
+        </div>
+      </div>
       <div id="charList" class="charList"></div>
     </div>
     <div class="modalFoot">
@@ -374,6 +407,58 @@
   </div>
 </div>
 
+
+
+<div id="gachaModal" class="gachaModal" aria-hidden="true">
+  <div class="gachaSky" id="gachaSky">
+    <div class="gachaOrbit"></div>
+    <div class="gachaBeams" id="gachaBeams"></div>
+  </div>
+  <button class="gachaClose" id="gachaCloseBtn" type="button" aria-label="Close companion draw">×</button>
+  <div class="gachaHead">
+    <div class="gachaKicker">BOND SUMMON</div>
+    <div class="gachaTitle">Companion draw</div>
+    <div class="gachaSub" id="gachaSub">One charge for every 2 completed chemistry challenges.</div>
+  </div>
+  <div class="gachaStage">
+    <div class="gachaCard" id="gachaCard" tabindex="0" role="button" aria-label="Reveal companion card">
+      <div class="gachaCardInner">
+        <div class="gachaFace gachaBack">
+          <div class="gachaRune">✦</div>
+          <div class="gachaBackLabel">BOND QUEST</div>
+          <div class="gachaBackHint">Tap to reveal</div>
+        </div>
+        <div class="gachaFace gachaFront" id="gachaFront"></div>
+      </div>
+    </div>
+  </div>
+  <div class="gachaMeta" id="gachaMeta"></div>
+  <div class="gachaActions">
+    <button class="primary gachaDrawBtn" id="gachaDrawBtn" type="button">Draw companion</button>
+    <button class="ghost" id="gachaDoneBtn" type="button">Close</button>
+  </div>
+</div>
+
+<div id="dailyModal" class="modal">
+  <div class="modalCard dailyCard">
+    <div class="modalHead">
+      <div class="chestIcon dailySun">☀</div>
+      <div>
+        <div class="kicker">DAILY DRILL · 2× REWARDS</div>
+        <h2 class="helpTitle" id="dailyTitle">Daily 3-question set</h2>
+        <div class="npcLine" id="dailySub"></div>
+      </div>
+      <button class="langToggle" type="button" data-lang-toggle>EN / 中文</button>
+    </div>
+    <div class="modalBody">
+      <div class="dailyProgress" id="dailyProgress"></div>
+      <div id="dailyBody"></div>
+    </div>
+    <div class="modalFoot">
+      <button class="ghost" id="dailyCloseBtn">Close</button>
+    </div>
+  </div>
+</div>
 
 <div id="beaconModal" class="modal">
   <div class="modalCard">
