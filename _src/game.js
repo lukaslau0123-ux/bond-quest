@@ -531,6 +531,17 @@
   /* ---------------- HUD ---------------- */
   function mainDone() { return NODES.filter(n => n.main && done.has(n.id)).length; }
 
+  /* Brief highlight on the HUD region pill when the player crosses a region border. */
+  let zonePulseTimer = null;
+  function zonePulse() {
+    const el = $('zoneLabel'); if (!el) return;
+    el.classList.remove('pulse');
+    void el.offsetWidth;            // restart the animation
+    el.classList.add('pulse');
+    clearTimeout(zonePulseTimer);
+    zonePulseTimer = setTimeout(() => el.classList.remove('pulse'), 1600);
+  }
+
   /* ---------------- account progress bridge ---------------- */
   // The account system only touches game state through these two functions: snapshot exports, apply restores.
   function snapshotProgress() {
@@ -3514,7 +3525,10 @@
     loadWaypoints();
     WORLD.onZoneChange = k => {
       const Z = ZONES[k];
-      if (!introTrial) toast('Now entering ' + Z.en);
+      /* No centre-screen toast on zone change — it fires on every border crossing and
+         interrupts play. The HUD zone pill always shows the current region; a brief
+         pulse on that pill conveys the change without blocking the view. */
+      zonePulse();
       if (!SESSION.exploration.zonesVisited.includes(k)) SESSION.exploration.zonesVisited.push(k);
       persist();
     };

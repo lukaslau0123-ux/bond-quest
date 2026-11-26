@@ -1133,3 +1133,14 @@ body.intro-trial #questPanel{opacity:.35;pointer-events:none}
 
 #trialHud.celebrating{opacity:0!important;transform:translate(-50%,-14px)!important;pointer-events:none!important}
 #startScreen{background:radial-gradient(circle at 50% 28%,rgba(24,52,48,.94),rgba(4,8,10,.985))}
+
+body.intro-trial #minimap,body.intro-trial .qpTab{display:none!important}
+
+/* ---------- region-change pulse on the HUD pill (replaces the old centre toast) ---------- */
+@keyframes zonePulseAnim {
+  0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(143,240,200,0);   color: #a8e6d0; }
+  22%  { transform: scale(1.16); box-shadow: 0 0 0 5px rgba(143,240,200,.35); color: #ffffff; }
+  60%  { transform: scale(1.04); box-shadow: 0 0 0 2px rgba(143,240,200,.14); color: #d6fff2; }
+  100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(143,240,200,0);   color: #a8e6d0; }
+}
+#zoneLabel.pulse{animation:zonePulseAnim 1.5s cubic-bezier(.22,.9,.24,1) 1}

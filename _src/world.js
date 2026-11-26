@@ -2735,6 +2735,27 @@ const WORLD = (function () {
   }
 
   /* ---------- 60-second bond trial ---------- */
+  function trialLabelSprite(text, color) {
+    const cv = document.createElement('canvas');
+    cv.width = 320; cv.height = 76;
+    const ctx = cv.getContext('2d');
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    ctx.font = '800 27px "Segoe UI", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 7; ctx.strokeStyle = 'rgba(3,10,12,.92)';
+    ctx.strokeText(text, cv.width / 2, cv.height / 2);
+    ctx.fillStyle = '#' + Number(color).toString(16).padStart(6, '0');
+    ctx.fillText(text, cv.width / 2, cv.height / 2);
+    const tex = new THREE.CanvasTexture(cv);
+    tex.minFilter = THREE.LinearFilter;
+    tex.needsUpdate = true;
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false });
+    const sp = new THREE.Sprite(mat);
+    sp.position.y = 2.62;
+    sp.scale.set(2.55, 0.6, 1);
+    return sp;
+  }
+
   function makeTrialMote(def, index) {
     const g = new THREE.Group();
     const baseY = heightAt(def.x, def.z);
@@ -2762,8 +2783,10 @@ const WORLD = (function () {
     const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.13, 2.6, 8, 1, true), beamMat);
     beam.position.y = 1.3;
     g.add(beam);
+    const label = trialLabelSprite(def.family === 'ionic' ? 'IONIC' : def.family === 'covalent' ? 'COVALENT' : 'METALLIC', def.color);
+    g.add(label);
     scene.add(g);
-    return { group: g, def, index, alive: true, core, ring, glow, floor, beam, phase: index * 2.1 };
+    return { group: g, def, index, alive: true, core, ring, glow, floor, beam, label, phase: index * 2.1 };
   }
 
   function startBondTrial(cfg) {
@@ -2772,8 +2795,8 @@ const WORLD = (function () {
     const cx = Number.isFinite(c.x) ? c.x : player.position.x;
     const cz = Number.isFinite(c.z) ? c.z : player.position.z - 5;
     const defs = c.motes || [
-      { x: cx - 3.2, z: cz - 1.0, color: 0x3fd8ff, family: 'ionic', label: 'Ionic · electron transfer' },
-      { x: cx + 3.2, z: cz - 1.0, color: 0x5fd0a8, family: 'covalent', label: 'Covalent · shared electrons' },
+      { x: cx - (touchMode ? 2.35 : 3.2), z: cz - 1.0, color: 0x3fd8ff, family: 'ionic', label: 'Ionic · electron transfer' },
+      { x: cx + (touchMode ? 2.35 : 3.2), z: cz - 1.0, color: 0x5fd0a8, family: 'covalent', label: 'Covalent · shared electrons' },
       { x: cx, z: cz - 2.8, color: 0xffc85f, family: 'metallic', label: 'Metallic · delocalised electrons' }
     ];
     bondTrial = { motes: defs.map(makeTrialMote), collected: 0, total: defs.length, complete: false, started: performance.now() };
@@ -2785,7 +2808,10 @@ const WORLD = (function () {
     scene.remove(g);
     g.traverse(o => {
       if (o.geometry) o.geometry.dispose();
-      if (o.material) o.material.dispose();
+      if (o.material) {
+        if (o.material.map) o.material.map.dispose();
+        o.material.dispose();
+      }
     });
   }
 
