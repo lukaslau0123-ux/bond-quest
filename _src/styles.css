@@ -1144,3 +1144,9 @@ body.intro-trial #minimap,body.intro-trial .qpTab{display:none!important}
   100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(143,240,200,0);   color: #a8e6d0; }
 }
 #zoneLabel.pulse{animation:zonePulseAnim 1.5s cubic-bezier(.22,.9,.24,1) 1}
+
+.kbdHint{margin-top:10px;font-size:10.5px;color:#7fa094;letter-spacing:.4px;text-align:right}
+.opt.kbdFocus{background:rgba(95,208,168,.12);border-color:#8ff0c8;box-shadow:0 0 0 1px rgba(143,240,200,.28),0 0 16px rgba(143,240,200,.12)}
+.opt.kbdFocus::before{content:'›';display:inline-block;margin-right:8px;color:#8ff0c8;font-weight:800}
+
+body.is-touch .kbdHint{display:none}

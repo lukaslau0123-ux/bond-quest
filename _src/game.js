@@ -814,7 +814,7 @@
       const dht = $('dcHowTitle');
       if (dht) dht.textContent = bi('How to do it — follow these steps', '做法 — 按步驟完成');
       const dl = $('dcLegend');
-      if (dl) dl.textContent = bi('One click fills a complete electron pair. Use Erase to clear a pair, or Auto-fill shell for 1 crystal.', '一下點擊會填入完整 electron pair。用 Erase 清除整對，或用 Auto-fill shell（1 crystal）自動填滿。');
+      if (dl) dl.textContent = bi('One click fills a complete electron pair. Use Erase to clear a pair, or Auto-fill shell for 1 crystal. Keyboard: arrows move · Enter places.', '一下點擊會填入完整 electron pair。用 Erase 清除整對，或用 Auto-fill shell（1 crystal）自動填滿。鍵盤：方向鍵移動 · Enter 放置。');
       const tb = $('dcToolbar').querySelector('[data-tool="pair"]');
       const eb = $('dcToolbar').querySelector('[data-tool="erase"]');
       if (tb) tb.textContent = '✚ ' + bi('Pair', '電子對');
@@ -862,6 +862,9 @@
   function syncPaused() {
     paused = (state !== STATE.WORLD) || helpOpen || mapOpen || coachOn || shopOpen || guildOpen || beaconOpen || wpOpen || charModalOpen || gachaOpen || dailyOpen || $('glossaryDrawer').classList.contains('show');
     if (paused) { const cb = $('comboBadge'); if (cb) cb.classList.remove('show'); }
+  }
+  function releasePointerForModal() {
+    try { if (document.pointerLockElement) document.exitPointerLock(); } catch (e) { }
   }
   function openModal(id) {
     $(id).classList.add('show');
@@ -1097,6 +1100,7 @@
   }
 
   function openDialog(node) {
+    releasePointerForModal();
     const c = COMP[node.compound];
     dlg = { node, c, step: 0, picks: [], hintUsed: false, wrongSteps: 0, lastAnswer: null };
     if (tutStep === 3) tutAdvance(4);   // training: the player actually pressed E!
@@ -1164,9 +1168,43 @@
     $('dlgOpts').querySelectorAll('.opt').forEach(btn => {
       btn.addEventListener('click', () => pickOption(btn, expected, opts));
     });
+    $('dialogBody').insertAdjacentHTML('beforeend', '<div class="kbdHint">' + bi('↑ ↓ choose · Enter confirm', '↑ ↓ 選擇 · Enter 確認') + '</div>');
     $('dialogHintBtn').style.display = dlg.hintUsed ? 'none' : '';
     $('dialogHintBtn').textContent = bi('Hint', '提示');
+    dlg.keyIndex = 0;
+    focusDialogChoice(0);
     $('dialogBody').closest('.modalBody').scrollTop = 0;
+  }
+
+  function focusDialogChoice(idx) {
+    const opts = Array.from(document.querySelectorAll('#dlgOpts .opt')).filter(b => !b.disabled);
+    if (!opts.length) return;
+    dlg.keyIndex = (idx + opts.length) % opts.length;
+    opts.forEach((b, i) => b.classList.toggle('kbdFocus', i === dlg.keyIndex));
+    try { opts[dlg.keyIndex].focus({ preventScroll: true }); } catch (e) { }
+  }
+
+  function moveDialogChoice(delta) {
+    if (!dlg || dlg.lastAnswer) return false;
+    const opts = document.querySelectorAll('#dlgOpts .opt');
+    if (!opts.length) return false;
+    focusDialogChoice((dlg.keyIndex || 0) + delta);
+    return true;
+  }
+
+  function handleDialogEnter() {
+    if (state !== STATE.DIALOG || !dlg || !$('dialogModal').classList.contains('show')) return false;
+    const active = document.activeElement;
+    if (active && active.matches('button') && !active.classList.contains('opt') && !active.closest('#dialogActions')) return false;
+    if (active && active.closest('#dialogActions')) { active.click(); return true; }
+    if (dlg.lastAnswer) {
+      const next = document.querySelector('#dialogActions .primary');
+      if (next && !next.disabled) { next.click(); return true; }
+      return false;
+    }
+    const selected = document.querySelector('#dlgOpts .opt.kbdFocus') || document.querySelector('#dlgOpts .opt');
+    if (selected && !selected.disabled) { selected.click(); return true; }
+    return false;
   }
 
   function structureExplanation() {
@@ -1380,6 +1418,7 @@
   }
 
   function openDotCross(node) {
+    releasePointerForModal();
     dcq = {
       node, q: DC[node.dc], marks: {}, charges: {}, bracket: false,
       tool: 'pair', tries: 0, hintUsed: false, hintSlot: null, solved: false, hiAtom: -1, autoFilled: false
@@ -1402,8 +1441,8 @@
     const dht = $('dcHowTitle');
     if (dht) dht.textContent = bi('How to do it — follow these steps', '做法 — 按步驟完成');
     const dl = $('dcLegend');
-    if (dl) dl.textContent = bi('One click fills a complete electron pair. Use Erase to clear a pair, or Auto-fill shell for 1 crystal.',
-      '一下點擊會填入完整 electron pair。用 Erase 清除整對，或用 Auto-fill shell（1 crystal）自動填滿。');
+    if (dl) dl.textContent = bi('One click fills a complete electron pair. Use Erase to clear a pair, or Auto-fill shell for 1 crystal. Keyboard: arrows move · Enter places.',
+      '一下點擊會填入完整 electron pair。用 Erase 清除整對，或用 Auto-fill shell（1 crystal）自動填滿。鍵盤：方向鍵移動 · Enter 放置。');
     $('dcToolbar').className = 'dcToolbar' + (q.type === 'ionic' ? ' ionic' : '');
     $('dcToolbar').innerHTML =
       '<button class="toolBtn active" data-tool="pair">✚ ' + bi('Pair', '電子對') + '</button>' +
@@ -1427,6 +1466,56 @@
     setState(STATE.DOTCROSS);
     openModal('dotcrossModal');
     renderDC();
+    setTimeout(function () {
+      const first = $('dcStage').querySelector('.slot');
+      if (first) { try { first.focus({ preventScroll: true }); } catch (e) { } }
+    }, 60);
+  }
+
+  function focusNextDCSlot(afterSi) {
+    const slots = Array.from(document.querySelectorAll('#dcStage .slot'));
+    if (!slots.length) return;
+    const score = si => (dcq.marks[si] || []).length;
+    let idx = slots.findIndex(el => score(Number(el.dataset.si)) < 2);
+    if (idx < 0) {
+      const check = $('dcCheckBtn');
+      if (check) { try { check.focus({ preventScroll: true }); } catch (e) { } }
+      return;
+    }
+    if (afterSi !== undefined) {
+      const after = slots.findIndex(el => Number(el.dataset.si) > afterSi && score(Number(el.dataset.si)) < 2);
+      if (after >= 0) idx = after;
+    }
+    try { slots[idx].focus({ preventScroll: true }); } catch (e) { }
+  }
+
+  function moveDCFocus(delta) {
+    if (state !== STATE.DOTCROSS || !dcq) return false;
+    const slots = Array.from(document.querySelectorAll('#dcStage .slot'));
+    if (!slots.length) return false;
+    let idx = slots.indexOf(document.activeElement);
+    if (idx < 0) idx = 0;
+    else idx = (idx + delta + slots.length) % slots.length;
+    try { slots[idx].focus({ preventScroll: true }); } catch (e) { }
+    return true;
+  }
+
+  function handleDotCrossEnter() {
+    if (state !== STATE.DOTCROSS || !dcq) return false;
+    const active = document.activeElement;
+    if (active && active.closest('#dotcrossModal')) {
+      if (active.matches('.slot')) return false;
+      if (active.matches('button')) return false;
+    }
+    const firstEmpty = Array.from(document.querySelectorAll('#dcStage .slot')).find(el => (dcq.marks[Number(el.dataset.si)] || []).length < 2);
+    if (firstEmpty) {
+      firstEmpty.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      return true;
+    }
+    if (dcq.solved) { closeDC(); return true; }
+    const st = dcState();
+    if (st.total > 0 && st.filled === st.total) { checkDC(); return true; }
+    return false;
   }
 
   function dcSlots(q) {
@@ -1623,10 +1712,7 @@
         else dcq.marks[si] = autoPairForSlot(si);
         dcq.hintSlot = null;
         renderDC();
-        if (keyboard) {
-          const next = $('dcStage').querySelector('[data-si="' + si + '"]');
-          if (next) next.focus();
-        }
+        if (keyboard) focusNextDCSlot(si);
       };
       el.addEventListener('click', () => placeElectron(false));
       el.addEventListener('keydown', event => {
@@ -3468,6 +3554,7 @@
   }
 
   window.addEventListener('keydown', e => {
+    if (e.defaultPrevented) return;
     const k = e.key.toLowerCase();
     if (k === 'escape') {
       if (CLOUD.isOpen()) { CLOUD.close(); return; }
@@ -3486,6 +3573,15 @@
       else if (state === STATE.SUMMARY) { closeModal('summaryModal'); setState(STATE.WORLD); }
       else if ($('glossaryDrawer').classList.contains('show')) { $('glossaryDrawer').classList.remove('show'); syncPaused(); }
       return;
+    }
+    if (state === STATE.DIALOG && (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowLeft')) {
+      if (moveDialogChoice(e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : -1)) { e.preventDefault(); return; }
+    }
+    if (state === STATE.DOTCROSS && (e.key === 'ArrowDown' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowLeft')) {
+      if (moveDCFocus(e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : -1)) { e.preventDefault(); return; }
+    }
+    if (e.key === 'Enter') {
+      if (handleDialogEnter() || handleDotCrossEnter()) { e.preventDefault(); return; }
     }
     if (k === 'e' && state === STATE.WORLD && !helpOpen && !mapOpen) { interact(); }
     if (k === 'h' && state === STATE.WORLD && !mapOpen) { helpOpen ? closeHelp() : openHelp(); }
@@ -3528,7 +3624,11 @@
       /* No centre-screen toast on zone change — it fires on every border crossing and
          interrupts play. The HUD zone pill always shows the current region; a brief
          pulse on that pill conveys the change without blocking the view. */
-      zonePulse();
+      const zp = document.getElementById('zoneLabel');
+      if (zp) {
+        zp.classList.remove('pulse'); void zp.offsetWidth; zp.classList.add('pulse');
+        setTimeout(function () { zp.classList.remove('pulse'); }, 1600);
+      }
       if (!SESSION.exploration.zonesVisited.includes(k)) SESSION.exploration.zonesVisited.push(k);
       persist();
     };
