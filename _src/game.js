@@ -38,7 +38,7 @@
 
     <div class="qsBox">
       <div class="qsHead">✨ EXTRA FUN (learn this after step 3 works)</div>
-      <div class="exRow">⚔ See an animal? Press <kbd>J</kbd> to fight it — you earn <b>score + gold</b>! Press <kbd>K</kbd> for a super attack.</div>
+      <div class="exRow">⚔ See an animal? <b>Click the LEFT MOUSE BUTTON</b> to attack it (tap ⚔ on mobile) — you earn <b>score + gold</b>! Press <kbd>K</kbd> for a super attack.</div>
       <div class="exRow">◉ Spend gold in the <b>Shop</b> <kbd>B</kbd> — unlock cool weapons, outfits & characters!</div>
       <div class="exRow">💎 Blue crystals teach you a <b>new science word</b>. Collect them all!</div>
     </div>
@@ -46,7 +46,7 @@
     <div class="ctrlRow">
       <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</span>
       <span><kbd>E</kbd> Interact</span>
-      <span><kbd>J</kbd> Attack</span>
+      <span><kbd>🖱L</kbd> Attack</span>
       <span><kbd>K</kbd> Skill</span>
       <span><kbd>B</kbd> Shop</span>
       <span><kbd>C</kbd> Character</span>
@@ -292,7 +292,7 @@
     try { localStorage.setItem(TUT_KEY, '1'); } catch (e) { }
     /* combat unlocks here — the world is now "live" */
     WORLD.setCombatEnabled(true);
-    setTimeout(() => toast('⚔ <b>Bonus unlocked!</b> Animals roam the fields — press <kbd>J</kbd> to fight them for gold. Shop: <kbd>B</kbd>', 5200), 2700);
+    setTimeout(() => toast('⚔ <b>Bonus unlocked!</b> Animals roam the fields — <b>click the LEFT MOUSE BUTTON</b> to fight them for gold. Skill: <kbd>K</kbd> · Shop: <kbd>B</kbd>', 5200), 2700);
   }
   function tickTutorial() {
     if (tutCelebrate && performance.now() > tutCelebrate) { tutCelebrate = 0; tutHide(); return; }
@@ -1626,7 +1626,7 @@
     { sel: '#minimap', title: '③ Use the maps', text: 'Top right is the mini-map: the white arrow is you, the green ring is your target. Press M any time for the big map — drag to pan, scroll to zoom, click a marker to make it your objective.' },
     { sel: null, title: '④ Get close, then press E', text: 'Walk up to a glowing NPC, chest or crystal. When you are close enough, a prompt appears — press E. If a quest says LOCKED, answer a few questions first or buy a Guild Pass.' },
     { sel: '#topbar', title: '⑤ Answer or draw — then repeat', text: 'Talk to an NPC and answer 3 questions, or open a chest and place electrons on the dotted slots then press Check. Each finished quest adds +1 to the counter above.' },
-    { sel: '#scorePill', title: '⑥ Fight enemies & earn rewards', text: 'Wild enemies roam the fields. Press J to attack (chain combos!), K for a skill. Every hit gives Score and Gold — watch the counters up here. Press B to spend Gold in the Shop on new weapons, outfits and characters, and C to swap character. That is the whole game!' }
+    { sel: '#scorePill', title: '⑥ Fight enemies & earn rewards', text: 'Wild enemies roam the fields. Click the LEFT MOUSE BUTTON to attack (chain combos!), K for a skill. Every hit gives Score and Gold — watch the counters up here. Press B to spend Gold in the Shop on new weapons, outfits and characters, and C to swap character. That is the whole game!' }
   ];
   let coachOn = false, coachIdx = 0;
 
@@ -2716,6 +2716,7 @@
     loadBeaconCfg();
     WORLD.init($('scene'));
     // Touch "E interact" button: goes through the same entry point as the E key
+    WORLD.setPrimaryHandler(function () { playerAttack(false); });   // left mouse = attack
     WORLD.setInteractHandler(function () {
       if (helpOpen || mapOpen || wpOpen || shopOpen || guildOpen || beaconOpen || charModalOpen) return;
       interact();

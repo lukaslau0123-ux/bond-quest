@@ -18,6 +18,7 @@ const WORLD = (function () {
   let touchMode = false;
   let stickX = 0, stickY = 0, stickId = null, stickCX = 0, stickCY = 0, stickRadius = 42;
   let touchJump = false, lookId = null, interactHandler = null;
+  let primaryHandler = null;   // left-mouse attack callback (set by game.js)
   let nodes = [];
   let zoneNow = 'A';
   let elapsed = 0;
@@ -1757,6 +1758,7 @@ const WORLD = (function () {
   }
 
   function setInteractHandler(fn) { interactHandler = fn; }
+  function setPrimaryHandler(fn) { primaryHandler = fn; }
 
   function bindInput() {
     window.addEventListener('keydown', e => {
@@ -1774,6 +1776,14 @@ const WORLD = (function () {
       if (document.pointerLockElement !== cv && cv.requestPointerLock) {
         try { cv.requestPointerLock(); } catch (e) { }
       }
+    });
+
+    /* Left mouse button = primary attack (Genshin/CS-style), active only while
+       pointer-locked so menu clicks and the initial lock click are safe. */
+    cv.addEventListener('mousedown', function (e) {
+      if (e.button !== 0) return;
+      if (document.pointerLockElement !== cv) return;
+      if (primaryHandler) primaryHandler();
     });
 
     document.addEventListener('pointerlockchange', function () {
@@ -2589,7 +2599,7 @@ const WORLD = (function () {
   return {
     init, update, drawMinimap, heightAt, zoneKeyAt, nearestNode,
     setLocked, isLocked, setNodeState, clearKeys, requestLock, relock, setBeacon, BEACON_CFG,
-    setInteractHandler, isTouchMode: function () { return touchMode; },
+    setInteractHandler, setPrimaryHandler, isTouchMode: function () { return touchMode; },
     setWaypointState, teleportTo,
     /* combat API */
     setCombatEnabled, setCombatHooks, spawnEnemies, getEnemies,
