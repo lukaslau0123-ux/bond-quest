@@ -145,6 +145,9 @@
     kills: 0,
     crystals: 0,
     spentCrystals: 0,
+    burstCharge: 0,
+    lightStep: 0,
+    trialDraws: 0,
     streak: 0,
     bestStreak: 0,
     pity: 0,
@@ -164,7 +167,7 @@
         weapon: COMBAT.weapon, character: COMBAT.character, skin: COMBAT.skin, kills: COMBAT.kills,
         crystals: COMBAT.crystals, spentCrystals: COMBAT.spentCrystals,
         streak: COMBAT.streak, bestStreak: COMBAT.bestStreak, pity: COMBAT.pity,
-        gachaPulls: recruitClaims, daily: COMBAT.daily
+        gachaPulls: recruitClaims, trialDraws: COMBAT.trialDraws, daily: COMBAT.daily
       };
       localStorage.setItem('bq_combat_v1', JSON.stringify(d));
     } catch (e) { }
@@ -186,6 +189,7 @@
       COMBAT.streak = Math.max(0, Number(d.streak) || 0);
       COMBAT.bestStreak = Math.max(COMBAT.streak, Number(d.bestStreak) || 0);
       COMBAT.pity = Math.max(0, Number(d.pity) || 0);
+      COMBAT.trialDraws = Math.max(0, Number(d.trialDraws) || 0);
       if (d.daily && typeof d.daily === 'object') COMBAT.daily = { date: String(d.daily.date || ''), answers: Array.isArray(d.daily.answers) ? d.daily.answers.slice(0, 3) : [], done: !!d.daily.done };
       if (Number.isFinite(Number(d.gachaPulls))) recruitClaims = Math.max(0, Number(d.gachaPulls));
     } catch (e) { }
@@ -207,7 +211,7 @@
     return NODES.filter(n => (n.type === 'npc' || n.type === 'chest') && done.has(n.id)).length;
   }
   function drawsEarned() { return Math.floor(challengeDoneCount() / GACHA_RULES.challengesPerDraw); }
-  function drawCharges() { return Math.max(0, drawsEarned() - recruitClaims); }
+  function drawCharges() { return Math.max(0, drawsEarned() + (COMBAT.trialDraws || 0) - recruitClaims); }
   function challengeToNextDraw() {
     const rem = challengeDoneCount() % GACHA_RULES.challengesPerDraw;
     return rem === 0 ? GACHA_RULES.challengesPerDraw : GACHA_RULES.challengesPerDraw - rem;
@@ -247,20 +251,36 @@
     loadCombat();
     saveCombat();   // ensure a baseline record exists from the first session
     WORLD.setCombatHooks({
-      onHit: function (enemy, dmg, combo, isSkill) {
+      onHit: function (enemy, dmg, combo, isSkill, attackType) {
         SFX.hit();
+        COMBAT.burstCharge = Math.min(3, (COMBAT.burstCharge || 0) + 1);
+        syncBurstMeter();
         const s = COMBAT_RULES.hitScore + (combo || 0);
         const g = COMBAT_RULES.hitGold;
         addScore(s); addGold(g);
         if (Math.random() < 0.45) { SFX.coin(); floatReward('+' + s + '  +' + g + 'g', enemy.group.position); }
       },
+      onDamage: function (enemy, dmg, kind) { showDamageNumber(enemy.group.position, dmg, kind); },
+      onReaction: function (info) { showBondReaction(info); },
       onKill: function (enemy) {
         SFX.kill();
         COMBAT.kills++;
         addScore(enemy.type.score); addGold(enemy.type.gold);
         toast('⚔ ' + enemy.type.name + ' defeated! <b>+' + enemy.type.score + ' XP</b> · <b>+' + enemy.type.gold + ' gold</b>', 1800);
         floatReward('+' + enemy.type.score + '  +' + enemy.type.gold + 'g', enemy.group.position, true);
+        if (enemy.trial && introTrial && !introTrial.firstKill) {
+          introTrial.firstKill = true;
+          let claimed = false; try { claimed = localStorage.getItem('bq_trial_first_kill_v1') === '1'; } catch (e) { }
+          if (!claimed) {
+            COMBAT.trialDraws = Math.max(0, COMBAT.trialDraws || 0) + 1;
+            addScore(15); addGold(10);
+            try { localStorage.setItem('bq_trial_first_kill_v1', '1'); } catch (e) { }
+            toast(bi('✦ First bond kill: +15 XP · +10 gold · +1 companion draw charge', '✦ 首個 bond 擊破：+15 XP · +10 gold · +1 伙伴抽卡次數'), 2600);
+            logEvent({ type: 'bond_trial_first_kill', family: enemy.trialFamily || 'unknown' });
+          }
+        }
         saveCombat();
+        updateCombatHUD();
       },
       onHurt: function (enemy) {
         if (COMBAT.hurtCd > 0) return;
@@ -357,81 +377,36 @@
 
   function startIntroTrial() {
     if (!started) return;
-    tutStep = 0;
-    tutCelebrate = 0;
-    tutHide();
-    introTrial = { started: performance.now(), collected: 0, total: 3, done: false };
-    document.body.classList.add('intro-trial');
-    setQuestCollapsed(true);
-    const hud = $('trialHud');
-    hud.classList.add('show');
-    hud.classList.remove('complete');
+    tutStep = 0; tutCelebrate = 0; tutHide();
+    introTrial = { started: performance.now(), kills: 0, collected: 0, total: 3, done: false, firstKill: false };
+    document.body.classList.add('intro-trial'); setQuestCollapsed(true);
+    const hud = $('trialHud'); hud.classList.add('show'); hud.classList.remove('complete');
     $('trialTimer').textContent = '0:00';
-    $('trialGoal').textContent = 'Run through all 3 electron motes';
+    $('trialGoal').textContent = bi('Defeat the ionic, covalent and metallic bond enemies', '擊敗 Ionic、Covalent、Metallic 三隻 bond 敵人');
     document.querySelectorAll('.trialPip').forEach(p => p.classList.remove('got'));
+    const pipNames = { ionic: isZh() ? 'Ionic 離子' : 'Ionic', covalent: isZh() ? 'Covalent 共價' : 'Covalent', metallic: isZh() ? 'Metallic 金屬' : 'Metallic' };
+    document.querySelectorAll('.trialPip').forEach(p => { const b = p.querySelector('b'); if (b) b.textContent = pipNames[p.dataset.trial] || p.dataset.trial; });
     WORLD.setBondTrialHooks({
-      onCollect: function (def, count, total) {
-        if (!introTrial) return;
-        introTrial.collected = count;
-        const pip = document.querySelector('.trialPip[data-trial="' + def.family + '"]');
-        if (pip) pip.classList.add('got');
-        $('trialGoal').textContent = count + ' / ' + total + ' · ' + def.label;
-        COMBAT.score += 2;
-        COMBAT.gold += 1;
-        saveCombat();
-        updateCombatHUD();
-        SFX.correct();
-        burstAt(innerWidth / 2, innerHeight * 0.48, def.family === 'ionic' ? '#3fd8ff' : def.family === 'covalent' ? '#5fd0a8' : '#ffc85f', 26);
-        floatScreenText('+' + 2 + ' XP · +' + 1 + ' gold', innerWidth / 2, innerHeight * 0.46);
-        toast(def.label + ' collected!', 1100);
-        logEvent({ type: 'bond_trial_mote', family: def.family, collected: count });
-        if (count >= total) completeIntroTrial();
-      },
+      onKill: function (enemy, kills, total) { if (!introTrial) return; introTrial.kills = kills; introTrial.collected = kills; const pip = document.querySelector('.trialPip[data-trial="' + (enemy.trialFamily || '') + '"]'); if (pip) pip.classList.add('got'); $('trialGoal').textContent = bi('Bonds broken: ' + kills + ' / ' + total + ' · keep the combo alive', '已擊破 bond：' + kills + ' / ' + total + ' · 保持 combo'); logEvent({ type: 'bond_trial_kill', family: enemy.trialFamily || 'unknown', kills: kills }); },
       onComplete: function (info) { completeIntroTrial(info); }
     });
-    const trial = WORLD.startBondTrial({ x: 0, z: -1.5 });
-    introTrial.total = trial ? trial.total : 3;
-    introTrialTicker = setInterval(function () {
-      if (!introTrial || introTrial.done) return;
-      $('trialTimer').textContent = formatTrialTime((performance.now() - introTrial.started) / 1000);
-    }, 250);
+    const trial = WORLD.startBondTrial({ x: 0, z: -1.5 }); introTrial.total = trial ? trial.total : 3; setCombatMode(true);
+    introTrialTicker = setInterval(function () { if (!introTrial || introTrial.done) return; $('trialTimer').textContent = formatTrialTime((performance.now() - introTrial.started) / 1000); }, 250);
   }
-
   function completeIntroTrial(info) {
     if (!introTrial || introTrial.done) return;
-    introTrial.done = true;
-    clearInterval(introTrialTicker);
-    introTrialTicker = 0;
+    introTrial.done = true; clearInterval(introTrialTicker); introTrialTicker = 0;
     const elapsed = info && info.elapsed ? info.elapsed : (performance.now() - introTrial.started) / 1000;
-    COMBAT.score += 10;
-    COMBAT.gold += 5;
-    COMBAT.bestStreak = Math.max(COMBAT.bestStreak, COMBAT.streak);
-    saveCombat();
-    updateCombatHUD();
-    const hud = $('trialHud');
-    hud.classList.add('complete');
-    $('trialTimer').textContent = formatTrialTime(elapsed);
-    $('trialGoal').textContent = 'FIRST BOND FORGED · ' + elapsed.toFixed(1) + 's · +10 XP · +5 gold';
-    showBanner('FIRST BOND', bi('Ionic cyan · Covalent green · Metallic gold · Combat unlocked', 'Ionic cyan · Covalent green · Metallic gold · Combat 已解鎖'));
-    SFX.perfect();
-    burstAt(innerWidth / 2, innerHeight * 0.46, '#ffd86a', 54);
-    setCombatMode(true);
-    hud.classList.add('celebrating');
-    setTimeout(function () { if (introTrial) hud.classList.remove('celebrating'); }, 2300);
-    logEvent({ type: 'bond_trial_complete', elapsed: +elapsed.toFixed(2) });
+    saveCombat(); updateCombatHUD();
+    const hud = $('trialHud'); hud.classList.add('complete'); $('trialTimer').textContent = formatTrialTime(elapsed);
+    $('trialGoal').textContent = bi('ALL 3 BONDS BROKEN · ' + elapsed.toFixed(1) + 's · Chem Lab unlocked', '3 個 BOND 全破 · ' + elapsed.toFixed(1) + 's · Chem Lab 已解鎖');
+    showBanner('FIRST BOND', bi('Ionic chain · Covalent bind · Metallic shockwave · Chem Lab unlocked', 'Ionic chain · Covalent bind · Metallic shockwave · Chem Lab 已解鎖'));
+    SFX.perfect(); burstAt(innerWidth / 2, innerHeight * 0.46, '#ffd86a', 54); setCombatMode(true); hud.classList.add('celebrating'); setTimeout(function () { if (introTrial) hud.classList.remove('celebrating'); }, 2300);
+    logEvent({ type: 'bond_trial_complete', elapsed: +elapsed.toFixed(2), kills: introTrial.kills });
   }
-
   function finishIntroTrial() {
-    if (!introTrial) return;
-    clearInterval(introTrialTicker);
-    introTrialTicker = 0;
-    WORLD.stopBondTrial();
-    WORLD.setBondTrialHooks(null);
-    introTrial = null;
-    document.body.classList.remove('intro-trial');
-    $('trialHud').classList.remove('show', 'complete', 'celebrating');
-    setQuestCollapsed(false);
-    openNextLab();
+    if (!introTrial || !introTrial.done) return;
+    clearInterval(introTrialTicker); introTrialTicker = 0; WORLD.stopBondTrial(); WORLD.setBondTrialHooks(null); introTrial = null; document.body.classList.remove('intro-trial'); $('trialHud').classList.remove('show', 'complete', 'celebrating'); setQuestCollapsed(false); openNextLab();
   }
 
   function tickTutorial() {
@@ -480,34 +455,49 @@
     setTimeout(() => el.remove(), 950);
   }
 
+  function showDamageNumber(worldPos, dmg, kind) {
+    const v = new THREE.Vector3(worldPos.x, worldPos.y + 1.8, worldPos.z).project(WORLD.camera);
+    const el = document.createElement('div'); const reaction = kind === 'chain' || kind === 'shockwave';
+    el.className = 'damageNumber' + ((kind === 'burst' || kind === 'heavy') ? ' crit' : reaction ? ' reaction' : '');
+    el.textContent = (reaction ? '↯ ' : '') + '-' + Math.round(dmg);
+    el.style.left = ((v.x * 0.5 + 0.5) * window.innerWidth) + 'px'; el.style.top = ((-v.y * 0.5 + 0.5) * window.innerHeight) + 'px';
+    $('floatLayer').appendChild(el); setTimeout(function () { el.remove(); }, 780);
+  }
+  function showBondReaction(info) {
+    const family = info && info.family;
+    const data = { ionic: { title: 'IONIC CHAIN', zh: '離子連鎖', sub: 'knockback · electron-transfer pulse', subZh: '擊退 · 電子轉移脈衝' }, covalent: { title: 'COVALENT BIND', zh: '共價束縛', sub: 'shared-pair lock · slow', subZh: '共用電子對鎖定 · 減速' }, metallic: { title: 'METALLIC SHOCKWAVE', zh: '金屬震波', sub: 'delocalised-electron pulse · AoE', subZh: '離域電子脈衝 · 範圍傷害' } }[family];
+    if (!data) return; const el = document.createElement('div'); el.className = 'bondReaction ' + family; el.innerHTML = (isZh() ? data.zh : data.title) + '<small>' + (isZh() ? data.subZh : data.sub) + '</small>'; document.body.appendChild(el); if (window.SFX) SFX.correct(); setTimeout(function () { el.remove(); }, 950);
+  }
+  function syncBurstMeter() {
+    const charge = Math.max(0, Math.min(3, COMBAT.burstCharge || 0)); const fill = $('skillFill'); if (fill) fill.style.width = (charge / 3 * 100) + '%'; const label = document.querySelector('.skillLabel'); if (label) label.textContent = bi('BURST (K) ' + charge + '/3', '爆發 BURST (K) ' + charge + '/3');
+  }
+
   /* Perform a player attack. combo advances within a short window. */
-  function playerAttack(isSkill) {
+  function playerAttack(mode) {
     if (!started || paused || state !== STATE.WORLD || !WORLD.combatState.enabled) return;
-    const now = performance.now() / 1000;
-    if (now - COMBAT.lastHit > COMBAT_RULES.comboWindow) COMBAT.combo = 0;
-    if (isSkill && COMBAT.skillCd > 0) { toast('Skill recharging — ' + COMBAT.skillCd.toFixed(1) + 's'); return; }
-    const w = WPN[COMBAT.weapon];
-    if (now - COMBAT.lastHit < w.rate && !isSkill) return;
-    const comboStep = isSkill ? 0 : COMBAT.combo;
-    if (!WORLD.performAttack(w, comboStep, isSkill, updateAttackCombo)) return;
-    if (isSkill) { COMBAT.skillCd = COMBAT_RULES.skillCooldown; SFX.skill(); }
-    else SFX.swing();
+    const attackType = mode === true ? 'burst' : (typeof mode === 'string' ? mode : 'light');
+    const now = performance.now() / 1000; const w = WPN[COMBAT.weapon];
+    if (now - COMBAT.lastHit > COMBAT_RULES.comboWindow) { COMBAT.combo = 0; COMBAT.lightStep = 0; }
+    if (attackType === 'burst') {
+      if ((COMBAT.burstCharge || 0) < 3) { toast(bi('Burst needs 3 hits — keep attacking to charge it.', 'Burst 需要 3 次命中 — 繼續攻擊充能。')); return; }
+      if (COMBAT.skillCd > 0) { toast('Burst recharging — ' + COMBAT.skillCd.toFixed(1) + 's'); return; }
+    }
+    const minGap = attackType === 'heavy' ? 0.82 : attackType === 'burst' ? 0.25 : w.rate;
+    if (now - COMBAT.lastHit < minGap) return;
+    const comboStep = attackType === 'light' ? (COMBAT.lightStep || 0) : 0;
+    if (!WORLD.performAttack(w, comboStep, attackType, updateAttackCombo)) return;
+    if (attackType === 'light') { COMBAT.lightStep = (comboStep + 1) % 3; SFX.swing(); }
+    else if (attackType === 'heavy') { SFX.hit(); toast(bi('Charged heavy — brace impact', '蓄力重擊 — 準備命中'), 700); }
+    else { COMBAT.burstCharge = 0; COMBAT.skillCd = 1.2; syncBurstMeter(); SFX.skill(); showBanner('BURST BOND', bi('3-hit charge released', '3 次命中充能已釋放')); }
     COMBAT.lastHit = now;
   }
-
   function updateAttackCombo(res) {
-    if (res.hit) {
-      COMBAT.combo = Math.min(COMBAT_RULES.comboCap, COMBAT.combo + 1);
-      COMBAT.comboTimer = performance.now() / 1000 + COMBAT_RULES.comboWindow;
-      const cb = $('comboBadge');
-      if (cb) { cb.textContent = COMBAT.combo + ' HIT COMBO'; cb.classList.add('show'); clearTimeout(COMBAT._comboHide); COMBAT._comboHide = setTimeout(() => cb.classList.remove('show'), 1300); }
-    }
+    if (res.hit) { COMBAT.combo = Math.min(COMBAT_RULES.comboCap, COMBAT.combo + 1); COMBAT.comboTimer = performance.now() / 1000 + COMBAT_RULES.comboWindow; const cb = $('comboBadge'); if (cb) { cb.textContent = COMBAT.combo + ' HIT COMBO'; cb.classList.add('show'); clearTimeout(COMBAT._comboHide); COMBAT._comboHide = setTimeout(() => cb.classList.remove('show'), 1300); } }
   }
-
   function tickCombat(dt) {
     if (COMBAT.skillCd > 0) COMBAT.skillCd = Math.max(0, COMBAT.skillCd - dt);
     if (COMBAT.hurtCd > 0) COMBAT.hurtCd = Math.max(0, COMBAT.hurtCd - dt);
-    const sk = $('skillFill'); if (sk) sk.style.width = (100 * (1 - COMBAT.skillCd / COMBAT_RULES.skillCooldown)) + '%';
+    syncBurstMeter();
   }
 
   /* ---------------- helpers ---------------- */
@@ -560,7 +550,7 @@
         weapon: COMBAT.weapon, character: COMBAT.character, skin: COMBAT.skin, kills: COMBAT.kills,
         crystals: COMBAT.crystals, spentCrystals: COMBAT.spentCrystals,
         streak: COMBAT.streak, bestStreak: COMBAT.bestStreak, pity: COMBAT.pity,
-        gachaPulls: recruitClaims, daily: COMBAT.daily
+        gachaPulls: recruitClaims, trialDraws: COMBAT.trialDraws, daily: COMBAT.daily
       }
     };
   }
@@ -594,6 +584,7 @@
       COMBAT.streak = Math.max(0, Number(c.streak) || 0);
       COMBAT.bestStreak = Math.max(COMBAT.streak, Number(c.bestStreak) || 0);
       COMBAT.pity = Math.max(0, Number(c.pity) || 0);
+      COMBAT.trialDraws = Math.max(0, Number(c.trialDraws) || 0);
       if (Number.isFinite(Number(c.gachaPulls))) recruitClaims = Math.max(0, Number(c.gachaPulls));
       if (c.daily && typeof c.daily === 'object') COMBAT.daily = { date: String(c.daily.date || ''), answers: Array.isArray(c.daily.answers) ? c.daily.answers.slice(0, 3) : [], done: !!c.daily.done };
       WORLD.equipWeapon(COMBAT.weapon);
@@ -792,6 +783,8 @@
     document.body.classList.toggle('lang-zh', isZh());
     const lb = $('langBtn'); if (lb) lb.textContent = isZh() ? '中文' : 'EN';
     document.querySelectorAll('[data-lang-toggle]').forEach(b => { b.textContent = isZh() ? '中文 / EN' : 'EN / 中文'; });
+    const ch = $('controlsHint'); if (ch) ch.textContent = bi('WASD move · LMB 3-hit combo · F heavy · Shift dash · K burst · E interact', 'WASD 移動 · 左鍵 3 連擊 · F 重擊 · Shift 衝刺 · K 爆發 · E 互動');
+    syncBurstMeter();
   }
   function toggleLanguage() {
     LANG = isZh() ? 'en' : 'zh';
@@ -2202,7 +2195,7 @@
     { sel: '#minimap', title: '③ Use the maps', text: 'Top right is the mini-map: the white arrow is you, the green ring is your target. Press M any time for the big map — drag to pan, scroll to zoom, click a marker to make it your objective.' },
     { sel: null, title: '④ Get close, then press E', text: 'Walk up to a glowing NPC, chest or crystal. When you are close enough, a prompt appears — press E. If a quest says LOCKED, answer a few questions first or buy a Guild Pass.' },
     { sel: '#topbar', title: '⑤ Answer or draw — then repeat', text: 'Talk to an NPC and answer 3 questions, or open a chest and place electrons on the dotted slots then press Check. Each finished quest adds +1 to the counter above.' },
-    { sel: '#scorePill', title: '⑥ Fight enemies & earn rewards', text: 'Wild enemies roam the fields. Click the LEFT MOUSE BUTTON to attack (chain combos!), K for a skill. Every hit gives Score and Gold — watch the counters up here. Press B to spend Gold in the Shop on new weapons, outfits and characters, and C to swap character. That is the whole game!' }
+    { sel: '#scorePill', title: '⑥ Fight enemies & earn rewards', text: 'Wild enemies roam the fields. Left-click for a 3-hit light combo, F for charged heavy, Shift to dash through attacks, and K for a burst once 3 hits charge it. Every hit gives XP and Gold — B opens the Shop, C swaps character.' }
   ];
   let coachOn = false, coachIdx = 0;
 
@@ -3597,7 +3590,9 @@
     /* ---- combat controls ---- */
     if (paused || state !== STATE.WORLD) return;
     if (k === 'j') { playerAttack(false); return; }
-    if (k === 'k') { playerAttack(true); return; }
+    if (k === 'f') { playerAttack('heavy'); return; }
+    if (k === 'shift') { WORLD.dashPlayer(); return; }
+    if (k === 'k') { playerAttack('burst'); return; }
     if (k === 'c') { cycleCharacter(); return; }
     if (k === 'q') { cycleWeapon(); return; }
     if (k === 'b') { openShop(); return; }
@@ -3710,7 +3705,7 @@
 
     lastFrame = performance.now();
     window.__world = WORLD;
-    window.__bq = { openDialog, openDotCross, openVocab, showSummary, interact, state: () => state, DC, COMP, TERM, NODES, attempts, openBigMap, openGacha, drawGacha, openDaily, toggleLanguage, startIntroTrial, completeIntroTrial, finishIntroTrial, combat: () => COMBAT, getState: () => ({ state, helpOpen, mapOpen, wpOpen }), wp: { list: () => [...unlockedWp], open: openWpList, tp: doTeleport, pop: showTpPop, all: WAYPOINTS, dbg: () => { const c = BM.canvas, r = c.getBoundingClientRect(), wr = $('mapWrap').getBoundingClientRect(); return { cw: c.width, ch: c.height, rw: r.width, rh: r.height, rl: r.left - wr.left, rt: r.top - wr.top, s: bmScale(), zoom: BM.zoom, cx: BM.cx, cz: BM.cz }; } } };
+    window.__bq = { openDialog, openDotCross, openVocab, showSummary, interact, state: () => state, DC, COMP, TERM, NODES, attempts, openBigMap, openGacha, drawGacha, openDaily, toggleLanguage, startIntroTrial, completeIntroTrial, finishIntroTrial, attack: playerAttack, dash: () => WORLD.dashPlayer(), combat: () => COMBAT, getState: () => ({ state, helpOpen, mapOpen, wpOpen }), wp: { list: () => [...unlockedWp], open: openWpList, tp: doTeleport, pop: showTpPop, all: WAYPOINTS, dbg: () => { const c = BM.canvas, r = c.getBoundingClientRect(), wr = $('mapWrap').getBoundingClientRect(); return { cw: c.width, ch: c.height, rw: r.width, rh: r.height, rl: r.left - wr.left, rt: r.top - wr.top, s: bmScale(), zoom: BM.zoom, cx: BM.cx, cz: BM.cz }; } } };
     requestAnimationFrame(loop);
   }
 

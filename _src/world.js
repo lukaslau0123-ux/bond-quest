@@ -47,8 +47,11 @@ const WORLD = (function () {
   let charId = 'lyra';
   let skinId = 'default';
   let attackAnim = null;              // { t, dur, style } active attack pose
-  let combatHooks = { onHit: null, onKill: null, onHurt: null };  // set by game.js
+  let combatHooks = { onHit: null, onKill: null, onHurt: null, onDamage: null, onReaction: null };  // set by game.js
   let combatEnabled = false;
+  let hitStopT = 0;
+  let dashT = 0, dashIFrames = 0, dashDX = 0, dashDZ = 0;
+  const trialTriggerRadius = 2.0;
   let fxGlow = null;
   let charMats = null;                // character material set for live re-skinning
   let skirtGrpRef = null;             // skirt group — hidden for male characters
@@ -2347,7 +2350,7 @@ const WORLD = (function () {
     ix += stickX; iy += stickY;
 
     const inLen = Math.hypot(ix, iy);
-    const speed = 16;
+    const speed = (bondTrial && !bondTrial.complete) ? 32 : 16;
     if (inLen > 0.02) {
       const mag = Math.min(1, inLen);
       dir.copy(fwd).multiplyScalar(-iy / inLen).addScaledVector(right, ix / inLen).multiplyScalar(mag);
@@ -2355,8 +2358,9 @@ const WORLD = (function () {
     const targetVel = dir.clone().multiplyScalar(speed);
     velocity.lerp(targetVel, 1 - Math.exp(-10 * dt));
 
-    const nx = player.position.x + velocity.x * dt;
-    const nz = player.position.z + velocity.z * dt;
+    let nx = player.position.x + velocity.x * dt;
+    let nz = player.position.z + velocity.z * dt;
+    if (dashT > 0) { dashT = Math.max(0, dashT - dt); nx += dashDX * 28 * dt; nz += dashDZ * 28 * dt; }
 
     let px = Math.max(-WALK_LIMIT, Math.min(WALK_LIMIT, nx));
     let pz = Math.max(-WALK_LIMIT, Math.min(WALK_LIMIT, nz));
@@ -2794,66 +2798,47 @@ const WORLD = (function () {
     const c = cfg || {};
     const cx = Number.isFinite(c.x) ? c.x : player.position.x;
     const cz = Number.isFinite(c.z) ? c.z : player.position.z - 5;
-    const defs = c.motes || [
-      { x: cx - (touchMode ? 2.35 : 3.2), z: cz - 1.0, color: 0x3fd8ff, family: 'ionic', label: 'Ionic · electron transfer' },
-      { x: cx + (touchMode ? 2.35 : 3.2), z: cz - 1.0, color: 0x5fd0a8, family: 'covalent', label: 'Covalent · shared electrons' },
-      { x: cx, z: cz - 2.8, color: 0xffc85f, family: 'metallic', label: 'Metallic · delocalised electrons' }
+    const specs = [
+      { family: 'ionic', model: 'slime', color: 0x3fd8ff, name: 'Ionic Shardling', x: cx - 3.35, z: cz - 3.8 },
+      { family: 'covalent', model: 'boar', color: 0x5fd0a8, name: 'Covalent Binder', x: cx + 3.35, z: cz - 3.8 },
+      { family: 'metallic', model: 'crab', color: 0xffc85f, name: 'Metallic Warden', x: cx, z: cz - 6.0 }
     ];
-    bondTrial = { motes: defs.map(makeTrialMote), collected: 0, total: defs.length, complete: false, started: performance.now() };
-    return { total: bondTrial.total };
-  }
-
-  function clearTrialGroup(g) {
-    if (!g) return;
-    scene.remove(g);
-    g.traverse(o => {
-      if (o.geometry) o.geometry.dispose();
-      if (o.material) {
-        if (o.material.map) o.material.map.dispose();
-        o.material.dispose();
-      }
+    enemies.forEach(en => { if (!en.trial) { en._trialHidden = true; en.group.visible = false; } });
+    const trialEnemies = specs.map(function (spec, index) {
+      const baseType = ENEMY_TYPES.find(t => t.id === spec.model) || ENEMY_TYPES[0];
+      const type = Object.assign({}, baseType, { name: spec.name, score: 5, gold: 3 });
+      const group = buildEnemy(spec.model);
+      group.position.set(spec.x, heightAt(spec.x, spec.z), spec.z);
+      group.scale.setScalar(type.scale);
+      const label = trialLabelSprite(spec.family.toUpperCase(), spec.color);
+      label.position.y = 2.0; group.add(label);
+      const ringMat = new THREE.MeshBasicMaterial({ color: spec.color, transparent: true, opacity: 0.42, side: THREE.DoubleSide, depthWrite: false, toneMapped: false });
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.86, 1.08, 32), ringMat);
+      ring.rotation.x = -Math.PI / 2; ring.position.y = 0.055; group.add(ring);
+      scene.add(group);
+      const en = { id: 'trial-' + spec.family, trial: true, trialFamily: spec.family, trialColor: spec.color, type: type, group: group, hp: 20, maxHp: 20, alive: true, respawn: 0, hitFlash: 0, bob: Math.random() * 6.28, homeX: spec.x, homeZ: spec.z, state: 'idle', atkCd: 1.1 + index * 0.35, telegraph: 0, bindTimer: 0, trialCounted: false, trialRing: ring, trialLabel: label };
+      enemies.push(en); return en;
     });
+    bondTrial = { enemies: trialEnemies, kills: 0, collected: 0, total: trialEnemies.length, complete: false, started: performance.now(), triggerRadius: trialTriggerRadius };
+    setCombatEnabled(true);
+    return { total: trialEnemies.length, triggerRadius: trialTriggerRadius };
   }
-
+  function clearTrialGroup(g) { if (!g) return; scene.remove(g); g.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } }); }
   function stopBondTrial() {
-    if (bondTrial) bondTrial.motes.forEach(m => clearTrialGroup(m.group));
+    if (bondTrial) bondTrial.enemies.forEach(en => { const i = enemies.indexOf(en); if (i >= 0) enemies.splice(i, 1); clearTrialGroup(en.group); });
+    enemies.forEach(en => { if (en._trialHidden) { en._trialHidden = false; en.group.visible = combatEnabled && en.alive; } });
     bondTrial = null;
   }
-
   function setBondTrialHooks(h) { bondTrialHooks = h || null; }
-
-  function getBondTrialState() {
-    if (!bondTrial) return { active: false, collected: 0, total: 0, complete: false };
-    return { active: true, collected: bondTrial.collected, total: bondTrial.total, complete: bondTrial.complete, elapsed: (performance.now() - bondTrial.started) / 1000 };
-  }
-
+  function getBondTrialState() { if (!bondTrial) return { active: false, kills: 0, collected: 0, total: 0, complete: false }; return { active: true, kills: bondTrial.kills, collected: bondTrial.kills, total: bondTrial.total, complete: bondTrial.complete, elapsed: (performance.now() - bondTrial.started) / 1000 }; }
   function updateBondTrial(dt, totalTime) {
-    if (!bondTrial || bondTrial.complete) return;
-    bondTrial.motes.forEach(m => {
-      if (!m.alive) return;
-      m.core.rotation.y += dt * 2.4;
-      m.core.rotation.x += dt * 1.1;
-      m.core.position.y = 1.55 + Math.sin(totalTime * 2.4 + m.phase) * 0.12;
-      m.ring.position.y = m.core.position.y;
-      m.glow.position.y = m.core.position.y;
-      m.glow.material.opacity = 0.5 + Math.sin(totalTime * 3.1 + m.phase) * 0.18;
-      m.floor.material.opacity = 0.3 + Math.sin(totalTime * 2.2 + m.phase) * 0.12;
-      m.beam.material.opacity = 0.1 + Math.sin(totalTime * 2.6 + m.phase) * 0.05;
-      const dx = player.position.x - m.group.position.x;
-      const dz = player.position.z - m.group.position.z;
-      if (dx * dx + dz * dz < 1.35 * 1.35) {
-        m.alive = false;
-        m.group.visible = false;
-        bondTrial.collected++;
-        addFxRing(m.group.position.x, m.group.position.y, m.group.position.z, m.def.color, 2.2, 0.55);
-        addFxSpark(m.group.position.x, m.group.position.y, m.group.position.z, m.def.color);
-        if (bondTrialHooks && bondTrialHooks.onCollect) bondTrialHooks.onCollect(m.def, bondTrial.collected, bondTrial.total);
-        if (bondTrial.collected >= bondTrial.total) {
-          bondTrial.complete = true;
-          if (bondTrialHooks && bondTrialHooks.onComplete) bondTrialHooks.onComplete({ elapsed: (performance.now() - bondTrial.started) / 1000 });
-        }
-      }
+    if (!bondTrial) return;
+    bondTrial.enemies.forEach((en, index) => {
+      if (!en.alive) { if (!en.trialCounted) { en.trialCounted = true; bondTrial.kills++; bondTrial.collected = bondTrial.kills; if (bondTrialHooks && bondTrialHooks.onKill) bondTrialHooks.onKill(en, bondTrial.kills, bondTrial.total); } if (en.group && en.group.visible && en.dying <= 0) en.group.visible = false; return; }
+      if (en.trialLabel) { const dx = player.position.x - en.group.position.x, dz = player.position.z - en.group.position.z; const near = dx * dx + dz * dz <= bondTrial.triggerRadius * bondTrial.triggerRadius; en.trialLabel.material.opacity = near ? 1 : 0.72; en.trialLabel.position.y = 2.0 + Math.sin(totalTime * 2.2 + index) * 0.06; }
+      if (en.trialRing) { en.trialRing.material.opacity = en.bindTimer > 0 ? 0.9 : 0.32 + Math.sin(totalTime * 2.8 + index) * 0.1; en.trialRing.scale.setScalar(en.bindTimer > 0 ? 1.12 : 1); }
     });
+    if (!bondTrial.complete && bondTrial.kills >= bondTrial.total) { bondTrial.complete = true; if (bondTrialHooks && bondTrialHooks.onComplete) bondTrialHooks.onComplete({ elapsed: (performance.now() - bondTrial.started) / 1000 }); }
   }
 
   /* ---------- transient effects ---------- */
@@ -2864,6 +2849,11 @@ const WORLD = (function () {
     mesh.position.set(x, y + 0.08, z);
     scene.add(mesh);
     fx.push({ mesh: mesh, t: 0, dur: dur || 0.4, maxR: maxR || 2, kind: 'ring' });
+  }
+  function addFxBolt(x1, y1, z1, x2, y2, z2, color) {
+    const geo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x1, y1 + 1.0, z1), new THREE.Vector3((x1 + x2) / 2, Math.max(y1, y2) + 1.45, (z1 + z2) / 2), new THREE.Vector3(x2, y2 + 1.0, z2)]);
+    const mat = new THREE.LineBasicMaterial({ color: color, transparent: true, opacity: 0.95, depthWrite: false });
+    const line = new THREE.Line(geo, mat); scene.add(line); fx.push({ mesh: line, t: 0, dur: 0.28, kind: 'bolt' });
   }
   function addBladeRibbon(attack) {
     if (!weaponGroup) return;
@@ -2946,7 +2936,7 @@ const WORLD = (function () {
         f.mesh.position.z += (f.vz || 0) * dt;
         f.mesh.material.opacity = 0.52 * (1 - k);
         f.mesh.scale.setScalar((0.28 + k * 0.24) * (1 - k * 0.2));
-      }
+      } else if (f.kind === 'bolt') { f.mesh.material.opacity = 0.95 * (1 - k); }
     }
   }
 
@@ -2956,50 +2946,64 @@ const WORLD = (function () {
     shakeT = Math.max(shakeT, dur || 0.25);
   }
 
-  /* ---------- trigger an attack pose ---------- */
-  function performAttack(weapon, comboStep, isSkill, onImpact) {
+  /* ---------- dash with i-frames ---------- */
+  function dashPlayer() {
+    if (!combatEnabled || dashT > 0) return false;
+    let dx = velocity.x, dz = velocity.z; const len = Math.hypot(dx, dz);
+    if (len > 0.1) { dx /= len; dz /= len; } else { dx = Math.sin(player.rotation.y); dz = Math.cos(player.rotation.y); }
+    dashDX = dx; dashDZ = dz; dashT = 0.24; dashIFrames = 0.5;
+    addFxDust(player.position.x, player.position.y, player.position.z);
+    addFxRing(player.position.x, player.position.y, player.position.z, 0x9ff5d0, 1.6, 0.28);
+    if (window.SFX && SFX.jump) SFX.jump(); return true;
+  }
+  function performAttack(weapon, comboStep, attackMode, onImpact) {
     if (!combatEnabled || attackAnim) return false;
-    const style = isSkill ? 'cast' : weapon.anim;
-    const duration = isSkill ? 0.47 : weapon.rate;
-    attackAnim = { t: 0, duration, style, weapon, comboStep, isSkill, onImpact, impacted: false, blade: null };
+    const type = attackMode === true ? 'burst' : (typeof attackMode === 'string' ? attackMode : 'light');
+    const style = type === 'burst' ? 'cast' : type === 'heavy' ? 'heavy' : weapon.anim;
+    const duration = type === 'burst' ? 0.55 : type === 'heavy' ? 0.82 : weapon.rate;
+    attackAnim = { t: 0, duration, style, weapon, comboStep, attackType: type, onImpact, impacted: false, blade: null };
     return true;
   }
-
-  /* ---------- perform a hit: damage enemies in front, fire hooks ---------- */
   function resolveAttack(attack) {
-    const { weapon: w, comboStep, isSkill } = attack;
+    const w = attack.weapon; const comboStep = attack.comboStep || 0;
+    const attackType = attack.attackType || (attack.isSkill ? 'burst' : 'light');
+    const isBurst = attackType === 'burst', isHeavy = attackType === 'heavy', isFinisher = attackType === 'light' && comboStep === 2;
     const C = (typeof CHARACTERS !== 'undefined') && CHARACTERS.find(c => c.id === charId);
-    const reach = w.reach * (isSkill ? 1.55 : 1);
+    const reach = w.reach * (isBurst ? 2.0 : isHeavy ? 1.34 : isFinisher ? 1.12 : 1);
     const comboMul = 1 + Math.min(COMBAT_RULES.comboCap, comboStep || 0) * COMBAT_RULES.comboBonus;
-    const dmg = Math.round((w.damage + (C ? C.bonus * 20 : 0)) * comboMul * (isSkill ? 2.2 : 1));
+    const dmg = Math.round((w.damage + (C ? C.bonus * 20 : 0)) * comboMul * (isBurst ? 3.3 : isHeavy ? 1.45 : isFinisher ? 1.25 : 1));
     const px = player.position.x, py = player.position.y, pz = player.position.z;
-    /* Player model faces local +z; world forward = (sin rotY, cos rotY). */
     const fwdX = Math.sin(player.rotation.y), fwdZ = Math.cos(player.rotation.y);
-    if (isSkill) addFxRing(px, py, pz, w.glow, reach / 0.34 - 1, 0.45);
-
-    let hitAny = false, killed = 0;
-    enemies.forEach(en => {
+    if (isBurst || isHeavy || isFinisher) addFxRing(px, py, pz, w.glow, isBurst ? 5.8 : isHeavy ? 3.1 : 1.8, isBurst ? 0.52 : 0.34);
+    let hitAny = false, killed = 0; const reactionSources = {}, reactionSeen = {};
+    function applyDamage(en, amount, kind, knockX, knockZ) {
+      if (!en || !en.alive || amount <= 0) return false;
+      en.hp -= amount; en.hitFlash = Math.max(en.hitFlash || 0, 0.22);
+      if (knockX || knockZ) { en.group.position.x += knockX; en.group.position.z += knockZ; }
+      addFxSpark(en.group.position.x, en.group.position.y, en.group.position.z, en.trialColor || w.glow);
+      if (combatHooks.onDamage) combatHooks.onDamage(en, amount, kind);
+      if (en.hp <= 0) { en.alive = false; en.respawn = COMBAT_RULES.respawnDelay; en.dying = 0.45; addFxRing(en.group.position.x, en.group.position.y, en.group.position.z, en.trialColor || 0xffc85f, 2.4, 0.55); killed++; if (combatHooks.onKill) combatHooks.onKill(en); }
+      return true;
+    }
+    enemies.slice().forEach(en => {
       if (!en.alive) return;
-      const dx = en.group.position.x - px, dz = en.group.position.z - pz;
-      const dist = Math.hypot(dx, dz);
+      const dx = en.group.position.x - px, dz = en.group.position.z - pz; const dist = Math.hypot(dx, dz);
       if (dist > reach) return;
       const dot = (dx * fwdX + dz * fwdZ) / (dist || 1);
-      if (!isSkill && dist > 0.65 && dot < (attack.style === 'shoot' ? 0.55 : 0.06)) return;
-      hitAny = true;
-      en.hp -= dmg;
-      en.hitFlash = 0.22;
-      en.group.position.x += fwdX * 0.35; en.group.position.z += fwdZ * 0.35;
-      addFxSpark(en.group.position.x, en.group.position.y, en.group.position.z, w.glow);
-      if (combatHooks.onHit) combatHooks.onHit(en, dmg, comboStep, isSkill);
-      if (en.hp <= 0) {
-        en.alive = false; en.respawn = COMBAT_RULES.respawnDelay;
-        en.dying = 0.45;                       // play a topple-and-shrink death animation
-        addFxRing(en.group.position.x, en.group.position.y, en.group.position.z, 0xffc85f, 2.4, 0.55);
-        killed++;
-        if (combatHooks.onKill) combatHooks.onKill(en);
-      }
+      if (!isBurst && dist > 0.65 && dot < (attack.style === 'shoot' ? 0.55 : 0.06)) return;
+      hitAny = true; const family = en.trialFamily;
+      const knock = family === 'ionic' ? 1.45 : family === 'metallic' ? 0.62 : 0.2;
+      applyDamage(en, dmg, attackType, fwdX * (knock + (isHeavy ? 0.8 : 0)), fwdZ * (knock + (isHeavy ? 0.8 : 0)));
+      if (combatHooks.onHit) combatHooks.onHit(en, dmg, comboStep, isBurst, attackType);
+      if (!family) return;
+      reactionSeen[family] = true; reactionSources[family] = en;
+      if (family === 'ionic') {
+        enemies.forEach(other => { if (other === en || !other.alive) return; const cdx = other.group.position.x - en.group.position.x, cdz = other.group.position.z - en.group.position.z; if (cdx * cdx + cdz * cdz > 7.5 * 7.5) return; addFxBolt(en.group.position.x, en.group.position.y, en.group.position.z, other.group.position.x, other.group.position.y, other.group.position.z, 0x6fe7ff); applyDamage(other, Math.max(1, Math.round(dmg * 0.45)), 'chain', cdx * 0.18, cdz * 0.18); });
+      } else if (family === 'covalent') { en.bindTimer = 2.4; addFxRing(en.group.position.x, en.group.position.y, en.group.position.z, 0x5fd0a8, 1.5, 0.55); }
+      else if (family === 'metallic') { addFxRing(en.group.position.x, en.group.position.y, en.group.position.z, 0xffc85f, 4.4, 0.55); enemies.forEach(other => { if (other === en || !other.alive) return; const adx = other.group.position.x - en.group.position.x, adz = other.group.position.z - en.group.position.z; if (adx * adx + adz * adz > 4.2 * 4.2) return; applyDamage(other, Math.max(1, Math.round(dmg * 0.35)), 'shockwave', adx * 0.12, adz * 0.12); }); }
     });
-    if (hitAny) triggerShake(isSkill ? 0.13 : 0.07, 0.14);
+    Object.keys(reactionSeen).forEach(function (family) { if (combatHooks.onReaction) combatHooks.onReaction({ family: family, enemy: reactionSources[family] }); });
+    if (hitAny) { hitStopT = Math.max(hitStopT, isBurst ? 0.09 : isHeavy ? 0.07 : 0.045); triggerShake(isBurst ? 0.24 : isHeavy ? 0.18 : isFinisher ? 0.11 : 0.07, isBurst ? 0.24 : 0.14); }
     if (attack.onImpact) attack.onImpact({ hit: hitAny, killed, damage: dmg });
   }
 
@@ -3048,79 +3052,40 @@ const WORLD = (function () {
 
   /* ---------- enemy AI, animation, respawn ---------- */
   function updateCombat(dt) {
+    if (dashIFrames > 0) dashIFrames = Math.max(0, dashIFrames - dt);
     if (!combatEnabled || locked) return;
     updateFx(dt);
     const px = player.position.x, pz = player.position.z;
+    function ensureTelegraphRing(g) { if (g.userData.telegraphRing) return g.userData.telegraphRing; const mat = new THREE.MeshBasicMaterial({ color: 0xff5b45, transparent: true, opacity: 0.75, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }); const ring = new THREE.Mesh(new THREE.RingGeometry(0.92, 1.12, 32), mat); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.07; ring.visible = false; g.add(ring); g.userData.telegraphRing = ring; return ring; }
     enemies.forEach(en => {
       if (!en.alive) {
-        /* dying: topple + shrink before hiding */
-        if (en.dying > 0) {
-          en.dying -= dt;
-          const k = Math.max(0, en.dying / 0.45);
-          en.group.rotation.x = -(1 - k) * 1.45;
-          en.group.scale.setScalar(en.type.scale * Math.max(0.05, k));
-          if (en.dying <= 0) { en.group.visible = false; en.group.rotation.x = 0; }
-        }
-        en.respawn -= dt;
-        if (en.respawn <= 0) {
-          en.alive = true; en.hp = en.maxHp; en.group.visible = true;
-          en.group.rotation.x = 0; en.group.scale.setScalar(en.type.scale);
-          en.group.position.set(en.homeX, heightAt(en.homeX, en.homeZ), en.homeZ);
-        }
+        if (en.dying > 0) { en.dying -= dt; const k = Math.max(0, en.dying / 0.45); en.group.rotation.x = -(1 - k) * 1.45; en.group.scale.setScalar(en.type.scale * Math.max(0.05, k)); if (en.dying <= 0) { en.group.visible = false; en.group.rotation.x = 0; } }
+        if (en.trial) return;
+        en.respawn -= dt; if (en.respawn <= 0) { en.alive = true; en.hp = en.maxHp; en.group.visible = true; en.group.rotation.x = 0; en.group.scale.setScalar(en.type.scale); en.group.position.set(en.homeX, heightAt(en.homeX, en.homeZ), en.homeZ); }
         return;
       }
-      const g = en.group;
-      const dx = px - g.position.x, dz = pz - g.position.z;
-      const dist = Math.hypot(dx, dz);
-      if (townDistance(px, pz) === 0) {
-        en.state = 'idle';
-      } else if (dist < COMBAT_RULES.aggroRange && dist > COMBAT_RULES.attackRange) {
-        const sp = en.type.speed * dt;
-        const chaseX = g.position.x + (dx / dist) * sp, chaseZ = g.position.z + (dz / dist) * sp;
-        if (townDistance(chaseX, chaseZ) > 1) g.position.set(chaseX, g.position.y, chaseZ);
-        g.rotation.y = Math.atan2(-dx, -dz);
-        en.state = 'chase';
-      } else if (dist <= COMBAT_RULES.attackRange) {
+      const g = en.group; if (en.bindTimer > 0) en.bindTimer = Math.max(0, en.bindTimer - dt);
+      const dx = px - g.position.x, dz = pz - g.position.z; const dist = Math.hypot(dx, dz);
+      if (townDistance(px, pz) === 0 && !en.trial) en.state = 'idle';
+      else if (dist < COMBAT_RULES.aggroRange && dist > COMBAT_RULES.attackRange) { const slow = en.bindTimer > 0 ? 0.32 : 1; const sp = en.type.speed * slow * dt; const chaseX = g.position.x + (dx / dist) * sp, chaseZ = g.position.z + (dz / dist) * sp; if (en.trial || townDistance(chaseX, chaseZ) > 1) g.position.set(chaseX, g.position.y, chaseZ); g.rotation.y = Math.atan2(-dx, -dz); en.state = 'chase'; }
+      else if (dist <= COMBAT_RULES.attackRange) {
         en.state = 'attack';
-        en.atkCd -= dt;
-        if (en.atkCd <= 0) {
-          en.atkCd = 1.4;
-          if (combatHooks.onHurt) combatHooks.onHurt(en);
-        }
-      } else {
-        en.state = 'idle';
-      }
+        if (en.telegraph > 0) { en.telegraph = Math.max(0, en.telegraph - dt); const tr = ensureTelegraphRing(g); tr.visible = true; tr.material.opacity = 0.45 + Math.abs(Math.sin(elapsed * 28)) * 0.45; tr.scale.setScalar(1 + (1 - en.telegraph / 0.55) * 0.55); if (en.telegraph <= 0) { tr.visible = false; en.atkCd = 1.45; if (dist <= COMBAT_RULES.attackRange + 0.6 && dashIFrames <= 0 && combatHooks.onHurt) combatHooks.onHurt(en); } }
+        else { en.atkCd -= dt; if (en.atkCd <= 0) { en.atkCd = 1.7; en.telegraph = 0.55; ensureTelegraphRing(g).visible = true; addFxRing(g.position.x, g.position.y, g.position.z, 0xff5b45, 1.4, 0.32); } }
+      } else { en.state = 'idle'; const tr = g.userData.telegraphRing; if (tr) tr.visible = false; }
       g.position.y = heightAt(g.position.x, g.position.z) + Math.abs(Math.sin(elapsed * 3 + en.bob)) * 0.07;
-      /* limb / body animation */
       const parts = g.userData.parts;
-      if (parts) {
-        const moveK = en.state === 'chase' ? 1 : en.state === 'attack' ? 0.55 : 0.18;
-        if (parts.legs && parts.legs.length) {
-          parts.legs.forEach(function (lg, i) {
-            lg.rotation.x = Math.sin(elapsed * 9 + i * Math.PI * 0.72) * 0.55 * moveK;
-            lg.rotation.z = Math.cos(elapsed * 9 + i * 1.7) * 0.14 * moveK;
-          });
-        }
-        if (parts.body && parts.body.userData.bs) {
-          const bs = parts.body.userData.bs;
-          const sq = Math.sin(elapsed * 4.5 + en.bob);
-          parts.body.scale.set(bs[0] * (1 - sq * 0.05), bs[1] * (1 + sq * 0.12), bs[2] * (1 - sq * 0.05));
-        }
-      }
-      if (en.hitFlash > 0) {
-        en.hitFlash -= dt;
-        g.scale.setScalar(en.type.scale * (1 + en.hitFlash * 0.8));
-      } else {
-        g.scale.setScalar(en.type.scale);
-      }
+      if (parts) { const moveK = en.state === 'chase' ? (en.bindTimer > 0 ? 0.28 : 1) : en.state === 'attack' ? 0.55 : 0.18; if (parts.legs && parts.legs.length) parts.legs.forEach(function (lg, i) { lg.rotation.x = Math.sin(elapsed * 9 + i * Math.PI * 0.72) * 0.55 * moveK; lg.rotation.z = Math.cos(elapsed * 9 + i * 1.7) * 0.14 * moveK; }); if (parts.body && parts.body.userData.bs) { const bs = parts.body.userData.bs; const sq = Math.sin(elapsed * 4.5 + en.bob); parts.body.scale.set(bs[0] * (1 - sq * 0.05), bs[1] * (1 + sq * 0.12), bs[2] * (1 - sq * 0.05)); } }
+      if (en.hitFlash > 0) { en.hitFlash -= dt; g.scale.setScalar(en.type.scale * (1 + en.hitFlash * 0.8)); } else g.scale.setScalar(en.type.scale * (en.telegraph > 0 ? 1.04 : 1));
     });
     applyAttackPose(dt);
   }
 
+
   /* ---------- combat public helpers ---------- */
   function setCombatEnabled(enabled) {
     combatEnabled = enabled;
-    enemies.forEach(enemy => { enemy.group.visible = enabled && enemy.alive; });
+    enemies.forEach(enemy => { enemy.group.visible = enabled && enemy.alive && !enemy._trialHidden; });
     if (enabled && enemies.length === 0) spawnEnemies();
     if (!enabled) {
       attackAnim = null;
@@ -3129,7 +3094,7 @@ const WORLD = (function () {
     }
   }
   function setCombatHooks(h) { combatHooks = h || {}; }
-  function getEnemies() { return enemies.map(e => ({ id: e.id, type: e.type.id, hp: e.hp, maxHp: e.maxHp, alive: e.alive, x: e.group.position.x, z: e.group.position.z })); }
+  function getEnemies() { return enemies.map(e => ({ id: e.id, type: e.type.id, family: e.trialFamily || null, hp: e.hp, maxHp: e.maxHp, alive: e.alive, bind: e.bindTimer || 0, telegraph: e.telegraph || 0, x: e.group.position.x, z: e.group.position.z })); }
 
   /* ---------- minimap ---------- */
   /* 以玩家為中心的局部地圖：解決「全世界壓縮太多、要手動放大先睇到」嘅問題。
@@ -3262,6 +3227,7 @@ const WORLD = (function () {
   let lastT = 0;
   function update(dt, totalTime) {
     elapsed = totalTime;
+    if (hitStopT > 0) { hitStopT = Math.max(0, hitStopT - dt); dt *= 0.08; }
     if (windmillRotor) windmillRotor.rotation.z = totalTime * 0.32;
     if (scene.userData.grassWindTime) scene.userData.grassWindTime.value = totalTime;
     if (!locked) movePlayer(dt);
@@ -3294,7 +3260,7 @@ const WORLD = (function () {
     setWaypointState, teleportTo,
     /* combat API */
     setCombatEnabled, setCombatHooks, spawnEnemies, getEnemies,
-    performAttack, equipWeapon, applyCharacterLook,
+    performAttack, dashPlayer, equipWeapon, applyCharacterLook,
     startBondTrial, stopBondTrial, setBondTrialHooks, getBondTrialState,
     get combatState() { return { weapon: weaponId, character: charId, skin: skinId, enabled: combatEnabled }; },
     get scene() { return scene; },
