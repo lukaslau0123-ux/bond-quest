@@ -644,6 +644,17 @@ const WORLD = (function () {
         }));
         sign.position.set(x, y + 3.34, front + 0.34);
         town.add(sign);
+        /* Phase 2: two cloth banners beside the academy entrance (sway via Ambient). */
+        [-1, 1].forEach(side => {
+          const cloth = new THREE.Mesh(
+            new THREE.PlaneGeometry(0.85, 2.4, 4, 6),
+            toonMat(side < 0 ? 0x3fd8ff : 0xffc85f, null, { double: true })
+          );
+          cloth.position.set(x + side * 3.4, y + 3.0, front + 0.30);
+          cloth.userData.banner = side;
+          cloth.castShadow = false;
+          town.add(cloth);
+        });
       }
       block(x, z, w + 0.10, d + 0.12);
     }
@@ -2105,6 +2116,8 @@ const WORLD = (function () {
     buildWaypoints();
     buildPlayer();
     buildBeacon();
+    /* Phase 2 ambient motion — after all meshes exist so cloth/sky can be found. */
+    if (window.Ambient) window.Ambient.init(scene);
     bindInput();
     window.addEventListener('resize', onResize);
     updateCamera(1);
@@ -2662,6 +2675,31 @@ const WORLD = (function () {
 
   /* ---------- enemy model factory (original procedural animals) ---------- */
   function buildEnemy(typeId) {
+    /* Phase 2: upgraded procedural models. Selected versions:
+       ionic→v2 prism wraith, covalent→v2 orbital twin, metallic→v3 molten anvil.
+       Elara (player) is intentionally untouched. We keep the legacy parts.legs /
+       parts.body contract so the existing AI, hit-flash and death animation work. */
+    const upgradeMap = { slime: 'ionic', boar: 'covalent', crab: 'metallic' };
+    if (typeof window !== 'undefined' && window.PreviewVariants && upgradeMap[typeId]) {
+      const family = upgradeMap[typeId];
+      const version = ({ ionic: 2, covalent: 2, metallic: 3 })[family];
+      const model = window.PreviewVariants.build(family, version);
+      if (model) {
+        const legs = [], parts = { legs: legs };
+        model.traverse(function (o) {
+          if (!o.isMesh) return;
+          o.castShadow = true; o.receiveShadow = true;
+          if (o.userData.orbit !== undefined || o.userData.shell !== undefined || o.userData.float !== undefined) legs.push(o);
+          if (!parts.body && o.geometry && o.geometry.type === 'SphereGeometry') parts.body = o;
+          if (!parts.body) parts.body = o;
+        });
+        parts.body = parts.body || model;
+        model.userData.parts = parts;
+        const E0 = (typeof ENEMY_TYPES !== 'undefined') && ENEMY_TYPES.find(e => e.id === typeId);
+        model.scale.setScalar((E0 && E0.scale) || 1);
+        return model;
+      }
+    }
     const E = (typeof ENEMY_TYPES !== 'undefined') && ENEMY_TYPES.find(e => e.id === typeId);
     const e = E || { color: 0x9b6b4a, scale: 1 };
     const bodyMat = plMat(e.color, plRamps().G4);
@@ -2755,8 +2793,8 @@ const WORLD = (function () {
     tex.needsUpdate = true;
     const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false });
     const sp = new THREE.Sprite(mat);
-    sp.position.y = 2.62;
-    sp.scale.set(2.55, 0.6, 1);
+    sp.position.y = 2.95;
+    sp.scale.set(1.65, 0.39, 1);   /* Phase 2: smaller label so it does not cover the upgraded model */
     return sp;
   }
 
@@ -2835,7 +2873,7 @@ const WORLD = (function () {
     if (!bondTrial) return;
     bondTrial.enemies.forEach((en, index) => {
       if (!en.alive) { if (!en.trialCounted) { en.trialCounted = true; bondTrial.kills++; bondTrial.collected = bondTrial.kills; if (bondTrialHooks && bondTrialHooks.onKill) bondTrialHooks.onKill(en, bondTrial.kills, bondTrial.total); } if (en.group && en.group.visible && en.dying <= 0) en.group.visible = false; return; }
-      if (en.trialLabel) { const dx = player.position.x - en.group.position.x, dz = player.position.z - en.group.position.z; const near = dx * dx + dz * dz <= bondTrial.triggerRadius * bondTrial.triggerRadius; en.trialLabel.material.opacity = near ? 1 : 0.72; en.trialLabel.position.y = 2.0 + Math.sin(totalTime * 2.2 + index) * 0.06; }
+      if (en.trialLabel) { const dx = player.position.x - en.group.position.x, dz = player.position.z - en.group.position.z; const near = dx * dx + dz * dz <= bondTrial.triggerRadius * bondTrial.triggerRadius; en.trialLabel.material.opacity = near ? 1 : 0.72; en.trialLabel.position.y = 2.95 + Math.sin(totalTime * 2.2 + index) * 0.06; }
       if (en.trialRing) { en.trialRing.material.opacity = en.bindTimer > 0 ? 0.9 : 0.32 + Math.sin(totalTime * 2.8 + index) * 0.1; en.trialRing.scale.setScalar(en.bindTimer > 0 ? 1.12 : 1); }
     });
     if (!bondTrial.complete && bondTrial.kills >= bondTrial.total) { bondTrial.complete = true; if (bondTrialHooks && bondTrialHooks.onComplete) bondTrialHooks.onComplete({ elapsed: (performance.now() - bondTrial.started) / 1000 }); }
@@ -3250,6 +3288,7 @@ const WORLD = (function () {
     }
     updateZoneAndFog(dt);
     animateMarkers(totalTime);
+    if (window.Ambient) window.Ambient.update(dt, totalTime);
     renderer.render(scene, camera);
   }
 
