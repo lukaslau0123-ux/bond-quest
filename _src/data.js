@@ -302,7 +302,7 @@ const WEAPONS = [
 /* Playable characters. role affects stats; scoreReq gates shop unlock;
    skin variants are cosmetic outfits purchasable with gold. */
 const CHARACTERS = [
-  { id:'lyra',   name:'Lyra',       gender:'female', role:'Sword Duelist', color:0x8fd8c0, hair:0x6b4a3a, speed:1.00, bonus:0,    scoreReq:0,   desc:'Agile blade user. Balanced speed and power.' },
+  { id:'lyra',   name:'Elara',      gender:'female', role:'Adventurer',    color:0x343a4d, hair:0x5a3828, speed:1.00, bonus:0,    scoreReq:0,   desc:'A seasoned road-worn adventurer with balanced speed and power.' },
   { id:'kael',   name:'Kael',       gender:'male',   role:'Vanguard',      color:0x6f9fd8, hair:0x2e2a2c, speed:0.92, bonus:0.15, scoreReq:0,   desc:'Burly shield-bearer. Slower, but hits harder.' },
   { id:'mira',   name:'Mira',       gender:'female', role:'Arcane Caster', color:0xb9a7f0, hair:0x8a5a9a, speed:1.05, bonus:-0.05,scoreReq:60,  desc:'Ranged orbital mage. Quick and nimble.' },
   { id:'dorian', name:'Dorian',     gender:'male',   role:'Ranger',        color:0x8fd8b0, hair:0x7a5230, speed:1.08, bonus:0.05, scoreReq:140, desc:'Keen-eyed archer. Fast footwork.' },
