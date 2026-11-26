@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bond Quest — Model Preview (Turntable)</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:100%;height:100%;overflow:hidden;background:#101820;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#eafaf4}
+  #stage{position:absolute;inset:0}
+  #top{position:absolute;top:0;left:0;right:0;padding:16px 20px;display:flex;align-items:center;gap:12px;
+    background:linear-gradient(180deg,rgba(8,14,18,.92),rgba(8,14,18,0));pointer-events:none;z-index:4}
+  #top h1{font-size:15px;font-weight:700;letter-spacing:.6px}
+  #top .tag{font-size:11px;color:#8fd8c0;border:1px solid rgba(143,216,192,.4);border-radius:999px;padding:3px 9px}
+  #bar{position:absolute;left:0;right:0;bottom:0;padding:14px 20px 18px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap;z-index:4}
+  #bar button{background:rgba(16,30,34,.86);color:#cfe9df;border:1px solid rgba(143,216,192,.35);border-radius:10px;
+    padding:9px 15px;font-size:12px;font-weight:600;cursor:pointer;transition:.18s}
+  #bar button:hover{border-color:#8fd8c0;color:#fff}
+  #bar button.on{background:#8fd8c0;color:#0d1418;border-color:#8fd8c0}
+  #label{position:absolute;left:50%;top:64px;transform:translateX(-50%);z-index:4;text-align:center;pointer-events:none}
+  #label b{display:block;font-size:22px;letter-spacing:1px;color:#f2fff9;text-shadow:0 2px 12px #000}
+  #label span{font-size:11px;letter-spacing:2px;color:#9fd8c4;text-transform:uppercase}
+  #hint{position:absolute;right:18px;top:18px;z-index:4;font-size:11px;color:#7fa89a;text-align:right;line-height:1.7;pointer-events:none}
+  #err{position:absolute;inset:0;display:none;place-items:center;z-index:9;background:#101820;color:#ff9a9a;font-size:14px;padding:30px;text-align:center}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="top">
+  <h1>BOND QUEST · MODEL TURNTABLE</h1>
+  <span class="tag">PHASE 1 · MODELS ONLY</span>
+</div>
+<div id="hint">drag = orbit<br>wheel = zoom<br>space = pause spin</div>
+<div id="label"><b>—</b><span>—</span></div>
+<div id="bar"></div>
+<div id="err"></div>
+
+<script src="_vendor/three.min.js"></script>
+<script src="_src/models-preview.js"></script>
+<script>
+(function(){
+  var errBox=document.getElementById('err');
+  function fail(msg){errBox.style.display='grid';errBox.textContent='Preview error: '+msg;}
+  if(!window.THREE){fail('THREE.js not loaded');return;}
+  if(!window.PreviewModels){fail('PreviewModels not loaded');return;}
+
+  var stage=document.getElementById('stage');
+  var renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.shadowMap.enabled=true;
+  renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  renderer.outputEncoding=THREE.sRGBEncoding;
+  stage.appendChild(renderer.domElement);
+
+  var scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x101820);
+  scene.fog=new THREE.Fog(0x101820,22,48);
+
+  var cam=new THREE.PerspectiveCamera(38,innerWidth/innerHeight,.1,200);
+  var yaw=0.55,pitch=0.16,dist=8.4,spin=true;
+
+  /* neutral studio lighting */
+  scene.add(new THREE.HemisphereLight(0xffffff,0x405060,0.55));
+  var key=new THREE.DirectionalLight(0xfff4e6,0.85);
+  key.position.set(5,9,7);key.castShadow=true;
+  key.shadow.mapSize.set(1024,1024);
+  key.shadow.camera.left=-8;key.shadow.camera.right=8;key.shadow.camera.top=8;key.shadow.camera.bottom=-8;
+  scene.add(key);
+  var fill=new THREE.DirectionalLight(0xbfe0ff,.30);fill.position.set(-6,4,-5);scene.add(fill);
+
+  /* neutral ground + grid */
+  var floor=new THREE.Mesh(new THREE.CylinderGeometry(4.4,4.4,.18,64),
+    new THREE.MeshStandardMaterial({color:0x1b2830,roughness:.9,metalness:.05}));
+  floor.position.y=-.09;floor.receiveShadow=true;scene.add(floor);
+  var grid=new THREE.GridHelper(12,24,0x2f4852,0x243640);grid.position.y=.005;scene.add(grid);
+
+  var pivot=new THREE.Group();scene.add(pivot);
+  var current=null,currentName='';
+
+  function setModel(name){
+    if(current){pivot.remove(current);current.traverse(function(o){
+      if(o.geometry)o.geometry.dispose();
+      if(o.material){var ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(function(m){if(m.map&&m.map.isCanvasTexture)m.map.dispose();m.dispose();});}
+    });}
+    current=window.PreviewModels.build(name);currentName=name;
+    if(!current){fail('Unknown model: '+name);return;}
+    pivot.add(current);
+    var box=new THREE.Box3().setFromObject(current),size=box.getSize(new THREE.Vector3());
+    var h=size.y||3;
+    /* re-centre on floor and frame camera */
+    current.position.y=-box.min.y;
+    dist=Math.max(4.2,h*2.5);
+    document.querySelector('#label b').textContent=current.userData.label||name;
+    document.querySelector('#label span').textContent='model · '+name+(current.userData.family?(' · '+current.userData.family+' bond'):'');
+    [].forEach.call(document.querySelectorAll('#bar button'),function(b){b.classList.toggle('on',b.dataset.name===name);});
+  }
+
+  /* model buttons */
+  var bar=document.getElementById('bar');
+  window.PreviewModels.names.forEach(function(n){
+    var b=document.createElement('button');b.dataset.name=n;
+    b.textContent=n.charAt(0).toUpperCase()+n.slice(1);
+    b.addEventListener('click',function(){setModel(n);});
+    bar.appendChild(b);
+  });
+
+  /* orbit drag */
+  var dragging=false,lx=0,ly=0;
+  var cv=renderer.domElement;
+  cv.addEventListener('pointerdown',function(e){dragging=true;lx=e.clientX;ly=e.clientY;cv.setPointerCapture(e.pointerId);});
+  cv.addEventListener('pointermove',function(e){
+    if(!dragging)return;
+    yaw-=(e.clientX-lx)*0.008;pitch+=(e.clientY-ly)*0.006;
+    pitch=Math.max(-0.5,Math.min(1.1,pitch));
+    lx=e.clientX;ly=e.clientY;
+  });
+  cv.addEventListener('pointerup',function(e){dragging=false;try{cv.releasePointerCapture(e.pointerId);}catch(err){}});
+  cv.addEventListener('wheel',function(e){dist*=e.deltaY>0?1.08:.92;dist=Math.max(3,Math.min(30,dist));e.preventDefault();},{passive:false});
+  window.addEventListener('keydown',function(e){if(e.code==='Space'){spin=!spin;e.preventDefault();}});
+  window.addEventListener('resize',function(){
+    cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);
+  });
+
+  /* scriptable hooks for screenshot automation */
+  window.__preview={
+    setModel:setModel,
+    setAngle:function(rad){yaw=rad;renderOnce();},
+    setPitch:function(rad){pitch=rad;renderOnce();},
+    getModel:function(){return currentName;},
+    models:window.PreviewModels.names.slice()
+  };
+
+  function placeCamera(){
+    var cy=1.5;
+    cam.position.set(Math.sin(yaw)*Math.cos(pitch)*dist,cy+Math.sin(pitch)*dist,Math.cos(yaw)*Math.cos(pitch)*dist);
+    cam.lookAt(0,cy,0);
+  }
+  function renderOnce(){placeCamera();renderer.render(scene,cam);}
+  function loop(){
+    if(spin&&!dragging)yaw+=0.0035;
+    renderOnce();requestAnimationFrame(loop);
+  }
+  setModel('elara');renderOnce();loop();
+})();
+</script>
+</body>
+</html>
