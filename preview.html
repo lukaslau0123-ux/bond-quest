@@ -37,12 +37,14 @@
 
 <script src="_vendor/three.min.js"></script>
 <script src="_src/models-preview.js"></script>
+<script src="_src/models-variants.js"></script>
 <script>
 (function(){
   var errBox=document.getElementById('err');
   function fail(msg){errBox.style.display='grid';errBox.textContent='Preview error: '+msg;}
   if(!window.THREE){fail('THREE.js not loaded');return;}
   if(!window.PreviewModels){fail('PreviewModels not loaded');return;}
+  if(!window.PreviewVariants){fail('PreviewVariants not loaded');return;}
 
   var stage=document.getElementById('stage');
   var renderer=new THREE.WebGLRenderer({antialias:true,alpha:false});
@@ -76,14 +78,26 @@
   var grid=new THREE.GridHelper(12,24,0x2f4852,0x243640);grid.position.y=.005;scene.add(grid);
 
   var pivot=new THREE.Group();scene.add(pivot);
-  var current=null,currentName='';
+  var current=null,currentName='',variant=1,focusY=1.5;
+  var VB=document.createElement('div');VB.id='variants';
+  VB.style.cssText='position:absolute;left:0;right:0;bottom:62px;z-index:4;display:flex;justify-content:center;gap:6px';
+  document.body.appendChild(VB);
 
   function setModel(name){
     if(current){pivot.remove(current);current.traverse(function(o){
       if(o.geometry)o.geometry.dispose();
       if(o.material){var ms=Array.isArray(o.material)?o.material:[o.material];ms.forEach(function(m){if(m.map&&m.map.isCanvasTexture)m.map.dispose();m.dispose();});}
     });}
-    current=window.PreviewModels.build(name);currentName=name;
+    current=window.PreviewVariants.build(name,variant);currentName=name;
+    /* variant buttons (Elara is frozen — no variants) */
+    VB.innerHTML='';
+    if(name!=='elara'){
+      [1,2,3].forEach(function(v){
+        var b=document.createElement('button');b.textContent='v'+v;
+        b.style.cssText='padding:6px 13px;font-size:11px;border-radius:8px;cursor:pointer;border:1px solid rgba(143,216,192,.35);background:'+(v===variant?'#8fd8c0':'rgba(16,30,34,.86)')+';color:'+(v===variant?'#0d1418':'#cfe9df');
+        b.addEventListener('click',function(){setVariant(v);});VB.appendChild(b);
+      });
+    }
     if(!current){fail('Unknown model: '+name);return;}
     pivot.add(current);
     var box=new THREE.Box3().setFromObject(current),size=box.getSize(new THREE.Vector3());
@@ -91,9 +105,15 @@
     /* re-centre on floor and frame camera */
     current.position.y=-box.min.y;
     dist=Math.max(4.2,h*2.5);
+    focusY=h*0.5;   // frame tall buildings fully (camera no longer fixed at y=1.5)
     document.querySelector('#label b').textContent=current.userData.label||name;
     document.querySelector('#label span').textContent='model · '+name+(current.userData.family?(' · '+current.userData.family+' bond'):'');
     [].forEach.call(document.querySelectorAll('#bar button'),function(b){b.classList.toggle('on',b.dataset.name===name);});
+  }
+
+  function setVariant(v){
+    variant=Number(v)||1;
+    if(currentName)setModel(currentName);
   }
 
   /* model buttons */
@@ -128,13 +148,14 @@
     setAngle:function(rad){yaw=rad;renderOnce();},
     setPitch:function(rad){pitch=rad;renderOnce();},
     getModel:function(){return currentName;},
+    setVariant:setVariant,
+    getVariant:function(){return variant;},
     models:window.PreviewModels.names.slice()
   };
 
   function placeCamera(){
-    var cy=1.5;
-    cam.position.set(Math.sin(yaw)*Math.cos(pitch)*dist,cy+Math.sin(pitch)*dist,Math.cos(yaw)*Math.cos(pitch)*dist);
-    cam.lookAt(0,cy,0);
+    cam.position.set(Math.sin(yaw)*Math.cos(pitch)*dist,focusY+Math.sin(pitch)*dist,Math.cos(yaw)*Math.cos(pitch)*dist);
+    cam.lookAt(0,focusY,0);
   }
   function renderOnce(){placeCamera();renderer.render(scene,cam);}
   function loop(){

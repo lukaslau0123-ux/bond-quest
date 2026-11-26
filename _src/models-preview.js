@@ -331,6 +331,8 @@
     buildMetallic: buildMetallicEnemy,
     buildAcademy: buildChemAcademy,
     names: ['elara', 'ionic', 'covalent', 'metallic', 'academy'],
+    /* shared helpers for variant builders (Phase 1b) */
+    helpers: { toon: toon, glow: glow, rim: rim, put: put, rampTex: rampTex },
     build: function (name) {
       switch (name) {
         case 'elara': return buildElara();
