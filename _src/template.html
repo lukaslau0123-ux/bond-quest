@@ -16,11 +16,16 @@
     <div class="pill" id="zoneLabel">Ionic Plains</div>
     <div class="pill" id="counterPill"><b id="counterNum">0</b> / <b id="counterTotal">9</b></div>
     <div class="pill" id="timerPill">00:00</div>
+    <div class="pill" id="scorePill"><span class="pico">✦</span> <b id="scoreNum">0</b></div>
+    <div class="pill" id="goldPill"><span class="pico">◉</span> <b id="goldNum">0</b></div>
+    <div class="pill" id="weaponPill"><span class="pico">⚔</span> <b id="weaponName">Bond Blade</b></div>
+    <div class="pill" id="charPill"><span class="pico">☻</span> <b id="charName">Lyra</b></div>
     <div class="spacer"></div>
     <button class="iconBtn" id="authBtn" title="Sign in / Register">◎</button>
     <button class="iconBtn" id="mapBtn" title="World map (M)">▦</button>
     <button class="iconBtn" id="helpBtn" title="How to play">?</button>
     <button class="iconBtn" id="glossaryBtn" title="Glossary">Aa</button>
+    <button class="iconBtn" id="charBtn" title="Switch character (C)">☻</button>
     <button class="iconBtn" id="exportBtn" title="Export data">↓</button>
   </div>
 
@@ -66,8 +71,12 @@
   <canvas id="minimap" width="360" height="360"></canvas>
 
   <div id="prompt">Press <kbd>E</kbd> to interact</div>
-  <div id="controlsHint">WASD move · Space jump · Mouse look · E interact · M map · T warp · H help</div>
+  <div id="controlsHint">WASD move · Space jump · Mouse look · E interact · J attack · K skill · C swap · 1-5 weapons · B shop · M map · T warp · H help</div>
   <div id="lockHint">Click to lock mouse</div>
+  <div id="skillMeter">
+    <span class="skillLabel">SKILL (K)</span>
+    <div id="skillBar"><i id="skillFill"></i></div>
+  </div>
 
   <!-- Touch controls: only shown on devices with a coarse pointer -->
   <div id="touchUI">
@@ -75,11 +84,18 @@
     <div id="touchRight">
       <button id="actBtn" class="tBtn" aria-label="Interact">E<small>Interact</small></button>
       <button id="jumpBtn" class="tBtn" aria-label="Jump">↑<small>Jump</small></button>
+      <button id="atkBtn" class="tBtn tAtk" aria-label="Attack">⚔<small>ATK</small></button>
+      <button id="skillBtn" class="tBtn tSkill" aria-label="Skill">✦<small>SKILL</small></button>
+      <button id="swapBtn" class="tBtn tSwap" aria-label="Switch character">☻<small>SWAP</small></button>
+      <button id="shopQuickBtn" class="tBtn tShop" aria-label="Shop">＄<small>SHOP</small></button>
     </div>
   </div>
 </div>
 
 <div id="toastWrap"></div>
+<div id="floatLayer"></div>
+<div id="comboBadge">5 HIT COMBO</div>
+<div id="hurtFlash"></div>
 
 <div id="startScreen" class="screen show">
   <div class="startCard">
@@ -87,6 +103,7 @@
     <div class="kicker">F4E Interdisciplinary Project</div>
     <h1>Bond Quest</h1>
     <p class="sub">A 3D open-world game<span class="en">for revising chemical bonds</span></p>
+    <div class="combatTeaser">⚔ Action combat · collect weapons &amp; characters · earn gold &amp; score</div>
 
     <div id="startIntro"></div>
 
@@ -319,12 +336,31 @@
     <div class="kicker">Chem Supply Shop</div>
     <h2 class="helpTitle">Chem Supply Shop</h2>
     <div class="modalBody">
-      <div class="shopWallet">You have <b id="shopShards">0</b> crystals</div>
+      <div class="shopWallet">Gold: <b id="shopGold">0</b> · Score: <b id="shopScore">0</b> · Crystals: <b id="shopShards">0</b></div>
+      <div id="shopTabs" class="shopTabs">
+        <button class="shopTab active" data-tab="gear">⚔ Weapons</button>
+        <button class="shopTab" data-tab="skins">✦ Outfits</button>
+        <button class="shopTab" data-tab="characters">☻ Characters</button>
+        <button class="shopTab" data-tab="supplies">◈ Supplies</button>
+      </div>
       <div id="shopItems" class="shopItems"></div>
-      <div class="shopNote">Crystals are vocabulary shards you collect in the world — spend them here.</div>
+      <div class="shopNote">Earn gold and score by defeating enemies; find crystals while exploring. Spend them here.</div>
     </div>
     <div class="modalFoot">
       <button class="primary" id="shopCloseBtn">Leave</button>
+    </div>
+  </div>
+</div>
+
+<div id="charModal" class="modal">
+  <div class="modalCard">
+    <div class="kicker">Party</div>
+    <h2 class="helpTitle">Switch Character</h2>
+    <div class="modalBody">
+      <div id="charList" class="charList"></div>
+    </div>
+    <div class="modalFoot">
+      <button class="primary" id="charCloseBtn">Close</button>
     </div>
   </div>
 </div>

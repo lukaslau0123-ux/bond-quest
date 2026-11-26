@@ -25,6 +25,19 @@ const WORLD = (function () {
   const nodeMeshes = new Map();
   let sky = null, rim = null, fireflies = null, ffBase = null;
 
+  /* ============ combat / reward loop state ============ */
+  const enemies = [];                 // active enemy records
+  const fx = [];                      // transient visual effects
+  let weaponGroup = null;             // current weapon model attached to hand
+  let weaponId = 'sword';
+  let charId = 'lyra';
+  let skinId = 'default';
+  let attackAnim = null;              // { t, dur, style } active attack pose
+  let combatHooks = { onHit: null, onKill: null, onHurt: null };  // set by game.js
+  let combatEnabled = false;
+  let charMats = null;                // character material set for live re-skinning
+  let skirtGrpRef = null;             // skirt group — hidden for male characters
+
   function toonGradient(steps) {
     const data = new Uint8Array(steps * 4);
     for (let i = 0; i < steps; i++) {
@@ -1170,6 +1183,16 @@ const WORLD = (function () {
       scarf: plMat(C.scarf, G3, { double: true })
     };
 
+    /* Mark character materials for live re-skinning (we clone so world objects are unaffected). */
+    MAT.coat.userData = { role: 'coat', orig: C.coat };
+    MAT.coatDark.userData = { role: 'coatDark', orig: C.coatDark };
+    MAT.skirt.userData = { role: 'skirt', orig: C.skirt };
+    MAT.scarf.userData = { role: 'scarf', orig: C.scarf };
+    MAT.hair.userData = { role: 'hair', orig: C.hair };
+    MAT.hairDark.userData = { role: 'hairDark', orig: C.hairDark };
+    Object.keys(MAT).forEach(k => { if (!MAT[k].userData.role) MAT[k].userData = { role: 'fixed' }; });
+    charMats = MAT;   // module-level reference for live re-skinning
+
     function put(parent, geo, material, cast) {
       const m = new THREE.Mesh(geo, material);
       m.castShadow = (cast !== false);
@@ -1224,6 +1247,7 @@ const WORLD = (function () {
 
     /* ================= 裙（12 褶，§2.7）================= */
     const skirtGrp = new THREE.Group();
+    skirtGrpRef = skirtGrp;
     player.add(skirtGrp);
     const FOLDS = 12, SEG = FOLDS * 2;
 
@@ -1520,18 +1544,18 @@ const WORLD = (function () {
     })();
     put(cape, plMerge([{ g: band1 }, { g: band2 }, { g: tailGeo }]), MAT.scarf);
 
-    /* ================= 右手寶珠（玩法道具，§2.9 / §10.3）================= */
+    /* ================= 左手寶珠（玩法道具；右手留給武器）================= */
     const orb = new THREE.Mesh(
       new THREE.SphereGeometry(0.115, 14, 12),
       new THREE.MeshStandardMaterial({
         color: 0xc8fff0, emissive: 0x35e0b0, emissiveIntensity: 1.5, roughness: 0.2, metalness: 0.1
       })
     );
-    orb.position.set(0.02, -0.845, 0.085);
-    limbs.arms[1].add(orb);
+    orb.position.set(-0.02, -0.845, 0.085);
+    limbs.arms[0].add(orb);
     const orbLight = new THREE.PointLight(0x54e3b0, 0.8, 7, 2);
     orbLight.position.copy(orb.position);
-    limbs.arms[1].add(orbLight);
+    limbs.arms[0].add(orbLight);
 
     /* ================= 地面接觸陰影 + 地面光環（原樣保留，§2.12）================= */
     const shadow = new THREE.Mesh(
@@ -1986,6 +2010,351 @@ const WORLD = (function () {
     if (sky) sky.position.copy(camera.position);
   }
 
+  /* ==================================================================
+     COMBAT MODULE — weapons, enemies, effects, animation, AI
+     All models are original procedural geometry in the existing toon style.
+     ================================================================== */
+
+  /* ---------- weapon model factory (returns a Group) ---------- */
+  function buildWeapon(id) {
+    const def = (typeof WEAPONS !== 'undefined') ? WEAPONS.find(w => w.id === id) : null;
+    const w = def || { type: 'sword', color: 0xdfeaf2, glow: 0x8ff0c8 };
+    const steel = plMat(w.color, plRamps().G2);
+    const glow = new THREE.MeshBasicMaterial({ color: w.glow });
+    const grip = plMat(0x40322c, plRamps().G2);
+    const gold = plMat(0xe8c46a, plRamps().G2);
+    const g = new THREE.Group();
+    const add = (geo, mat, x, y, z, rx, ry, rz) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z); if (rx || ry || rz) m.rotation.set(rx || 0, ry || 0, rz || 0);
+      g.add(m); return m;
+    };
+    const t = w.type;
+    if (t === 'sword' || t === 'great') {
+      const L = t === 'great' ? 1.15 : 0.82, W = t === 'great' ? 0.13 : 0.085;
+      add(new THREE.CylinderGeometry(0.028, 0.032, 0.26, 8), grip, 0, -0.13, 0);           // handle
+      add(new THREE.BoxGeometry(W * 3.4, 0.05, 0.06), gold, 0, 0.01, 0);                    // crossguard
+      const blade = new THREE.BoxGeometry(W, L, 0.035);
+      add(blade, steel, 0, 0.03 + L / 2, 0);
+      add(new THREE.ConeGeometry(W * 0.72, 0.16, 4), steel, 0, 0.03 + L + 0.08, 0);         // tip
+      add(new THREE.BoxGeometry(0.012, L * 0.92, 0.008), glow, 0, 0.03 + L / 2, 0.021);     // rune
+    } else if (t === 'staff') {
+      add(new THREE.CylinderGeometry(0.026, 0.030, 1.55, 8), grip, 0, 0.30, 0);
+      add(new THREE.TorusGeometry(0.13, 0.022, 8, 20), gold, 0, 1.06, 0);
+      add(new THREE.IcosahedronGeometry(0.10, 0), glow, 0, 1.06, 0);
+      add(new THREE.SphereGeometry(0.055, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }), 0, 1.06, 0);
+    } else if (t === 'bow') {
+      const bow = add(new THREE.TorusGeometry(0.42, 0.028, 8, 24, Math.PI * 1.15), gold, 0, 0.25, 0, 0, 0, Math.PI * 0.42);
+      bow.scale.set(0.55, 1, 1);
+      add(new THREE.CylinderGeometry(0.004, 0.004, 0.82, 5), glow, 0.10, 0.25, 0);          // string
+      add(new THREE.CylinderGeometry(0.028, 0.028, 0.24, 8), grip, 0, 0.10, 0);
+    } else if (t === 'daggers') {
+      [-1, 1].forEach(sd => {
+        add(new THREE.CylinderGeometry(0.020, 0.024, 0.18, 8), grip, sd * 0.07, -0.09, 0);
+        add(new THREE.BoxGeometry(0.05, 0.42, 0.03), steel, sd * 0.07, 0.21, 0, 0, 0, sd * 0.12);
+        add(new THREE.BoxGeometry(0.010, 0.38, 0.008), glow, sd * 0.07, 0.21, 0.018, 0, 0, sd * 0.12);
+      });
+    }
+    g.userData.type = t;
+    g.userData.kind = 'weapon';
+    return g;
+  }
+
+  /* ---------- attach / swap weapon on right hand ---------- */
+  function equipWeapon(id) {
+    weaponId = id;
+    if (weaponGroup && limbs.arms[1]) limbs.arms[1].remove(weaponGroup);
+    if (!limbs.arms[1]) return;
+    weaponGroup = buildWeapon(id);
+    /* Hold at the hand, blade angled UP and OUT so it reads clearly from the
+       third-person camera (a downward blade hid behind the skirt/body). */
+    weaponGroup.position.set(0.06, -0.70, 0.16);
+    weaponGroup.rotation.set(-0.55, 0, -0.28);
+    weaponGroup.scale.setScalar(1.05);
+    limbs.arms[1].add(weaponGroup);
+  }
+
+  /* ---------- apply a colour skin + gender/role tint to the character ---------- */
+  function applyCharacterLook(charIdArg, skinIdArg) {
+    if (charIdArg) charId = charIdArg;
+    if (skinIdArg) skinId = skinIdArg;
+    const C = (typeof CHARACTERS !== 'undefined') && CHARACTERS.find(c => c.id === charId);
+    if (!C || !player || !charMats) return;
+    /* Each character has a signature coat colour; skin overrides it with a themed palette. */
+    const palette = {
+      default: null,                                  // use character's own colour
+      ember:   { coat: 0xC8453A, dark: 0x8A2E28, skirt: 0xE8915A, scarf: 0xF0B44A, hair: 0x5A2A24 },
+      tide:    { coat: 0x2F74A8, dark: 0x1D4E78, skirt: 0x5FC8D8, scarf: 0x8FE8F0, hair: 0x244A66 },
+      aurora:  { coat: 0x8A5FC0, dark: 0x5E3F8A, skirt: 0xB89AE8, scarf: 0x8FF0D8, hair: 0x6A4A86 },
+      nova:    { coat: 0xC9A83A, dark: 0x8C7226, skirt: 0xF0DC7A, scarf: 0xFFF0A0, hair: 0x7A6A30 }
+    };
+    const pal = palette[skinId] || (palette.default ? palette[palette.default] : null);
+    const coat = pal ? pal.coat : C.color;
+    const tint = (mat, hex) => { if (mat && mat.color && mat.userData.role !== 'fixed') mat.color.copy(new THREE.Color(plS(hex))); };
+    const darken = (hex, f) => {
+      const c = new THREE.Color(hex); c.multiplyScalar(f);
+      return c.getHex();
+    };
+    tint(charMats.coat, coat);
+    tint(charMats.coatDark, darken(coat, 0.62));
+    tint(charMats.skirt, pal ? pal.skirt : (C.gender === 'male' ? darken(coat, 0.8) : C.color));
+    tint(charMats.scarf, pal ? pal.scarf : coat);
+    tint(charMats.hair, pal ? pal.hair : C.hair);
+    tint(charMats.hairDark, darken(pal ? pal.hair : C.hair, 0.7));
+    // male characters: broader frame, no skirt (trousers instead), darker tights
+    const male = C.gender === 'male';
+    if (skirtGrpRef) skirtGrpRef.visible = !male;
+    if (charMats.tights) tint(charMats.tights, male ? 0x24303c : 0x1B3A46);
+    player.scale.set(male ? 1.06 : 1.0, male ? 1.03 : 1.0, male ? 1.06 : 1.0);
+    if (limbs.torso && !attackAnim) limbs.torso.scale.x = male ? 1.18 : 1.0;
+  }
+
+  /* ---------- enemy model factory (original procedural animals) ---------- */
+  function buildEnemy(typeId) {
+    const E = (typeof ENEMY_TYPES !== 'undefined') && ENEMY_TYPES.find(e => e.id === typeId);
+    const e = E || { color: 0x9b6b4a, scale: 1 };
+    const bodyMat = plMat(e.color, plRamps().G4);
+    const dark = plMat(0x3a2c28, plRamps().G2);
+    const glow = new THREE.MeshBasicMaterial({ color: 0xff6a5a });
+    const g = new THREE.Group();
+    const add = (geo, mat, x, y, z, sx, sy, sz) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z); if (sx) m.scale.set(sx, sy, sz);
+      m.castShadow = true; g.add(m); return m;
+    };
+    if (typeId === 'boar') {
+      add(new THREE.SphereGeometry(0.55, 14, 10), bodyMat, 0, 0.62, 0, 1.25, 0.85, 0.95);
+      add(new THREE.SphereGeometry(0.34, 12, 10), bodyMat, 0, 0.72, 0.62, 1, 0.9, 0.95);   // head
+      add(new THREE.ConeGeometry(0.09, 0.28, 6), dark, -0.18, 0.92, 0.78, 1, 1, 1);        // tusks
+      add(new THREE.ConeGeometry(0.09, 0.28, 6), dark, 0.18, 0.92, 0.78, 1, 1, 1);
+      [-1, 1].forEach(sd => {
+        add(new THREE.CylinderGeometry(0.06, 0.05, 0.42, 6), dark, sd * 0.3, 0.21, 0.32);
+        add(new THREE.CylinderGeometry(0.06, 0.05, 0.42, 6), dark, sd * 0.3, 0.21, -0.32);
+      });
+      add(new THREE.SphereGeometry(0.07, 8, 6), glow, -0.15, 0.80, 0.88);                 // eyes
+      add(new THREE.SphereGeometry(0.07, 8, 6), glow, 0.15, 0.80, 0.88);
+      g.userData.height = 1.1;
+    } else if (typeId === 'slime') {
+      add(new THREE.SphereGeometry(0.46, 16, 12), bodyMat, 0, 0.42, 0, 1.1, 0.95, 1.1);
+      add(new THREE.SphereGeometry(0.09, 8, 6), glow, -0.18, 0.52, 0.40);
+      add(new THREE.SphereGeometry(0.09, 8, 6), glow, 0.18, 0.52, 0.40);
+      g.userData.height = 0.9;
+    } else { // crab
+      add(new THREE.SphereGeometry(0.52, 14, 10), bodyMat, 0, 0.52, 0, 1.3, 0.65, 1);
+      [-1, 1].forEach(sd => {
+        add(new THREE.SphereGeometry(0.22, 10, 8), bodyMat, sd * 0.62, 0.5, 0.1);
+        add(new THREE.ConeGeometry(0.14, 0.4, 6), dark, sd * 0.78, 0.72, 0.16, 1, 1, 1);
+        for (let i = -1; i <= 1; i++) add(new THREE.CylinderGeometry(0.04, 0.03, 0.4, 5), dark, sd * 0.5, 0.2, i * 0.3);
+      });
+      add(new THREE.SphereGeometry(0.07, 8, 6), glow, -0.2, 0.7, 0.45);
+      add(new THREE.SphereGeometry(0.07, 8, 6), glow, 0.2, 0.7, 0.45);
+      g.userData.height = 0.95;
+    }
+    g.scale.setScalar(e.scale || 1);
+    return g;
+  }
+
+  /* ---------- spawn enemies around fields & roads ---------- */
+  function spawnEnemies() {
+    enemies.forEach(en => { if (en.group.parent) scene.remove(en.group); });
+    enemies.length = 0;
+    if (!combatEnabled || typeof ENEMY_TYPES === 'undefined') return;
+    const zones = Object.keys(ZONES);
+    const N = Math.min(COMBAT_RULES.enemyCap, 16);
+    for (let i = 0; i < N; i++) {
+      const zone = zones[i % zones.length];
+      const Z = ZONES[zone];
+      const ang = Math.random() * Math.PI * 2;
+      const rad = 12 + Math.random() * 44;
+      let x = Z.cx + Math.cos(ang) * rad;
+      let z = Z.cz + Math.sin(ang) * rad;
+      x = Math.max(-185, Math.min(185, x)); z = Math.max(-185, Math.min(185, z));
+      const roll = Math.random();
+      const type = ENEMY_TYPES[roll < 0.55 ? 0 : roll < 0.82 ? 1 : 2];
+      const group = buildEnemy(type.id);
+      group.position.set(x, heightAt(x, z), z);
+      scene.add(group);
+      enemies.push({
+        id: 'e' + i, type: type, group: group,
+        hp: type.hp, maxHp: type.hp, alive: true,
+        respawn: 0, hitFlash: 0, bob: Math.random() * 6.28,
+        homeX: x, homeZ: z, state: 'idle', atkCd: 0
+      });
+    }
+  }
+
+  /* ---------- transient effects ---------- */
+  function addFxRing(x, y, z, color, maxR, dur) {
+    const mat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthWrite: false });
+    const mesh = new THREE.Mesh(new THREE.RingGeometry(0.25, 0.34, 24), mat);
+    mesh.rotation.x = -Math.PI / 2;
+    mesh.position.set(x, y + 0.08, z);
+    scene.add(mesh);
+    fx.push({ mesh: mesh, t: 0, dur: dur || 0.4, maxR: maxR || 2, kind: 'ring' });
+  }
+  function addFxSlash(x, y, z, yawAng, color) {
+    const mat = new THREE.MeshBasicMaterial({ color: color, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false });
+    const mesh = new THREE.Mesh(new THREE.TorusGeometry(1.15, 0.09, 6, 20, Math.PI * 1.1), mat);
+    mesh.position.set(x, y + 1.4, z);
+    mesh.rotation.set(0, yawAng, -0.4);
+    scene.add(mesh);
+    fx.push({ mesh: mesh, t: 0, dur: 0.28, kind: 'slash' });
+  }
+  function addFxSpark(x, y, z, color) {
+    const mat = new THREE.SpriteMaterial({ map: softDot(64), color: color, transparent: true, opacity: 1, depthWrite: false });
+    const sp = new THREE.Sprite(mat);
+    sp.position.set(x, y + 1.1, z); sp.scale.setScalar(0.9);
+    scene.add(sp);
+    fx.push({ mesh: sp, t: 0, dur: 0.45, kind: 'spark' });
+  }
+  function updateFx(dt) {
+    for (let i = fx.length - 1; i >= 0; i--) {
+      const f = fx[i]; f.t += dt;
+      const k = f.t / f.dur;
+      if (k >= 1) { scene.remove(f.mesh); if (f.mesh.geometry) f.mesh.geometry.dispose(); fx.splice(i, 1); continue; }
+      if (f.kind === 'ring') {
+        const s = 1 + k * f.maxR; f.mesh.scale.setScalar(s);
+        f.mesh.material.opacity = 0.9 * (1 - k);
+      } else if (f.kind === 'slash') {
+        f.mesh.material.opacity = 0.85 * (1 - k);
+        f.mesh.scale.setScalar(0.6 + k * 0.7);
+      } else if (f.kind === 'spark') {
+        f.mesh.position.y += dt * 1.2; f.mesh.material.opacity = 1 - k;
+        f.mesh.scale.setScalar(0.9 + k * 0.8);
+      }
+    }
+  }
+
+  /* ---------- trigger an attack pose ---------- */
+  function triggerAttack(style) {
+    const dur = style === 'heavy' ? 0.62 : style === 'cast' ? 0.5 : style === 'flurry' ? 0.24 : style === 'shoot' ? 0.3 : 0.42;
+    attackAnim = { t: 0, dur: dur, style: style };
+  }
+
+  /* ---------- perform a hit: damage enemies in front, fire hooks ---------- */
+  function performAttack(weapon, comboStep, isSkill) {
+    const w = weapon || (typeof WEAPONS !== 'undefined' && WEAPONS.find(x => x.id === weaponId)) || { damage: 12, reach: 3.4, glow: 0x8ff0c8, anim: 'slash' };
+    const C = (typeof CHARACTERS !== 'undefined') && CHARACTERS.find(c => c.id === charId);
+    const reach = w.reach * (isSkill ? 1.55 : 1);
+    const comboMul = 1 + Math.min(COMBAT_RULES.comboCap, comboStep || 0) * COMBAT_RULES.comboBonus;
+    const dmg = Math.round((w.damage + (C ? C.bonus * 20 : 0)) * comboMul * (isSkill ? 2.2 : 1));
+    const px = player.position.x, py = player.position.y, pz = player.position.z;
+    /* Player model faces local +z; world forward = (sin rotY, cos rotY). */
+    const fwdX = Math.sin(player.rotation.y), fwdZ = Math.cos(player.rotation.y);
+    triggerAttack(isSkill ? 'cast' : w.anim);
+    addFxSlash(px, py, pz, player.rotation.y, w.glow);
+    if (isSkill) addFxRing(px, py, pz, w.glow, 3.2, 0.6);
+
+    let hitAny = false, killed = 0;
+    enemies.forEach(en => {
+      if (!en.alive) return;
+      const dx = en.group.position.x - px, dz = en.group.position.z - pz;
+      const dist = Math.hypot(dx, dz);
+      if (dist > reach) return;
+      const dot = (dx * fwdX + dz * fwdZ) / (dist || 1);
+      if (dot < (isSkill ? -0.1 : 0.15)) return;   // must be roughly in front (skill = 360°)
+      hitAny = true;
+      en.hp -= dmg;
+      en.hitFlash = 0.22;
+      en.group.position.x += fwdX * 0.35; en.group.position.z += fwdZ * 0.35;
+      addFxSpark(en.group.position.x, en.group.position.y, en.group.position.z, 0xffe08a);
+      if (combatHooks.onHit) combatHooks.onHit(en, dmg, comboStep, isSkill);
+      if (en.hp <= 0) {
+        en.alive = false; en.respawn = COMBAT_RULES.respawnDelay;
+        en.group.visible = false;
+        addFxRing(en.group.position.x, en.group.position.y, en.group.position.z, 0xffc85f, 2.4, 0.55);
+        killed++;
+        if (combatHooks.onKill) combatHooks.onKill(en);
+      }
+    });
+    return { hit: hitAny, killed: killed, damage: dmg };
+  }
+
+  /* ---------- override limb poses during an attack (called after movePlayer) ---------- */
+  function applyAttackPose(dt) {
+    if (!attackAnim || !limbs.arms.length) return;
+    attackAnim.t += dt;
+    const k = Math.min(1, attackAnim.t / attackAnim.dur);
+    const s = attackAnim.style;
+    const swing = Math.sin(k * Math.PI);           // 0→1→0
+    const wind = k < 0.3 ? k / 0.3 : 0;
+    const strike = k >= 0.3 ? (k - 0.3) / 0.7 : 0;
+    if (s === 'slash' || s === 'heavy') {
+      const amp = s === 'heavy' ? 2.3 : 1.9;
+      limbs.arms[1].rotation.x = -wind * 1.2 + strike * amp;
+      limbs.arms[1].rotation.z = 0.17 - strike * 1.1;
+      limbs.arms[0].rotation.x = -0.4 - swing * 0.5;
+      limbs.torso.rotation.y = -wind * 0.5 + strike * 0.9;
+    } else if (s === 'cast') {
+      limbs.arms[1].rotation.x = -1.6 - swing * 0.4;
+      limbs.arms[1].rotation.z = 0.5;
+      limbs.arms[0].rotation.x = -0.9;
+      limbs.torso.position.y = 1.7 + swing * 0.08;
+    } else if (s === 'shoot') {
+      limbs.arms[1].rotation.x = -1.5;
+      limbs.arms[1].rotation.z = 0.05;
+      limbs.arms[0].rotation.x = -1.35;
+      limbs.torso.rotation.y = 0.2;
+    } else if (s === 'flurry') {
+      const f = Math.sin(k * Math.PI * 6);
+      limbs.arms[0].rotation.x = -0.9 + f * 0.7;
+      limbs.arms[1].rotation.x = -0.9 - f * 0.7;
+      limbs.torso.rotation.y = f * 0.25;
+    }
+    if (k >= 1) {
+      attackAnim = null;
+      if (limbs.torso) { limbs.torso.rotation.y = 0; limbs.torso.position.y = 1.7; }
+    }
+  }
+
+  /* ---------- enemy AI, animation, respawn ---------- */
+  function updateCombat(dt) {
+    if (!combatEnabled) return;
+    updateFx(dt);
+    const px = player.position.x, pz = player.position.z;
+    enemies.forEach(en => {
+      if (!en.alive) {
+        en.respawn -= dt;
+        if (en.respawn <= 0) {
+          en.alive = true; en.hp = en.maxHp; en.group.visible = true;
+          en.group.position.set(en.homeX, heightAt(en.homeX, en.homeZ), en.homeZ);
+        }
+        return;
+      }
+      const g = en.group;
+      const dx = px - g.position.x, dz = pz - g.position.z;
+      const dist = Math.hypot(dx, dz);
+      if (dist < COMBAT_RULES.aggroRange && dist > COMBAT_RULES.attackRange) {
+        const sp = en.type.speed * dt;
+        g.position.x += (dx / dist) * sp; g.position.z += (dz / dist) * sp;
+        g.rotation.y = Math.atan2(-dx, -dz);
+        en.state = 'chase';
+      } else if (dist <= COMBAT_RULES.attackRange) {
+        en.state = 'attack';
+        en.atkCd -= dt;
+        if (en.atkCd <= 0) {
+          en.atkCd = 1.4;
+          if (combatHooks.onHurt) combatHooks.onHurt(en);
+        }
+      } else {
+        en.state = 'idle';
+      }
+      g.position.y = heightAt(g.position.x, g.position.z) + Math.sin(elapsed * 3 + en.bob) * 0.05;
+      if (en.hitFlash > 0) {
+        en.hitFlash -= dt;
+        g.scale.setScalar(en.type.scale * (1 + en.hitFlash * 0.8));
+      } else {
+        g.scale.setScalar(en.type.scale);
+      }
+    });
+    applyAttackPose(dt);
+  }
+
+  /* ---------- combat public helpers ---------- */
+  function setCombatEnabled(v) { combatEnabled = !!v; if (combatEnabled && enemies.length === 0) spawnEnemies(); }
+  function setCombatHooks(h) { combatHooks = h || {}; }
+  function getEnemies() { return enemies.map(e => ({ id: e.id, type: e.type.id, hp: e.hp, maxHp: e.maxHp, alive: e.alive, x: e.group.position.x, z: e.group.position.z })); }
+
   /* ---------- minimap ---------- */
   /* 以玩家為中心的局部地圖：解決「全世界壓縮太多、要手動放大先睇到」嘅問題。
      放大倍率由 MM_VIEW 控制（數值越小＝越近、越大越清晰）。目標在視野外時，
@@ -2112,6 +2481,7 @@ const WORLD = (function () {
   function update(dt, totalTime) {
     elapsed = totalTime;
     if (!locked) movePlayer(dt);
+    updateCombat(dt);
     updateCamera(dt);
     updateBeacon(totalTime);
     updateWaypoints(totalTime);
@@ -2136,6 +2506,10 @@ const WORLD = (function () {
     setLocked, isLocked, setNodeState, clearKeys, requestLock, relock, setBeacon, BEACON_CFG,
     setInteractHandler, isTouchMode: function () { return touchMode; },
     setWaypointState, teleportTo,
+    /* combat API */
+    setCombatEnabled, setCombatHooks, spawnEnemies, getEnemies,
+    performAttack, equipWeapon, applyCharacterLook,
+    get combatState() { return { weapon: weaponId, character: charId, skin: skinId, enabled: combatEnabled }; },
     get scene() { return scene; },
     get camera() { return camera; },
     get renderer() { return renderer; },

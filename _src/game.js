@@ -50,6 +50,13 @@
     </div>
 
     <div class="qsBox">
+      <div class="qsHead"> ACTION COMBAT — FIGHT, EARN, UPGRADE</div>
+      <div class="ruleRow"><span class="rn">⚔</span><span>Wild <b>enemies</b> roam the fields and roads. Press <kbd>J</kbd> to attack — chain hits into a <b>combo</b> for bonus damage.</span></div>
+      <div class="ruleRow"><span class="rn">✦</span><span>Press <kbd>K</kbd> for a powerful <b>skill</b> (recharges over time). Every hit and defeat gives <b>Score</b> and <b>Gold</b>.</span></div>
+      <div class="ruleRow"><span class="rn">◉</span><span>Spend Gold in the <b>Shop</b> on weapons, outfits and characters. Higher <b>Score</b> unlocks the best gear. Press <kbd>B</kbd> to shop, <kbd>C</kbd> to swap character, <kbd>1–5</kbd> to switch weapons.</span></div>
+    </div>
+
+    <div class="qsBox">
       <div class="qsHead">LEARN BY DOING — 2 EXAMPLES</div>
       <div class="exRow"><b>① Answer questions (talk to an NPC):</b> "What is NaCl made of?" → choose <b>A metal + a non-metal</b> → "What happens to the electrons?" → <b>Electron transfer</b> → "What kind of bond?" → <b>Ionic bond</b>. Three correct steps finish the quest.</div>
       <div class="exRow"><b>② Draw a dot-and-cross diagram (open a chest):</b> choose <b>•</b> → click each dotted slot beside Cl <b>twice</b> to place a pair → click <b>[ ] Brackets</b> → set Na to <b>+</b> and Cl to <b>−</b> → press <b>Check</b>. Follow the live checklist beside the diagram.</div>
@@ -60,6 +67,11 @@
       <span><kbd>Space</kbd> Jump</span>
       <span><kbd>Mouse</kbd> Look around</span>
       <span><kbd>E</kbd> Interact</span>
+      <span><kbd>J</kbd> Attack</span>
+      <span><kbd>K</kbd> Skill</span>
+      <span><kbd>C</kbd> Character</span>
+      <span><kbd>1-5</kbd> Weapon</span>
+      <span><kbd>B</kbd> Shop</span>
       <span><kbd>M</kbd> Map</span>
       <span><kbd>T</kbd> Teleport</span>
       <span><kbd>H</kbd> Help</span>
@@ -98,6 +110,130 @@
     setTimeout(() => d.remove(), (ms || 2200) + 400);
   }
 
+  /* ============================================================
+     COMBAT + REWARD LOOP  (original action-RPG layer)
+     ============================================================ */
+  const COMBAT = {
+    score: 0,
+    gold: 0,
+    weapons: ['sword'],          // owned weapon ids
+    characters: ['lyra'],        // unlocked character ids
+    skins: ['default'],          // owned skin ids
+    weapon: 'sword',             // equipped
+    character: 'lyra',           // active
+    skin: 'default',
+    combo: 0,
+    comboTimer: 0,
+    skillCd: 0,
+    lastHit: 0,
+    kills: 0
+  };
+  let shopTab = 'gear';          // gear | skins | characters
+  let charModalOpen = false;
+  const WPN = Object.fromEntries(WEAPONS.map(w => [w.id, w]));
+  const CHR = Object.fromEntries(CHARACTERS.map(c => [c.id, c]));
+  const SKN = Object.fromEntries(SKINS.map(s => [s.id, s]));
+
+  function saveCombat() {
+    try {
+      const d = {
+        score: COMBAT.score, gold: COMBAT.gold, weapons: COMBAT.weapons,
+        characters: COMBAT.characters, skins: COMBAT.skins,
+        weapon: COMBAT.weapon, character: COMBAT.character, skin: COMBAT.skin, kills: COMBAT.kills
+      };
+      localStorage.setItem('bq_combat_v1', JSON.stringify(d));
+    } catch (e) { }
+  }
+  function loadCombat() {
+    try {
+      const d = JSON.parse(localStorage.getItem('bq_combat_v1') || 'null');
+      if (!d) return;
+      COMBAT.score = d.score || 0; COMBAT.gold = d.gold || 0;
+      COMBAT.weapons = Array.isArray(d.weapons) ? d.weapons : ['sword'];
+      COMBAT.characters = Array.isArray(d.characters) ? d.characters : ['lyra'];
+      COMBAT.skins = Array.isArray(d.skins) ? d.skins : ['default'];
+      COMBAT.weapon = WPN[d.weapon] ? d.weapon : 'sword';
+      COMBAT.character = CHR[d.character] ? d.character : 'lyra';
+      COMBAT.skin = SKN[d.skin] ? d.skin : 'default';
+      COMBAT.kills = d.kills || 0;
+    } catch (e) { }
+  }
+
+  function addScore(n) { COMBAT.score += n; saveCombat(); updateCombatHUD(); }
+  function addGold(n) { COMBAT.gold += n; saveCombat(); updateCombatHUD(); }
+
+  /* Hook the world combat engine to the reward economy. */
+  function initCombat() {
+    loadCombat();
+    saveCombat();   // ensure a baseline record exists from the first session
+    WORLD.setCombatHooks({
+      onHit: function (enemy, dmg, combo, isSkill) {
+        const s = COMBAT_RULES.hitScore + (combo || 0);
+        const g = COMBAT_RULES.hitGold;
+        addScore(s); addGold(g);
+        if (Math.random() < 0.45) floatReward('+' + s + '  +' + g + 'g', enemy.group.position);
+      },
+      onKill: function (enemy) {
+        COMBAT.kills++;
+        addScore(enemy.type.score); addGold(enemy.type.gold);
+        toast('⚔ ' + enemy.type.name + ' defeated! <b>+' + enemy.type.score + ' score</b> · <b>+' + enemy.type.gold + ' gold</b>', 1800);
+        floatReward('+' + enemy.type.score + '  +' + enemy.type.gold + 'g', enemy.group.position, true);
+        saveCombat();
+      },
+      onHurt: function (enemy) {
+        if (COMBAT.hurtCd > 0) return;
+        COMBAT.hurtCd = 1.0;
+        const el = $('hurtFlash'); if (el) { el.style.opacity = '1'; setTimeout(() => { el.style.opacity = '0'; }, 260); }
+      }
+    });
+    WORLD.equipWeapon(COMBAT.weapon);
+    WORLD.applyCharacterLook(COMBAT.character, COMBAT.skin);
+    WORLD.setCombatEnabled(true);
+    updateCombatHUD();
+  }
+  COMBAT.hurtCd = 0;
+
+  /* Floating reward text in screen space (lightweight, no 3D text needed). */
+  function floatReward(text, worldPos, big) {
+    const el = document.createElement('div');
+    el.className = 'floatReward' + (big ? ' big' : '');
+    el.textContent = text;
+    const v = new THREE.Vector3(worldPos.x, worldPos.y + 1.4, worldPos.z).project(WORLD.camera);
+    const x = (v.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (-v.y * 0.5 + 0.5) * window.innerHeight;
+    el.style.left = x + 'px'; el.style.top = y + 'px';
+    $('floatLayer').appendChild(el);
+    setTimeout(() => el.remove(), 950);
+  }
+
+  /* Perform a player attack. combo advances within a short window. */
+  function playerAttack(isSkill) {
+    if (!started || paused || state !== STATE.WORLD) return;
+    const now = performance.now() / 1000;
+    if (now - COMBAT.lastHit > COMBAT_RULES.comboWindow) COMBAT.combo = 0;
+    if (isSkill) {
+      if (COMBAT.skillCd > 0) { toast('Skill recharging — ' + COMBAT.skillCd.toFixed(1) + 's'); return; }
+      COMBAT.skillCd = COMBAT_RULES.skillCooldown;
+    }
+    const w = WPN[COMBAT.weapon];
+    if (now - COMBAT.lastHit < w.rate * 0.75 && !isSkill) return;  // rate limit
+    const comboStep = isSkill ? 0 : COMBAT.combo;
+    const res = WORLD.performAttack(w, comboStep, !!isSkill);
+    COMBAT.lastHit = now;
+    if (res.hit) {
+      COMBAT.combo = Math.min(COMBAT_RULES.comboCap, COMBAT.combo + 1);
+      COMBAT.comboTimer = now + COMBAT_RULES.comboWindow;
+      const cb = $('comboBadge');
+      if (cb) { cb.textContent = COMBAT.combo + ' HIT COMBO'; cb.classList.add('show'); clearTimeout(COMBAT._comboHide); COMBAT._comboHide = setTimeout(() => cb.classList.remove('show'), 1300); }
+    }
+  }
+
+  function tickCombat(dt) {
+    if (COMBAT.skillCd > 0) COMBAT.skillCd = Math.max(0, COMBAT.skillCd - dt);
+    if (COMBAT.hurtCd > 0) COMBAT.hurtCd = Math.max(0, COMBAT.hurtCd - dt);
+    const sk = $('skillFill'); if (sk) sk.style.width = (100 * (1 - COMBAT.skillCd / COMBAT_RULES.skillCooldown)) + '%';
+  }
+
   /* ---------------- helpers ---------------- */
   const COMP = Object.fromEntries(COMPOUNDS.map(c => [c.id, c]));
   const DC = Object.fromEntries(DOTCROSS.map(d => [d.id, d]));
@@ -128,7 +264,12 @@
       freePass: freePass,
       wp: [...unlockedWp],
       beacon: JSON.parse(JSON.stringify(WORLD.BEACON_CFG)),
-      coach: (function () { try { return !!localStorage.getItem('bq_coach_v2'); } catch (e) { return false; } })()
+      coach: (function () { try { return !!localStorage.getItem('bq_coach_v2'); } catch (e) { return false; } })(),
+      combat: {
+        score: COMBAT.score, gold: COMBAT.gold, weapons: COMBAT.weapons.slice(),
+        characters: COMBAT.characters.slice(), skins: COMBAT.skins.slice(),
+        weapon: COMBAT.weapon, character: COMBAT.character, skin: COMBAT.skin, kills: COMBAT.kills
+      }
     };
   }
 
@@ -146,6 +287,20 @@
     applyWaypoints();
 
     if (p.beacon) Object.assign(WORLD.BEACON_CFG, p.beacon);
+    if (p.combat) {
+      const c = p.combat;
+      COMBAT.score = c.score || 0; COMBAT.gold = c.gold || 0; COMBAT.kills = c.kills || 0;
+      COMBAT.weapons = Array.isArray(c.weapons) && c.weapons.length ? c.weapons : ['sword'];
+      COMBAT.characters = Array.isArray(c.characters) && c.characters.length ? c.characters : ['lyra'];
+      COMBAT.skins = Array.isArray(c.skins) && c.skins.length ? c.skins : ['default'];
+      COMBAT.weapon = WPN[c.weapon] ? c.weapon : 'sword';
+      COMBAT.character = CHR[c.character] ? c.character : 'lyra';
+      COMBAT.skin = SKN[c.skin] ? c.skin : 'default';
+      WORLD.equipWeapon(COMBAT.weapon);
+      WORLD.applyCharacterLook(COMBAT.character, COMBAT.skin);
+      saveCombat();
+      updateCombatHUD();
+    }
 
     refreshLocks();
     updateHUD();
@@ -311,6 +466,15 @@
     renderQuestPanel();
   }
 
+  function updateCombatHUD() {
+    const sn = $('scoreNum'); if (sn) sn.textContent = COMBAT.score;
+    const gn = $('goldNum'); if (gn) gn.textContent = COMBAT.gold;
+    const wn = $('weaponName'); if (wn) wn.textContent = (WPN[COMBAT.weapon] || WPN.sword).name;
+    const cn = $('charName'); if (cn) cn.textContent = (CHR[COMBAT.character] || CHR.lyra).name;
+    const wp = $('weaponPill'); if (wp) wp.title = 'Equipped weapon · press 1–5 to swap';
+    const cp = $('charPill'); if (cp) cp.title = 'Active character · press C to switch';
+  }
+
   /* ---------------- interaction prompt ---------------- */
   function refreshPrompt() {
     if (state !== STATE.WORLD || !started) { $('prompt').classList.remove('show'); return; }
@@ -346,7 +510,8 @@
 
   /* ---------------- modal helpers ---------------- */
   function syncPaused() {
-    paused = (state !== STATE.WORLD) || helpOpen || mapOpen || coachOn || shopOpen || guildOpen || beaconOpen || wpOpen || $('glossaryDrawer').classList.contains('show');
+    paused = (state !== STATE.WORLD) || helpOpen || mapOpen || coachOn || shopOpen || guildOpen || beaconOpen || wpOpen || charModalOpen || $('glossaryDrawer').classList.contains('show');
+    if (paused) { const cb = $('comboBadge'); if (cb) cb.classList.remove('show'); }
   }
   function openModal(id) {
     $(id).classList.add('show');
@@ -1317,7 +1482,8 @@
     { sel: '#questPanel', title: '② Follow your CURRENT OBJECTIVE', text: 'This panel tells you what to do next, the distance in metres, and a compass direction. Follow the white arrow and you will get there.' },
     { sel: '#minimap', title: '③ Use the maps', text: 'Top right is the mini-map: the white arrow is you, the green ring is your target. Press M any time for the big map — drag to pan, scroll to zoom, click a marker to make it your objective.' },
     { sel: null, title: '④ Get close, then press E', text: 'Walk up to a glowing NPC, chest or crystal. When you are close enough, a prompt appears — press E. If a quest says LOCKED, answer a few questions first or buy a Guild Pass.' },
-    { sel: '#topbar', title: '⑤ Answer or draw — then repeat', text: 'Talk to an NPC and answer 3 questions, or open a chest and place electrons on the dotted slots then press Check. Each finished quest adds +1 to the counter above. That is the whole game!' }
+    { sel: '#topbar', title: '⑤ Answer or draw — then repeat', text: 'Talk to an NPC and answer 3 questions, or open a chest and place electrons on the dotted slots then press Check. Each finished quest adds +1 to the counter above.' },
+    { sel: '#scorePill', title: '⑥ Fight enemies & earn rewards', text: 'Wild enemies roam the fields. Press J to attack (chain combos!), K for a skill. Every hit gives Score and Gold — watch the counters up here. Press B to spend Gold in the Shop on new weapons, outfits and characters, and C to swap character. That is the whole game!' }
   ];
   let coachOn = false, coachIdx = 0;
 
@@ -2035,21 +2201,120 @@
   }
 
   function renderShop() {
-    const bal = shardBalance();
-    const left = GLOSSARY.filter(g => !termUnlocked(g.id)).length;
-    $('shopShards').textContent = bal;
-    $('shopItems').innerHTML =
-      '<div class="shopItem"><div class="siBody">' +
-        '<div class="siName">Vocabulary Scroll</div>' +
+    /* wallet */
+    const sh = $('shopShards'); if (sh) sh.textContent = shardBalance();
+    const sg = $('shopGold'); if (sg) sg.textContent = COMBAT.gold;
+    const ss = $('shopScore'); if (ss) ss.textContent = COMBAT.score;
+    /* tabs */
+    document.querySelectorAll('#shopTabs .shopTab').forEach(b => b.classList.toggle('active', b.dataset.tab === shopTab));
+    let html = '';
+    if (shopTab === 'gear') {
+      WEAPONS.forEach(w => {
+        const owned = COMBAT.weapons.indexOf(w.id) >= 0;
+        const equipped = COMBAT.weapon === w.id;
+        const gateOk = COMBAT.score >= w.scoreReq;
+        const afford = COMBAT.gold >= w.gold;
+        let label, dis = '';
+        if (equipped) { label = 'Equipped'; dis = ' disabled'; }
+        else if (owned) { label = 'Equip'; }
+        else if (!gateOk) { label = '🔒 ' + w.scoreReq + ' pts'; dis = ' disabled'; }
+        else if (!afford) { label = w.gold + ' gold'; dis = ' disabled'; }
+        else { label = 'Buy · ' + w.gold + ' gold'; }
+        html += shopCard(w.id, w.name, w.desc, '⚔ ' + w.damage + ' dmg · ' + w.type.toUpperCase(),
+          w.gold, w.scoreReq, owned, equipped, gateOk, label, dis, 'gear');
+      });
+    } else if (shopTab === 'skins') {
+      SKINS.forEach(s => {
+        const owned = COMBAT.skins.indexOf(s.id) >= 0;
+        const equipped = COMBAT.skin === s.id;
+        const gateOk = COMBAT.score >= s.scoreReq;
+        const afford = COMBAT.gold >= s.gold;
+        let label, dis = '';
+        if (equipped) { label = 'Wearing'; dis = ' disabled'; }
+        else if (owned) { label = 'Wear'; }
+        else if (!gateOk) { label = '🔒 ' + s.scoreReq + ' pts'; dis = ' disabled'; }
+        else if (!afford) { label = s.gold + ' gold'; dis = ' disabled'; }
+        else { label = 'Buy · ' + s.gold + ' gold'; }
+        html += shopCard(s.id, s.name, s.desc, 'Outfit colour theme', s.gold, s.scoreReq, owned, equipped, gateOk, label, dis, 'skins');
+      });
+    } else if (shopTab === 'characters') {
+      CHARACTERS.forEach(c => {
+        const owned = COMBAT.characters.indexOf(c.id) >= 0;
+        const active = COMBAT.character === c.id;
+        const gateOk = COMBAT.score >= c.scoreReq || owned;
+        let label, dis = '';
+        if (active) { label = 'Active'; dis = ' disabled'; }
+        else if (owned) { label = 'Play as'; }
+        else if (!gateOk) { label = '🔒 ' + c.scoreReq + ' pts'; dis = ' disabled'; }
+        else { label = 'Unlock'; }
+        const cost = 0;
+        html += shopCard(c.id, c.name, c.desc, (c.gender === 'male' ? '♂' : '♀') + ' ' + c.role, cost, c.scoreReq, owned, active, gateOk, label, dis, 'characters');
+      });
+    } else if (shopTab === 'supplies') {
+      const bal = shardBalance();
+      const left = GLOSSARY.filter(g => !termUnlocked(g.id)).length;
+      html += '<div class="shopItem"><div class="siBody"><div class="siName">Vocabulary Scroll</div>' +
         '<div class="siDesc">Unlock one random word you have not collected yet (' + left + ' still locked).</div></div>' +
-        '<button id="buyTerm"' + (bal < 1 || left === 0 ? ' disabled' : '') + '>1 shard</button></div>' +
-      '<div class="shopItem"><div class="siBody">' +
-        '<div class="siName">Guild Pass</div>' +
+        '<button data-act="term"' + (bal < 1 || left === 0 ? ' disabled' : '') + '>1 shard</button></div>' +
+        '<div class="shopItem"><div class="siBody"><div class="siName">Guild Pass</div>' +
         '<div class="siDesc">Enter the next locked quest location directly, ignoring the requirement.' +
         (freePass > 0 ? ' (You hold ' + freePass + '.)' : '') + '</div></div>' +
-        '<button id="buyPass"' + (bal < 2 ? ' disabled' : '') + '>2 shards</button></div>';
-    const b1 = $('buyTerm'); if (b1) b1.addEventListener('click', buyTerm);
-    const b2 = $('buyPass'); if (b2) b2.addEventListener('click', buyPass);
+        '<button data-act="pass"' + (bal < 2 ? ' disabled' : '') + '>2 shards</button></div>';
+    }
+    $('shopItems').innerHTML = html;
+    $('shopItems').querySelectorAll('button[data-act]').forEach(btn => {
+      btn.addEventListener('click', () => shopAction(btn.dataset.id, btn.dataset.act));
+    });
+  }
+
+  function shopCard(id, name, desc, meta, gold, scoreReq, owned, equipped, gateOk, label, dis, tab) {
+    const gateTag = scoreReq > 0 ? '<span class="siGate' + (gateOk ? ' ok' : '') + '">' + (gateOk ? '✓ ' : '🔒 ') + scoreReq + ' pts</span>' : '';
+    const priceTag = gold > 0 ? '<span class="siPrice">' + gold + ' g</span>' : (owned ? '' : '<span class="siPrice free">Free</span>');
+    const ownedTag = owned ? '<span class="siOwned">Owned</span>' : '';
+    return '<div class="shopItem' + (equipped ? ' equipped' : '') + '" data-kind="' + tab + '">' +
+      '<div class="siArt si-' + id + '">' + (tab === 'gear' ? '⚔' : tab === 'characters' ? '☻' : '✦') + '</div>' +
+      '<div class="siBody"><div class="siName">' + name + ' ' + ownedTag + '</div>' +
+      '<div class="siMeta">' + meta + ' ' + gateTag + ' ' + priceTag + '</div>' +
+      '<div class="siDesc">' + desc + '</div></div>' +
+      '<button data-id="' + id + '" data-act="' + tab + '"' + dis + '>' + label + '</button></div>';
+  }
+
+  function shopAction(id, act) {
+    if (act === 'term') { buyTerm(); return; }
+    if (act === 'pass') { buyPass(); return; }
+    if (act === 'gear') {
+      const w = WPN[id]; if (!w) return;
+      if (COMBAT.weapons.indexOf(id) < 0) {
+        if (COMBAT.score < w.scoreReq) { toast('Need ' + w.scoreReq + ' score points to buy this'); return; }
+        if (COMBAT.gold < w.gold) { toast('Not enough gold'); return; }
+        COMBAT.gold -= w.gold; COMBAT.weapons.push(id);
+        toast('⚔ Purchased <b>' + w.name + '</b>!');
+      }
+      COMBAT.weapon = id; WORLD.equipWeapon(id);
+      toast('Equipped <b>' + w.name + '</b>');
+      saveCombat(); renderShop(); updateCombatHUD(); return;
+    }
+    if (act === 'skins') {
+      const s = SKN[id]; if (!s) return;
+      if (COMBAT.skins.indexOf(id) < 0) {
+        if (COMBAT.score < s.scoreReq) { toast('Need ' + s.scoreReq + ' score points to buy this'); return; }
+        if (COMBAT.gold < s.gold) { toast('Not enough gold'); return; }
+        COMBAT.gold -= s.gold; COMBAT.skins.push(id);
+        toast('✦ Purchased <b>' + s.name + '</b>!');
+      }
+      COMBAT.skin = id; WORLD.applyCharacterLook(COMBAT.character, COMBAT.skin);
+      saveCombat(); renderShop(); updateCombatHUD(); return;
+    }
+    if (act === 'characters') {
+      const c = CHR[id]; if (!c) return;
+      if (COMBAT.characters.indexOf(id) < 0) {
+        if (COMBAT.score < c.scoreReq) { toast('Need ' + c.scoreReq + ' score points to unlock ' + c.name); return; }
+        COMBAT.characters.push(id);
+        toast('☻ Unlocked <b>' + c.name + '</b> — ' + c.role + '!');
+      }
+      COMBAT.character = id; WORLD.applyCharacterLook(COMBAT.character, COMBAT.skin);
+      saveCombat(); renderShop(); updateCombatHUD(); renderCharList(); return;
+    }
   }
 
   function buyTerm() {
@@ -2086,6 +2351,59 @@
     if (state === STATE.WORLD) WORLD.setLocked(false);
     syncPaused();
     WORLD.relock();
+  }
+
+  /* ---------------- character switcher ---------------- */
+  function renderCharList() {
+    const box = $('charList'); if (!box) return;
+    box.innerHTML = CHARACTERS.map(c => {
+      const owned = COMBAT.characters.indexOf(c.id) >= 0;
+      const active = COMBAT.character === c.id;
+      const gateOk = COMBAT.score >= c.scoreReq || owned;
+      let label = active ? 'Active' : owned ? 'Play as' : (gateOk ? 'Unlock free' : '🔒 ' + c.scoreReq + ' pts');
+      const dis = active || !gateOk ? ' disabled' : '';
+      return '<div class="charCard' + (active ? ' active' : '') + (owned ? '' : ' locked') + '" data-id="' + c.id + '">' +
+        '<div class="charAvatar ca-' + c.id + '" style="--cc:#' + c.color.toString(16).padStart(6, '0') + '">' + (c.gender === 'male' ? '♂' : '♀') + '</div>' +
+        '<div class="charInfo"><div class="charName">' + c.name + '</div>' +
+        '<div class="charRole">' + c.role + '</div><div class="charDesc">' + c.desc + '</div></div>' +
+        '<button data-id="' + c.id + '"' + dis + '>' + label + '</button></div>';
+    }).join('');
+    box.querySelectorAll('button[data-id]').forEach(b => b.addEventListener('click', () => {
+      shopAction(b.dataset.id, 'characters');
+      renderCharList();
+    }));
+  }
+  function openCharModal() {
+    charModalOpen = true;
+    renderCharList();
+    $('charModal').classList.add('show');
+    WORLD.setLocked(true); syncPaused();
+  }
+  function closeCharModal() {
+    charModalOpen = false;
+    $('charModal').classList.remove('show');
+    if (state === STATE.WORLD) WORLD.setLocked(false);
+    syncPaused(); WORLD.relock();
+  }
+  function cycleCharacter() {
+    const owned = COMBAT.characters;
+    if (owned.length < 2) { toast('Unlock more characters at the shop to switch'); return; }
+    const i = owned.indexOf(COMBAT.character);
+    const next = owned[(i + 1) % owned.length];
+    COMBAT.character = next;
+    WORLD.applyCharacterLook(COMBAT.character, COMBAT.skin);
+    saveCombat(); updateCombatHUD();
+    toast('☻ Now playing as <b>' + CHR[next].name + '</b> — ' + CHR[next].role);
+  }
+  function cycleWeapon() {
+    const owned = COMBAT.weapons;
+    if (owned.length < 2) { toast('Unlock more weapons at the shop to swap'); return; }
+    const i = owned.indexOf(COMBAT.weapon);
+    const next = owned[(i + 1) % owned.length];
+    COMBAT.weapon = next;
+    WORLD.equipWeapon(next);
+    saveCombat(); updateCombatHUD();
+    toast('⚔ Equipped <b>' + WPN[next].name + '</b>');
   }
 
   function renderGuild() {
@@ -2147,6 +2465,7 @@
   function exportData() {
     SESSION.endTime = Date.now();
     SESSION.summary = SESSION.summary || { done: mainDone(), attempts: attempts.length };
+    SESSION.combat = { score: COMBAT.score, gold: COMBAT.gold, kills: COMBAT.kills, weapons: COMBAT.weapons.slice(), characters: COMBAT.characters.slice() };
     persist();
     download('bondquest_session.json', JSON.stringify(SESSION, null, 2), 'application/json');
     const rows = [['type', 'compound', 'step', 'chosen', 'correct', 'hintUsed', 'attempt']];
@@ -2211,6 +2530,7 @@
       if (wpOpen) { closeWpList(); return; }
       if (beaconOpen) { closeBeacon(); return; }
       if (shopOpen) { closeShop(); return; }
+      if (charModalOpen) { closeCharModal(); return; }
       if (guildOpen) { closeGuild(); return; }
       if (mapOpen) { closeBigMap(); return; }
       if (helpOpen) { closeHelp(); return; }
@@ -2231,6 +2551,18 @@
       if (wpOpen) closeWpList();
       else if (state === STATE.WORLD) openWpList();
     }
+    /* ---- combat controls ---- */
+    if (paused || state !== STATE.WORLD) return;
+    if (k === 'j') { playerAttack(false); return; }
+    if (k === 'k') { playerAttack(true); return; }
+    if (k === 'c') { cycleCharacter(); return; }
+    if (k === 'q') { cycleWeapon(); return; }
+    if (k === 'b') { openShop(); return; }
+    if (k >= '1' && k <= '5') {
+      const id = WEAPONS[Number(k) - 1] && WEAPONS[Number(k) - 1].id;
+      if (id && COMBAT.weapons.indexOf(id) >= 0) shopAction(id, 'gear');
+      else toast('Weapon slot ' + k + ' is locked — buy it at the shop (B)');
+    }
   });
 
   /* ================= BOOT / LOOP ================= */
@@ -2239,7 +2571,7 @@
     WORLD.init($('scene'));
     // Touch "E interact" button: goes through the same entry point as the E key
     WORLD.setInteractHandler(function () {
-      if (helpOpen || mapOpen || wpOpen || shopOpen || guildOpen || beaconOpen) return;
+      if (helpOpen || mapOpen || wpOpen || shopOpen || guildOpen || beaconOpen || charModalOpen) return;
       interact();
     });
     loadWaypoints();
@@ -2250,6 +2582,21 @@
       persist();
     };
     initBigMap();
+    initCombat();
+    // shop tabs
+    document.querySelectorAll('#shopTabs .shopTab').forEach(b => b.addEventListener('click', () => {
+      shopTab = b.dataset.tab; renderShop();
+    }));
+    // character modal
+    const cmOpen = $('charBtn'), cmClose = $('charCloseBtn');
+    if (cmOpen) cmOpen.addEventListener('click', openCharModal);
+    if (cmClose) cmClose.addEventListener('click', closeCharModal);
+    // touch combat buttons
+    const bindAtk = (id, fn) => { const el = $(id); if (el) el.addEventListener('click', fn); };
+    bindAtk('atkBtn', () => playerAttack(false));
+    bindAtk('skillBtn', () => playerAttack(true));
+    bindAtk('swapBtn', cycleCharacter);
+    bindAtk('shopQuickBtn', () => openShop());
     $('startIntro').innerHTML = INTRO_HTML;
     $('helpBody').innerHTML = INTRO_HTML;
     $('qpFoldBtn').addEventListener('click', () => {
@@ -2328,6 +2675,7 @@
       }
     }
 
+    tickCombat(dt);
     WORLD.update(dt, now / 1000);
 
     if (++mapTick % 4 === 0) {

@@ -281,3 +281,61 @@ const WAYPOINTS = [
 ];
 
 const MAIN_TOTAL = NODES.filter(n => n.main).length;
+
+/* ============================================================
+   COMBAT / REWARD LOOP DATA
+   Original designs inspired by action RPGs; no copied characters,
+   art or story. All names and models are bespoke to Bond Quest.
+   ============================================================ */
+
+/* Weapons. cost/gold = shop price; scoreReq = score gate to buy.
+   damage = per-hit; reach = attack radius; rate = min seconds between hits;
+   anim = attack animation style consumed by world.js. */
+const WEAPONS = [
+  { id:'sword',   name:'Bond Blade',      type:'sword',  damage:12, reach:3.4, rate:0.36, anim:'slash',   color:0xdfeaf2, glow:0x8ff0c8, gold:0,   scoreReq:0,   desc:'A balanced one-handed blade. Fast, reliable, easy to combo.' },
+  { id:'great',   name:'Ion Cleaver',     type:'great',  damage:26, reach:4.0, rate:0.72, anim:'heavy',   color:0xc9d6e4, glow:0xffc85f, gold:120, scoreReq:40,  desc:'Heavy two-handed edge. Slow but hits hard with a wide arc.' },
+  { id:'staff',   name:'Orb Staff',       type:'staff',  damage:16, reach:6.2, rate:0.52, anim:'cast',    color:0xb9a7f0, glow:0x7fd8ff, gold:180, scoreReq:80,  desc:'Channels orbital energy. Long range and a radiant burst.' },
+  { id:'bows',    name:'Electron Bow',    type:'bow',    damage:10, reach:9.0, rate:0.30, anim:'shoot',   color:0xe8d9a8, glow:0xffe08a, gold:220, scoreReq:120, desc:'Fires electron bolts from afar. Rapid and precise.' },
+  { id:'daggers', name:'Twin Sigils',     type:'daggers',damage:8,  reach:2.8, rate:0.20, anim:'flurry',  color:0xf0c8d8, glow:0xff8fc8, gold:260, scoreReq:180, desc:'Paired blades for a blur of rapid strikes.' }
+];
+
+/* Playable characters. role affects stats; scoreReq gates shop unlock;
+   skin variants are cosmetic outfits purchasable with gold. */
+const CHARACTERS = [
+  { id:'lyra',   name:'Lyra',       gender:'female', role:'Sword Duelist', color:0x8fd8c0, hair:0x6b4a3a, speed:1.00, bonus:0,    scoreReq:0,   desc:'Agile blade user. Balanced speed and power.' },
+  { id:'kael',   name:'Kael',       gender:'male',   role:'Vanguard',      color:0x6f9fd8, hair:0x2e2a2c, speed:0.92, bonus:0.15, scoreReq:0,   desc:'Burly shield-bearer. Slower, but hits harder.' },
+  { id:'mira',   name:'Mira',       gender:'female', role:'Arcane Caster', color:0xb9a7f0, hair:0x8a5a9a, speed:1.05, bonus:-0.05,scoreReq:60,  desc:'Ranged orbital mage. Quick and nimble.' },
+  { id:'dorian', name:'Dorian',     gender:'male',   role:'Ranger',        color:0x8fd8b0, hair:0x7a5230, speed:1.08, bonus:0.05, scoreReq:140, desc:'Keen-eyed archer. Fast footwork.' },
+  { id:'vex',    name:'Vex',        gender:'female', role:'Shadow Dancer', color:0xe08fb8, hair:0x3a2a44, speed:1.12, bonus:0.10, scoreReq:240, desc:'Twin-blade whirlwind. Dangerous up close.' }
+];
+
+/* Cosmetic skins / outfits. Applied as a colour theme on the character. */
+const SKINS = [
+  { id:'default',  name:'Field Uniform',    gold:0,   scoreReq:0,   desc:'Standard adventure outfit.' },
+  { id:'ember',    name:'Ember Regalia',    gold:100, scoreReq:30,  desc:'Warm crimson and gold accents.' },
+  { id:'tide',     name:'Tidekeeper',       gold:160, scoreReq:90,  desc:'Cool ocean blues and silver.' },
+  { id:'aurora',   name:'Aurora Silk',      gold:240, scoreReq:160, desc:'Iridescent violet and mint.' },
+  { id:'nova',     name:'Nova Plate',       gold:320, scoreReq:260, desc:'Radiant star-forged armour.' }
+];
+
+/* Enemies roaming the fields and roads. hp base; score/gold rewards. */
+const ENEMY_TYPES = [
+  { id:'boar',    name:'Rift Boar',     hp:40,  speed:3.2, damage:8,  score:10, gold:12, color:0x9b6b4a, scale:1.00 },
+  { id:'slime',   name:'Gelatinoid',    hp:26,  speed:2.2, damage:5,  score:8,  gold:9,  color:0x6fd8c0, scale:0.80 },
+  { id:'crab',    name:'Crystal Crab',  hp:64,  speed:1.8, damage:13, score:18, gold:20, color:0x8b7fd0, scale:1.20 }
+];
+
+/* Reward tuning. */
+const COMBAT_RULES = {
+  hitScore: 2,            // score per successful hit
+  hitGold: 1,             // gold per successful hit
+  comboWindow: 1.2,       // seconds to keep a combo alive
+  comboBonus: 0.12,       // damage & score bonus per combo step (capped)
+  comboCap: 5,
+  skillCost: 0,           // skill has a cooldown instead of resource
+  skillCooldown: 6.0,
+  respawnDelay: 12.0,     // seconds before a defeated enemy respawns
+  enemyCap: 18,           // max simultaneous enemies
+  aggroRange: 16,         // distance at which enemies start chasing
+  attackRange: 2.6        // enemy melee reach
+};
