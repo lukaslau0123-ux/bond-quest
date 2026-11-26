@@ -73,6 +73,8 @@ body{-webkit-user-select:none;user-select:none}
 #bigHint .bhStep{font-size:14px;font-weight:700;letter-spacing:2px;color:#ffd86a}
 #bigHint .bhText{font-size:30px;font-weight:800;color:#eafff6;letter-spacing:.5px;text-shadow:0 2px 12px rgba(0,0,0,.6)}
 #bigHint .bhSub{font-size:14px;color:#9fd8c4}
+#bigHint .bhBar{width:280px;height:9px;border-radius:999px;background:rgba(255,255,255,.12);overflow:hidden;margin-top:8px;border:1px solid rgba(255,255,255,.15)}
+#bigHint .bhBar i{display:block;height:100%;width:0%;border-radius:999px;background:linear-gradient(90deg,#4fd6a4,#8ff0c8,#ffd86a);transition:width .2s;box-shadow:0 0 10px rgba(143,240,200,.55)}
 #bigHint.bh.s2{border-color:#ffd86a;box-shadow:0 14px 44px rgba(0,0,0,.55),0 0 34px rgba(255,216,106,.3)}
 #bigHint.bh.s2 .bhStep{color:#ffd86a}
 #bigHint.bh.s3 .bhStep{color:#8ff0c8}

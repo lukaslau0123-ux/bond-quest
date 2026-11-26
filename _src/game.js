@@ -32,7 +32,7 @@
         <div class="ruleRow"><span class="rn rnBig">1</span><span><b>WALK</b> to the glowing person <em>(WASD keys / joystick)</em></span></div>
         <div class="ruleRow"><span class="rn rnBig">2</span><span><b>PRESS</b> <kbd>E</kbd> <em>when you get close</em></span></div>
         <div class="ruleRow"><span class="rn rnBig">3</span><span><b>PICK</b> the right answer → <b>quest done! +1</b> 🎉</span></div>
-        <p class="qsTiny">Lost? Follow the <b style="color:#8ff0c8">green light beam</b> — it always points to your next quest. Press <kbd>M</kbd> for the map.</p>
+        <p class="qsTiny">🎬 Your first task is a short <b>TRAINING</b> — you learn by <b>doing</b>, not reading. Just follow the big on-screen steps!</p>
       </div>
     </div>
 
@@ -225,60 +225,106 @@
     });
     WORLD.equipWeapon(COMBAT.weapon);
     WORLD.applyCharacterLook(COMBAT.character, COMBAT.skin);
-    WORLD.setCombatEnabled(true);
+    /* combat stays OFF until the training mission is complete (tutComplete) */
+    WORLD.setCombatEnabled(tutSeen());
     updateCombatHUD();
   }
   COMBAT.hurtCd = 0;
 
-  /* ---------------- big on-screen step guide (kid-friendly) ----------------
-     STEP 1 WALK to the glowing target → STEP 2 PRESS E → celebration. */
-  let bigHintOn = false, bigHintStep = 0, bigHintCelebrate = 0;
-  function bigHintSeen() {
-    try { return !!localStorage.getItem('bq_bighint_v1'); } catch (e) { return false; }
-  }
-  function bigHintShow(step) {
-    bigHintStep = step;
+  /* ================================================================
+     INTERACTIVE TRAINING MISSION (do-it-yourself, CoD-style)
+     The player learns by DOING, not reading:
+       1 MOVE   — actually walk 8 m          (input is measured)
+       2 APPROACH — walk to the glowing NPC  (distance is measured)
+       3 INTERACT — actually press E         (interaction is measured)
+       4 ANSWER — actually pick an answer    (first dialog choice)
+       done   — celebration, combat unlocked, bonus hint
+     Progress bar fills as the player performs each real action.
+     ================================================================ */
+  const TUT_KEY = 'bq_tut_v1';
+  let tutStep = 0;            // 0 not started · 1 move · 2 approach · 3 pressE · 4 answer · 5 done
+  let tutMoved = 0;           // metres actually walked in step 1
+  let tutLastPos = null;      // last player position for move measuring
+  let tutCelebrate = 0;
+  const TUT_MOVE_GOAL = 8;
+
+  function tutSeen() { try { return !!localStorage.getItem(TUT_KEY); } catch (e) { return false; } }
+
+  function tutShow(step) {
+    tutStep = step;
     const bh = $('bigHint'); if (!bh) return;
+    const touch = WORLD.isTouchMode();
     const txt = {
-      1: ['👣 STEP 1', 'WALK to the glowing person', 'Follow the green light beam!'],
-      2: ['✋ STEP 2', 'PRESS  E', 'Get close, then press the E key!'],
-      3: ['🎉', 'QUEST DONE!  +1', 'Amazing! Keep following the green beam.']
+      1: ['🎮 TRAINING · STEP 1 OF 3', touch ? 'DRAG THE LEFT STICK TO WALK' : 'HOLD  W  TO WALK', touch ? 'Push the stick — walk 8 m to continue.' : 'Keep holding until the bar is full.'],
+      2: ['🎮 TRAINING · STEP 2 OF 3', 'WALK TO THE GLOWING PERSON', 'Follow the green light beam!'],
+      3: ['🎮 TRAINING · STEP 3 OF 3', touch ? 'TAP  THE  E  BUTTON' : 'PRESS  E', touch ? 'You are close — tap Interact!' : 'You are close — press E to talk!'],
+      4: ['🎯', 'PICK AN ANSWER', 'Any answer works — you are learning!']
     }[step];
     if (!txt) return;
     bh.querySelector('.bhStep').textContent = txt[0];
     bh.querySelector('.bhText').textContent = txt[1];
     bh.querySelector('.bhSub').textContent = txt[2];
     bh.className = 'bh show s' + step;
-    bigHintOn = true;
   }
-  function bigHintHide() {
-    const bh = $('bigHint'); if (bh) bh.className = 'bh';
-    bigHintOn = false;
+  function tutHide() { const bh = $('bigHint'); if (bh) bh.className = 'bh'; }
+
+  function tutProgress(k) {
+    const el = $('bhFill'); if (el) el.style.width = Math.round(Math.max(0, Math.min(1, k)) * 100) + '%';
   }
-  function bigHintStart() {
-    if (!bigHintSeen()) setTimeout(() => bigHintShow(1), 900);
+
+  function tutStart() {
+    if (tutSeen()) return;
+    setTimeout(() => { tutShow(1); tutProgress(0); SFX.click(); }, 700);
   }
-  function questCelebrate() {
-    bigHintShow(3);
+  function tutAdvance(next) {
+    SFX.coin();
+    tutShow(next);
+  }
+  function tutComplete() {
+    tutShow(5);
+    const bh = $('bigHint'); if (bh) bh.className = 'bh show s3 done';
+    bh.querySelector('.bhStep').textContent = '🎉';
+    bh.querySelector('.bhText').textContent = 'TRAINING COMPLETE!';
+    bh.querySelector('.bhSub').textContent = 'You are ready — the world is yours!';
+    tutProgress(1);
     SFX.unlock();
-    bigHintCelebrate = performance.now() + 2000;
+    tutCelebrate = performance.now() + 2600;
+    try { localStorage.setItem(TUT_KEY, '1'); } catch (e) { }
+    /* combat unlocks here — the world is now "live" */
+    WORLD.setCombatEnabled(true);
+    setTimeout(() => toast('⚔ <b>Bonus unlocked!</b> Animals roam the fields — press <kbd>J</kbd> to fight them for gold. Shop: <kbd>B</kbd>', 5200), 2700);
   }
-  function tickBigHint() {
-    if (bigHintCelebrate && performance.now() > bigHintCelebrate) {
-      bigHintCelebrate = 0;
-      try { localStorage.setItem('bq_bighint_v1', '1'); } catch (e) { }
-      bigHintHide();
+  function tickTutorial() {
+    if (tutCelebrate && performance.now() > tutCelebrate) { tutCelebrate = 0; tutHide(); return; }
+    if (tutCelebrate) return;
+    if (tutStep === 0 || tutStep >= 5) return;
+    if (state !== STATE.WORLD || !started) return;
+    /* re-show the banner after closing a modal */
+    const bhEl = $('bigHint');
+    if (bhEl && !bhEl.classList.contains('show')) tutShow(tutStep);
+    const p = WORLD.player.position;
+    if (tutStep === 1) {
+      if (tutLastPos) tutMoved += Math.hypot(p.x - tutLastPos.x, p.z - tutLastPos.z);
+      tutLastPos = { x: p.x, z: p.z };
+      tutProgress(tutMoved / TUT_MOVE_GOAL);
+      if (tutMoved >= TUT_MOVE_GOAL) tutAdvance(2);
       return;
     }
-    if (bigHintCelebrate) return;
-    if (bigHintSeen()) return;
-    if (state !== STATE.WORLD || !started) return;
     const t = trackedNode();
     if (!t) return;
-    const p = WORLD.player.position;
     const d = Math.hypot(t.x - p.x, t.z - p.z);
-    if (bigHintStep === 1 && d < 7) bigHintShow(2);
-    else if (!bigHintOn) bigHintShow(d < 7 ? 2 : 1);   // restore after closing a modal
+    if (tutStep === 2) {
+      tutProgress(1 - d / 26);
+      if (d < 7) tutAdvance(3);
+      return;
+    }
+    if (tutStep === 3) {
+      tutProgress(Math.max(0, 1 - Math.max(0, d - 4) / 4));
+    }
+  }
+  /* legacy alias: keep the celebration banner visible during tutComplete */
+  function questCelebrate() {
+    if (!tutCelebrate) tutHide();
   }
 
   /* Floating reward text in screen space (lightweight, no 3D text needed). */
@@ -784,6 +830,7 @@
   function openDialog(node) {
     const c = COMP[node.compound];
     dlg = { node, c, step: 0, picks: [], hintUsed: false, wrongSteps: 0 };
+    if (tutStep === 3) tutAdvance(4);   // training: the player actually pressed E!
     $('npcName').textContent = node.label.en + ' · ' + c.f;
     $('npcAvatar').textContent = c.f.replace(/[₀-₉]/g, '').slice(0, 2);
     $('npcLine').textContent = '📖 LEARNING: classify ' + c.f + ' — three quick questions and the quest is done!';
@@ -833,6 +880,7 @@
 
   function pickOption(btn, expected, opts) {
     const v = Number(btn.dataset.v);
+    if (tutStep === 4) tutComplete();   // training: the player actually answered!
     const c = dlg.c;
     const ok = v === expected;
     const fb = $('dlgFb');
@@ -1279,6 +1327,7 @@
 
     if (ok) {
       dcq.solved = true;
+      if (tutStep === 4) tutComplete();   // training via a chest works too
       SFX.good();
       fb.innerHTML = '<div class="fbBanner ok"><span class="fbIcon">✓</span><div>' +
         '<b>Perfect diagram!</b>' +
@@ -1395,6 +1444,7 @@
   $('vocabCollectBtn').addEventListener('click', () => {
     if (!vocabNode) return;
     done.add(vocabNode.id); questCelebrate();
+    if (tutStep === 4) tutComplete();   // training via a crystal works too
     WORLD.setNodeState(vocabNode.id, 'done');
     logEvent({ type: 'vocab', term: vocabNode.term });
     closeModal('vocabModal');
@@ -1621,7 +1671,7 @@
     syncPaused();
     if (state === STATE.WORLD) { WORLD.setLocked(false); WORLD.relock(); }
     try { localStorage.setItem('bq_coach_v2', '1'); } catch (e) { }
-    bigHintStart();   // show the kid-friendly walk/press-E guide after the tour
+   // (training mission is started from startBtn now)
     try { CLOUD.save(); } catch (e) { }
   }
 
@@ -2592,7 +2642,7 @@
   function interact() {
     if (state !== STATE.WORLD || !started) return;
     SFX.click();
-    bigHintHide();   // clear the step banner while a modal is open
+    tutHide();   // clear the training banner while a modal is open
     const wpNear = nearWpInfo(3.9);
     const n = WORLD.nearestNode(3.6);
     const pp = WORLD.player.position;
@@ -2739,10 +2789,7 @@
       SESSION.startTime = Date.now();
       logEvent({ type: 'start' });
       WORLD.requestLock();
-      let seenCoach = false;
-      try { seenCoach = !!localStorage.getItem('bq_coach_v2'); } catch (e) { }
-      if (!seenCoach) setTimeout(() => coachShow(0), 500);
-      else bigHintStart();
+      tutStart();   // interactive training mission replaces the text coach
       if (!storeOk) setTimeout(() => toast('⚠️ Browser storage is blocked — progress will not save automatically. Use "↓" to export your data.', 5000), 1200);
       toast('Follow the arrow in the quest panel on the left — when you arrive, press E to interact.');
     });
@@ -2780,7 +2827,7 @@
     }
 
     tickCombat(dt);
-    tickBigHint();
+    tickTutorial();
     WORLD.update(dt, now / 1000);
 
     if (++mapTick % 4 === 0) {
