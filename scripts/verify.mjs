@@ -64,6 +64,22 @@ test('原始 JS 語法正確', () => {
   }
 });
 
+// 全英文介面守門：語言標記生效，且标志性的舊中文 UI 文案不得殘留。
+// 只檢查 UI 標記串，不檢查 data.js 的 zh 雙語數據（那些是資料，不會渲染）。
+const UI_EN_MARKERS = [
+  '<html lang="en">',
+];
+const UI_ZH_LEGACY = [
+  '開始探索', '任務 MISSION', '按 E 互動', '遊戲說明', '目前目標',
+  '化學鍵 3D 開放世界', '取得驗證碼 Get code', '重看新手引導',
+];
+test('介面已全英文化', () => {
+  const miss = UI_EN_MARKERS.filter((s) => !html.includes(s));
+  must(miss.length === 0, `缺少英文標記：${miss.join(', ')}`);
+  const legacy = UI_ZH_LEGACY.filter((s) => html.includes(s));
+  must(legacy.length === 0, `仍殘留舊中文文案：${legacy.join(', ')}`);
+});
+
 const failed = results.filter((r) => !r.ok);
 for (const r of results) {
   console.log(`${r.ok ? '[PASS]' : '[FAIL]'} ${r.name}${r.ok ? '' : ` → ${r.err}`}`);

@@ -70,14 +70,14 @@ const CLOUD = (function () {
     const raw = clean(error.message);
     const kind = error.kind || error.code || '';
     if (/验证码|驗證碼|verification code|code does not match|invalid.*code/i.test(raw)) {
-      return '驗證碼唔正確或已過期，請重新輸入或重新發送';
+      return 'The code is incorrect or expired. Please request a new one.';
     }
     if (/rate|429|too many|frequent/i.test(raw) || kind === 'rate_limited') {
-      return '發送太頻繁，請稍等一分鐘再試';
+      return 'Too many requests. Please wait a minute and try again.';
     }
-    if (/not enabled|未打开|disabled/i.test(raw)) return '此登入方式暫時停用，請聯絡管理員';
-    if (kind === 'network' || kind === 'backend-unavailable') return '網絡或伺服器暫時不可用，請稍後再試';
-    if (kind === 'unauthenticated' || kind === 'invalid_grant') return '登入已失效，請重新登入';
+    if (/not enabled|未打开|disabled/i.test(raw)) return 'This sign-in method is temporarily unavailable. Please contact support.';
+    if (kind === 'network' || kind === 'backend-unavailable') return 'Network or server temporarily unavailable.';
+    if (kind === 'unauthenticated' || kind === 'invalid_grant') return 'Your session expired. Please sign in again.';
     return raw || fallback;
   }
 
@@ -91,7 +91,7 @@ const CLOUD = (function () {
     return {
       id: u.id || u.uid || '',
       email: u.email || '',
-      name: u.name || u.email || '玩家'
+      name: u.name || u.email || 'Player'
     };
   }
   function render() {
@@ -102,15 +102,15 @@ const CLOUD = (function () {
     const btn = $('authBtn');
     if (btn) {
       const me = userOf(session);
-      btn.textContent = me ? (me.name || '我').slice(0, 1) : '登';
-      btn.title = me ? ('已登入：' + me.name) : '登入 / 註冊帳號';
+      btn.textContent = me ? (me.name || 'P').slice(0, 1) : 'IN';
+      btn.title = me ? ('Signed in: ' + me.name) : 'Sign in / Register';
       btn.classList.toggle('signed', !!me);
     }
     if (!guest) {
       const me = userOf(session);
       if ($('clAvatar')) $('clAvatar').textContent = (me.name || '?').slice(0, 1).toUpperCase();
       if ($('clName')) $('clName').textContent = me.name;
-      if ($('clEmailView')) $('clEmailView').textContent = me.email || '（此登入方式未提供電郵）';
+      if ($('clEmailView')) $('clEmailView').textContent = me.email || '(no email provided by this sign-in method)';
       updateStats();
     }
   }
@@ -125,7 +125,7 @@ const CLOUD = (function () {
       try { return JSON.parse(localStorage.getItem(GUEST_KEY) || 'null'); } catch (e) { return null; }
     }
     const { data, error } = await sdk.database.from(TABLE).select('data').maybeSingle();
-    if (error) return { __error: errText(error, '讀取進度失敗') };
+    if (error) return { __error: errText(error, 'Failed to load progress') };
     return data ? data.data : null;
   }
   async function saveNow() {
@@ -146,7 +146,7 @@ const CLOUD = (function () {
     if (error) {
       // 靜默失敗會令玩家以為進度已存 —— 至少留在 log 並在下次開窗提示
       console.warn('[cloud] progress save failed:', error.code || error.kind || 'unknown');
-      lastSaveError = errText(error, '進度未能同步到雲端');
+      lastSaveError = errText(error, 'Could not sync progress to cloud');
     } else {
       lastSaveError = '';
       lastSavedAt = Date.now();
@@ -173,7 +173,7 @@ const CLOUD = (function () {
     const sub = $('clVerify');
     if (sub) sub.style.display = 'none';
     const send = $('clSend');
-    if (send) { send.textContent = '取得驗證碼 Get code'; send.disabled = false; }
+    if (send) { send.textContent = 'Send code'; send.disabled = false; }
     stopCountdown();
   }
   function stopCountdown() {
@@ -187,7 +187,7 @@ const CLOUD = (function () {
     const r = $('clResend');
     const tick = function () {
       if (!r) return;
-      r.textContent = left > 0 ? ('重新發送喺 ' + left + ' 秒後') : '可以重新發送';
+      r.textContent = left > 0 ? ('Resend in ' + left + ' s') : 'Resend code';
       if (left <= 0) { clearInterval(countdownTimer); countdownTimer = null; }
       left--;
     };
@@ -195,9 +195,9 @@ const CLOUD = (function () {
     countdownTimer = setInterval(tick, 1000);
   }
   function checkEmail(v) {
-    if (!v) return '請輸入電郵';
-    if (v.length > 120) return '電郵太長';
-    if (!/^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(v)) return '電郵格式唔啱，例如 you@example.com';
+    if (!v) return 'Enter your email';
+    if (v.length > 120) return 'Email is too long';
+    if (!/^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(v)) return 'Invalid email format (e.g. you@example.com)';
     return '';
   }
 
@@ -207,17 +207,17 @@ const CLOUD = (function () {
     const bad = checkEmail(email);
     setErr('clErrEmail', bad);
     if (bad) { $('clEmail').focus(); return; }
-    if (!sdk) { msg('雲端功能未能載入，請檢查網絡後重新整理', 'err'); return; }
+    if (!sdk) { msg('Cloud service failed to load. Check your connection and refresh.', 'err'); return; }
 
     busy = true;
     const btn = $('clSend');
-    if (btn) { btn.disabled = true; btn.textContent = '發送中…'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
     msg('');
     try {
       const { data, error } = await sdk.auth.sendOtp({ email: email });
       if (error) {
-        msg(errText(error, '驗證碼發送失敗'), 'err');
-        if (btn) { btn.disabled = false; btn.textContent = '取得驗證碼 Get code'; }
+        msg(errText(error, 'Failed to send code'), 'err');
+        if (btn) { btn.disabled = false; btn.textContent = 'Send code'; }
         return;
       }
       pending = {
@@ -228,14 +228,14 @@ const CLOUD = (function () {
       $('clCodeRow').style.display = '';
       $('clVerify').style.display = '';
       // 唔揭露該電郵是否已註冊（避免帳號探測）
-      msg('驗證碼已寄到 ' + email + '，請檢查收件箱（包括垃圾郵件）', 'ok');
+      msg('Code sent to ' + email + ' — check your inbox (including spam).', 'ok');
       $('clCode').value = '';
       $('clCode').focus();
       startCountdown(60);
-      if (btn) { btn.disabled = false; btn.textContent = '重新發送 Resend'; }
+      if (btn) { btn.disabled = false; btn.textContent = 'Resend'; }
     } catch (e) {
-      msg('驗證碼發送失敗，請稍後再試', 'err');
-      if (btn) { btn.disabled = false; btn.textContent = '取得驗證碼 Get code'; }
+      msg('Failed to send code. Please try again later.', 'err');
+      if (btn) { btn.disabled = false; btn.textContent = 'Send code'; }
     } finally {
       busy = false;
     }
@@ -248,18 +248,18 @@ const CLOUD = (function () {
     setErr('clErrCode', '');
 
     if (!pending || pending.email !== email) {
-      setErr('clErrCode', '請先為呢個電郵取得驗證碼');
+      setErr('clErrCode', 'Request a code for this email first');
       return;
     }
     if (!/^\d{6}$/.test(token)) {
-      setErr('clErrCode', '請輸入 6 位數字驗證碼');
+      setErr('clErrCode', 'Enter the 6-digit code');
       return;
     }
-    if (!sdk) { msg('雲端功能未能載入', 'err'); return; }
+    if (!sdk) { msg('Cloud service failed to load.', 'err'); return; }
 
     busy = true;
     const btn = $('clVerify');
-    if (btn) { btn.disabled = true; btn.textContent = '驗證中…'; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Verifying…'; }
     try {
       const { data, error } = await sdk.auth.verifyOtp({
         email: pending.email,
@@ -268,7 +268,7 @@ const CLOUD = (function () {
         token: token
       });
       if (error) {
-        setErr('clErrCode', errText(error, '驗證碼唔正確或已過期'));
+        setErr('clErrCode', errText(error, 'The code is incorrect or expired'));
         return;
       }
       setSession(data && data.session ? data.session : data);
@@ -276,10 +276,10 @@ const CLOUD = (function () {
       resetForm();
       await afterSignIn();
     } catch (e) {
-      setErr('clErrCode', '驗證失敗，請再試一次');
+      setErr('clErrCode', 'Verification failed. Please try again.');
     } finally {
       busy = false;
-      if (btn) { btn.disabled = false; btn.textContent = '登入 / 註冊'; }
+      if (btn) { btn.disabled = false; btn.textContent = 'Sign in / Register'; }
     }
   }
 
@@ -299,7 +299,7 @@ const CLOUD = (function () {
     close();
     render();
     const me = userOf(session);
-    toast('已登入：' + (me ? me.name : '玩家') + '，進度會同步到雲端');
+    toast('Signed in as ' + (me ? me.name : 'Player') + ' — your progress will sync to the cloud.');
     document.dispatchEvent(new CustomEvent('bq:auth', { detail: { user: me } }));
   }
 
@@ -309,11 +309,11 @@ const CLOUD = (function () {
       if (!alt) return resolve(false);
       const n = (guest.done || []).length;
       alt.innerHTML =
-        '<div class="authImport"><b>呢部裝置有訪客進度（完成 ' + n + ' 個節點）</b>' +
-        '<span>要上傳到呢個帳號嗎？上傳後會覆蓋雲端現有進度。</span>' +
+        '<div class="authImport"><b>This device has guest progress (' + n + ' quests completed)</b>' +
+        '<span>Upload it to your account? Uploading will overwrite your existing cloud progress.</span>' +
         '<div class="authImportBtns">' +
-        '<button type="button" class="primary" id="clImportYes">上傳</button>' +
-        '<button type="button" class="ghost" id="clImportNo">唔需要</button></div></div>';
+        '<button type="button" class="primary" id="clImportYes">Upload</button>' +
+        '<button type="button" class="ghost" id="clImportNo">No thanks</button></div></div>';
       $('clImportYes').onclick = function () { alt.innerHTML = ''; resolve(true); };
       $('clImportNo').onclick = function () { alt.innerHTML = ''; resolve(false); };
     });
@@ -331,12 +331,12 @@ const CLOUD = (function () {
     const correct = (p && p.correct) ? p.correct : 0;
     const wp = (p && p.wp) ? p.wp.length : 0;
     const when = lastSavedAt || (p && p.savedAt) || 0;
-    const saved = when ? new Date(when).toLocaleString() : '未有記錄';
+    const saved = when ? new Date(when).toLocaleString() : 'No saved progress';
     box.innerHTML =
-      '<div class="authStat"><b>' + done + '</b><span>完成節點</span></div>' +
-      '<div class="authStat"><b>' + correct + '</b><span>答對題數</span></div>' +
-      '<div class="authStat"><b>' + wp + '</b><span>傳送錨點</span></div>' +
-      '<div class="authStat wide"><b>' + saved + '</b><span>最後同步</span></div>' +
+      '<div class="authStat"><b>' + done + '</b><span>Quests done</span></div>' +
+      '<div class="authStat"><b>' + correct + '</b><span>Correct answers</span></div>' +
+      '<div class="authStat"><b>' + wp + '</b><span>Waypoints</span></div>' +
+      '<div class="authStat wide"><b>' + saved + '</b><span>Last sync</span></div>' +
       (lastSaveError ? '<div class="clStatNote">⚠ ' + lastSaveError + '</div>' : '');
   }
 
@@ -350,17 +350,17 @@ const CLOUD = (function () {
     document.dispatchEvent(new CustomEvent('bq:auth-open'));
 
     if (!onPublishedOrigin()) {
-      msg('雲端帳號只可以在已發佈網址使用（' + CFG.endpoint + '）。用 file:// 或本機預覽打開時，帳號功能會停用。', 'err');
+      msg('Cloud sign-in only works on the published site (' + CFG.endpoint + '). Open the live link to use it.', 'err');
     } else if (sdk && !session && pending) {
       // 已經寄出驗證碼：回復輸入框，唔需要玩家重新發送
       if ($('clEmail')) $('clEmail').value = pending.email;
       $('clCodeRow').style.display = '';
       $('clVerify').style.display = '';
-      if ($('clSend')) $('clSend').textContent = '重新發送 Resend';
-      msg('驗證碼已寄到 ' + pending.email + '，請輸入 6 位數字', 'ok');
+      if ($('clSend')) $('clSend').textContent = 'Resend';
+      msg('Code sent to ' + pending.email + ' — enter the 6-digit code.', 'ok');
       setTimeout(function () { const c = $('clCode'); if (c) c.focus(); }, 60);
     } else if (!sdk) {
-      msg('雲端 SDK 未載入，請檢查網絡後重新整理', 'err');
+      msg('Cloud SDK not loaded. Check your connection and refresh.', 'err');
     } else if (!session) {
       setTimeout(function () { const e = $('clEmail'); if (e) e.focus(); }, 60);
     }
@@ -385,7 +385,7 @@ const CLOUD = (function () {
     setSession(null);
     pending = null;
     close();
-    toast('已登出');
+    toast('Signed out');
     document.dispatchEvent(new CustomEvent('bq:auth', { detail: { user: null } }));
     setTimeout(function () { location.reload(); }, 350);
   }
@@ -402,7 +402,7 @@ const CLOUD = (function () {
     bind('clVerify', submitCode);
     bind('clClose', close);
     bind('clSignOut', function () {
-      if (!confirm('登出後會返到訪客進度（雲端進度已保存）。確定登出？')) return;
+      if (!confirm("You'll return to guest progress (cloud progress is saved). Sign out?")) return;
       signOut();
     });
     bind('clExport', async function () {

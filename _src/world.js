@@ -1987,91 +1987,124 @@ const WORLD = (function () {
   }
 
   /* ---------- minimap ---------- */
+  /* 以玩家為中心的局部地圖：解決「全世界壓縮太多、要手動放大先睇到」嘅問題。
+     放大倍率由 MM_VIEW 控制（數值越小＝越近、越大越清晰）。目標在視野外時，
+     於地圖邊緣畫方向箭頭，玩家永遠知道往哪走。 */
   const MMW = 360;
+  const MM_VIEW = 130;              // 可視半徑（世界單位）；130 約涵蓋一個分區
+  const MM_HALF = MMW / 2;
   function drawMinimap(playerPos, camYaw, allNodes, doneSet, target, wpUnlocked) {
     const ctx = MAP_C.getContext('2d');
     ctx.clearRect(0, 0, MMW, MMW);
-    const toMap = (x, z) => [(x + 200) / 400 * MMW, (z + 200) / 400 * MMW];
+    const sc = MM_HALF / MM_VIEW;                        // 世界單位 → 像素
+    const toMap = (x, z) => [MM_HALF + (x - playerPos.x) * sc, MM_HALF + (z - playerPos.z) * sc];
+    const px = MM_HALF, py = MM_HALF;                    // 玩家固定在中心
 
-    const zc = { A: 'rgba(120,170,210,.26)', B: 'rgba(90,160,105,.28)', C: 'rgba(130,132,140,.28)', D: 'rgba(120,95,180,.30)' };
+    ctx.save();
+    ctx.beginPath(); ctx.arc(MM_HALF, MM_HALF, MM_HALF - 3, 0, Math.PI * 2); ctx.clip();
+
+    /* 底色 */
+    ctx.fillStyle = 'rgba(18,30,34,.55)';
+    ctx.fillRect(0, 0, MMW, MMW);
+
+    /* 分區色塊 + 代號 */
+    const zc = { A: 'rgba(120,170,210,.34)', B: 'rgba(90,160,105,.36)', C: 'rgba(130,132,140,.36)', D: 'rgba(120,95,180,.38)' };
     for (const k in ZONES) {
       const Z = ZONES[k];
       const [mx, my] = toMap(Z.cx, Z.cz);
       ctx.fillStyle = zc[k];
-      ctx.beginPath(); ctx.arc(mx, my, 70, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(mx, my, 78 * sc, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,.22)';
+      ctx.font = '700 26px sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(k, mx, my);
     }
 
+    /* 任務節點 */
     allNodes.forEach(n => {
       const [mx, my] = toMap(n.x, n.z);
+      if (mx < -20 || mx > MMW + 20 || my < -20 || my > MMW + 20) return;
       const isDone = doneSet.has(n.id);
-      ctx.beginPath();
-      ctx.arc(mx, my, n.main ? 4.8 : 3.2, 0, Math.PI * 2);
-      if (isDone) ctx.fillStyle = 'rgba(110,140,130,.55)';
-      else if (n.type === 'npc') ctx.fillStyle = '#4fd6a4';
-      else if (n.type === 'chest') ctx.fillStyle = '#ffc85f';
-      else if (n.type === 'guild') ctx.fillStyle = '#6fb8e8';
-      else if (n.type === 'shop') ctx.fillStyle = '#ff9d5c';
-      else ctx.fillStyle = '#a99ff0';
-      ctx.fill();
+      const rr = n.main ? 6.4 : 4.4;
+      let col = '#a99ff0';
+      if (isDone) col = 'rgba(110,140,130,.6)';
+      else if (n.type === 'npc') col = '#4fd6a4';
+      else if (n.type === 'chest') col = '#ffc85f';
+      else if (n.type === 'guild') col = '#6fb8e8';
+      else if (n.type === 'shop') col = '#ff9d5c';
+      ctx.beginPath(); ctx.arc(mx, my, rr, 0, Math.PI * 2);
+      ctx.fillStyle = col; ctx.fill();
       if (n.main && !isDone) {
-        ctx.strokeStyle = 'rgba(255,255,255,.5)';
-        ctx.lineWidth = 1.2;
-        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,.95)'; ctx.lineWidth = 2; ctx.stroke();
+        ctx.beginPath(); ctx.arc(mx, my, rr + 4, 0, Math.PI * 2);
+        ctx.strokeStyle = 'rgba(255,255,255,.28)'; ctx.lineWidth = 1.4; ctx.stroke();
+      } else if (!isDone) {
+        ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = 1.2; ctx.stroke();
       }
     });
 
-    const [px, py] = toMap(playerPos.x, playerPos.z);
-
-    if (target) {
-      const [tx, ty] = toMap(target.x, target.z);
-      ctx.save();
-      ctx.setLineDash([5, 5]);
-      ctx.strokeStyle = 'rgba(143,240,200,.75)';
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(tx, ty); ctx.stroke();
-      ctx.restore();
-
-      const pulse = 8 + Math.sin(performance.now() / 320) * 2.4;
-      ctx.strokeStyle = 'rgba(143,240,200,.9)';
-      ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(tx, ty, pulse, 0, Math.PI * 2); ctx.stroke();
-      ctx.beginPath(); ctx.arc(tx, ty, 3.4, 0, Math.PI * 2);
-      ctx.fillStyle = '#eafff7'; ctx.fill();
-    }
-
+    /* 傳送錨點 */
     if (typeof WAYPOINTS !== 'undefined') {
       WAYPOINTS.forEach(function (w) {
         const m = toMap(w.x, w.z);
+        if (m[0] < -20 || m[0] > MMW + 20 || m[1] < -20 || m[1] > MMW + 20) return;
         const on = wpUnlocked && wpUnlocked.has(w.id);
-        ctx.save();
-        ctx.translate(m[0], m[1]);
-        ctx.rotate(Math.PI / 4);
-        ctx.beginPath();
-        ctx.rect(-3.6, -3.6, 7.2, 7.2);
-        ctx.fillStyle = on ? '#7fe8e0' : 'rgba(120,142,152,.6)';
-        ctx.fill();
-        ctx.strokeStyle = on ? 'rgba(255,255,255,.92)' : 'rgba(255,255,255,.25)';
-        ctx.lineWidth = 1.3;
-        ctx.stroke();
-        ctx.restore();
+        ctx.save(); ctx.translate(m[0], m[1]); ctx.rotate(Math.PI / 4);
+        ctx.beginPath(); ctx.rect(-5, -5, 10, 10);
+        ctx.fillStyle = on ? '#7fe8e0' : 'rgba(120,142,152,.65)'; ctx.fill();
+        ctx.strokeStyle = on ? 'rgba(255,255,255,.95)' : 'rgba(255,255,255,.3)';
+        ctx.lineWidth = 1.6; ctx.stroke(); ctx.restore();
       });
     }
 
+    /* 目標：視野內畫路線＋脈衝圈；視野外在邊緣畫方向箭頭 */
+    if (target) {
+      const [tx, ty] = toMap(target.x, target.z);
+      const dx = tx - px, dy = ty - py;
+      const dist = Math.hypot(dx, dy);
+      if (dist <= MM_HALF - 26) {
+        ctx.save();
+        ctx.setLineDash([7, 6]);
+        ctx.strokeStyle = 'rgba(143,240,200,.8)'; ctx.lineWidth = 2.4;
+        ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(tx, ty); ctx.stroke();
+        ctx.restore();
+        const pulse = 12 + Math.sin(performance.now() / 320) * 3;
+        ctx.strokeStyle = 'rgba(143,240,200,.95)'; ctx.lineWidth = 2.4;
+        ctx.beginPath(); ctx.arc(tx, ty, pulse, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(tx, ty, 5, 0, Math.PI * 2);
+        ctx.fillStyle = '#eafff7'; ctx.fill();
+      } else {
+        const a = Math.atan2(dy, dx), er = MM_HALF - 26;
+        const ex = px + Math.cos(a) * er, ey = py + Math.sin(a) * er;
+        ctx.save(); ctx.translate(ex, ey); ctx.rotate(a);
+        ctx.beginPath(); ctx.moveTo(13, 0); ctx.lineTo(-8, -8); ctx.lineTo(-8, 8);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(143,240,200,.95)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = 1.4; ctx.stroke();
+        ctx.restore();
+      }
+    }
+
+    /* 玩家（中心，白色三角隨視角旋轉） */
     ctx.save();
     ctx.translate(px, py);
     ctx.rotate(-camYaw);
     ctx.beginPath();
-    ctx.moveTo(0, -9); ctx.lineTo(6, 6.5); ctx.lineTo(0, 3.4); ctx.lineTo(-6, 6.5);
+    ctx.moveTo(0, -12); ctx.lineTo(8, 9); ctx.lineTo(0, 4.5); ctx.lineTo(-8, 9);
     ctx.closePath();
-    ctx.fillStyle = '#ffffff';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 1; ctx.stroke();
+    ctx.fillStyle = '#ffffff'; ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 1.4; ctx.stroke();
     ctx.restore();
 
-    ctx.fillStyle = 'rgba(200,225,215,.55)';
-    ctx.font = '600 15px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('N', MMW / 2, 18);
+    ctx.restore();   // 解除圓形裁剪
+
+    /* 邊框 + 指北 */
+    ctx.beginPath(); ctx.arc(MM_HALF, MM_HALF, MM_HALF - 3, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.fillStyle = 'rgba(220,240,232,.9)';
+    ctx.font = '700 16px sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
+    ctx.fillText('N', MM_HALF, 22);
     ctx.textAlign = 'left';
   }
 

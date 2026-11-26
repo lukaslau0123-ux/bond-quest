@@ -22,48 +22,47 @@
 
   const INTRO_HTML = `
     <div class="introGrid" style="align-items:start">
-      <div>
-        <div class="qsBox">
-          <div class="qsHead">目標 GOAL</div>
-          <p class="qsGoal">行遍 4 個地方，完成 <b>9 個任務</b>，你就溫完「離子鍵、共價鍵、金屬鍵」同「點叉圖」。</p>
-        </div>
-
-        <div class="qsBox">
-          <div class="qsHead">基本規則（只有 3 條）</div>
-          <div class="ruleRow"><span class="rn">1</span><span>行到<b>發光嘅人／寶箱／晶石</b>旁邊</span></div>
-          <div class="ruleRow"><span class="rn">2</span><span>按鍵盤 <kbd>E</kbd></span></div>
-          <div class="ruleRow"><span class="rn">3</span><span>答問題／畫圖 → 完成，左邊進度 +1</span></div>
-        </div>
+      <div class="qsBox">
+        <div class="qsHead">YOUR MISSION</div>
+        <p class="qsGoal">Explore <b>4 regions</b> and complete <b>9 quests</b>. Along the way you will master <b>ionic</b>, <b>covalent</b> and <b>metallic</b> bonding — and learn to draw <b>dot-and-cross diagrams</b>.</p>
       </div>
 
       <div class="qsBox">
-        <div class="qsHead">最短上手 5 步</div>
-        <ol class="qsOl">
-          <li>按下面「開始探索」</li>
-          <li>睇<b>左邊面板</b>：寫住「分類 NaCl · 26 米 · 西北」</li>
-          <li>跟<b>白色箭頭</b>行過去（唔想行就按 <kbd>M</kbd> 睇地圖）</li>
-          <li>行到去，畫面中間會出「按 <kbd>E</kbd> 互動」→ 按 E</li>
-          <li>答完三步 → 左下角分數 +1，左邊自動轉下一個任務</li>
-        </ol>
-        <p class="qsGoal" style="margin-top:9px;padding-top:9px;border-top:1px solid rgba(255,255,255,.09);font-size:12px;color:#9fbcb1">
-          <b style="color:#8ff0c8">想快啲？</b>行到藍色錨點按 <kbd>E</kbd> 啟動，之後按 <kbd>M</kbd> 撳錨點或按 <kbd>T</kbd> 傳送。唔識就撳「提示 Hint」。</p>
+        <div class="qsHead">HOW TO PLAY — 3 SIMPLE STEPS</div>
+        <div class="ruleRow"><span class="rn">1</span><span>Walk up to a <b>glowing NPC, chest or crystal</b>.</span></div>
+        <div class="ruleRow"><span class="rn">2</span><span>Press <kbd>E</kbd> when the prompt appears.</span></div>
+        <div class="ruleRow"><span class="rn">3</span><span>Answer the questions or draw the electrons → quest complete, and your progress <b>+1</b>.</span></div>
       </div>
     </div>
 
     <div class="qsBox">
-      <div class="qsHead">兩個實例</div>
-      <div class="exRow"><b>① 答問題（搵人）</b>：NaCl 由咩組成？→ 揀「金屬 + 非金屬」→ 電子點做？→「電子轉移」→ 咩鍵？→「離子鍵」</div>
-      <div class="exRow"><b>② 畫點叉圖（開寶箱）</b>：揀 <b>•</b> → 點 Cl 旁邊 4 個小點，每個點 2 下 → 按「[ ] 方括號」→ 揀 Na <b>+</b>、Cl <b>−</b> → 按「檢查」</div>
+      <div class="qsHead">QUICK START — 5 STEPS</div>
+      <ol class="qsOl">
+        <li>Press <b>Start exploring</b> below.</li>
+        <li>Read the <b>CURRENT OBJECTIVE</b> panel on the left: it tells you what to do, how far away it is (e.g. <b>26 m</b>) and the direction (e.g. <b>NW</b>).</li>
+        <li>Follow the <b>white arrow</b> in the panel and on the mini-map. Press <kbd>M</kbd> at any time to open the big map.</li>
+        <li>When you arrive, a prompt appears in the middle of the screen — press <kbd>E</kbd>.</li>
+        <li>Finish the questions or the diagram → the counter at the top goes <b>+1</b>, and the panel automatically switches to your next quest.</li>
+      </ol>
+      <p class="qsGoal" style="margin-top:9px;padding-top:9px;border-top:1px solid rgba(255,255,255,.09);font-size:12px;color:#9fbcb1">
+        <b style="color:#8ff0c8">Want to move faster?</b> Walk to a blue anchor and press <kbd>E</kbd> to activate it. Then press <kbd>M</kbd> and click the anchor, or press <kbd>T</kbd>, to teleport. Stuck? Just press the <b>Hint</b> button.
+      </p>
+    </div>
+
+    <div class="qsBox">
+      <div class="qsHead">LEARN BY DOING — 2 EXAMPLES</div>
+      <div class="exRow"><b>① Answer questions (talk to an NPC):</b> "What is NaCl made of?" → choose <b>A metal + a non-metal</b> → "What happens to the electrons?" → <b>Electron transfer</b> → "What kind of bond?" → <b>Ionic bond</b>. Three correct steps finish the quest.</div>
+      <div class="exRow"><b>② Draw a dot-and-cross diagram (open a chest):</b> choose <b>•</b> → click each dotted slot beside Cl <b>twice</b> to place a pair → click <b>[ ] Brackets</b> → set Na to <b>+</b> and Cl to <b>−</b> → press <b>Check</b>. Follow the live checklist beside the diagram.</div>
     </div>
 
     <div class="ctrlRow">
-      <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> 行</span>
-      <span><kbd>空白鍵</kbd> 跳</span>
-      <span><kbd>滑鼠</kbd> 轉視角</span>
-      <span><kbd>E</kbd> 互動</span>
-      <span><kbd>M</kbd> 地圖</span>
-      <span><kbd>T</kbd> 傳送</span>
-      <span><kbd>H</kbd> 說明</span>
+      <span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> Move</span>
+      <span><kbd>Space</kbd> Jump</span>
+      <span><kbd>Mouse</kbd> Look around</span>
+      <span><kbd>E</kbd> Interact</span>
+      <span><kbd>M</kbd> Map</span>
+      <span><kbd>T</kbd> Teleport</span>
+      <span><kbd>H</kbd> Help</span>
     </div>
 `;
 
@@ -120,7 +119,7 @@
   function mainDone() { return NODES.filter(n => n.main && done.has(n.id)).length; }
 
   /* ---------------- account progress bridge ---------------- */
-  // 帳號系統只透過這兩個函數接觸遊戲狀態：snapshot 取出、apply 還原。
+  // The account system only touches game state through these two functions: snapshot exports, apply restores.
   function snapshotProgress() {
     return {
       v: 1,
@@ -129,7 +128,7 @@
       freePass: freePass,
       wp: [...unlockedWp],
       beacon: JSON.parse(JSON.stringify(WORLD.BEACON_CFG)),
-      coach: (function () { try { return !!localStorage.getItem('bq_coach_v1'); } catch (e) { return false; } })()
+      coach: (function () { try { return !!localStorage.getItem('bq_coach_v2'); } catch (e) { return false; } })()
     };
   }
 
@@ -172,25 +171,25 @@
     return nextMainNode();
   }
   function nodeTitle(n) {
-    if (n.type === 'npc') return '分類 ' + COMP[n.compound].f;
-    if (n.type === 'chest') return '點叉圖 ' + DC[n.dc].compound;
-    if (n.type === 'guild') return '冒險者公會';
-    if (n.type === 'shop') return '化學商店';
-    return '詞彙 ' + TERM[n.term].en;
+    if (n.type === 'npc') return 'Classify ' + COMP[n.compound].f;
+    if (n.type === 'chest') return 'Dot-cross: ' + DC[n.dc].compound;
+    if (n.type === 'guild') return n.label ? n.label.en : 'Adventurers\' Guild';
+    if (n.type === 'shop') return n.label ? n.label.en : 'Chem Supply Shop';
+    return 'Vocab shard: ' + TERM[n.term].en;
   }
   function nodeDesc(n) {
-    if (n.type === 'npc') return '同「' + n.label.zh + '」對話，答三個步驟：元素組合 → 電子行為 → 鍵型。';
-    if (n.type === 'chest') return '打開「' + n.label.zh + '」，畫出 ' + DC[n.dc].compound + ' 的點叉圖。';
-    if (n.type === 'guild') return '接受委託、睇晒全部任務同位置，揀下一個目標。';
-    if (n.type === 'shop') return '用結晶換提示同解鎖。';
-    return '採集晶體，解鎖詞彙「' + TERM[n.term].zh + '」。';
+    if (n.type === 'npc') return 'Talk to "' + n.label.en + '" and answer 3 steps: composition → electron behaviour → bond type.';
+    if (n.type === 'chest') return 'Open "' + n.label.en + '" and draw the dot-and-cross diagram for ' + DC[n.dc].compound + '.';
+    if (n.type === 'guild') return 'Browse every quest and its location, then pick your next objective.';
+    if (n.type === 'shop') return 'Spend shards on hints and unlocks.';
+    return 'Collect this shard to unlock the word "' + TERM[n.term].en + '".';
   }
   function shortLabel(n) {
-    if (n.type === 'guild') return '公會';
-    if (n.type === 'shop') return '商店';
+    if (n.type === 'guild') return 'Guild';
+    if (n.type === 'shop') return 'Shop';
     return nodeTitle(n);
   }
-  const BEAR = ['北', '東北', '東', '東南', '南', '西南', '西', '西北'];
+  const BEAR = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
   function bearingText(dx, dz) {
     let deg = Math.atan2(dx, -dz) * 180 / Math.PI;
     if (deg < 0) deg += 360;
@@ -202,7 +201,7 @@
     const lock = isLockedNode(n).locked;
     const cls = 'qpItem' + (isDone ? ' done' : '') + (lock && !isDone ? ' lock' : '') + (current && current.id === n.id ? ' cur' : '');
     const icon = isDone ? '✓' : (lock ? '!' : num);
-    const sub = (n.type === 'crystal' ? '詞彙晶體' : (n.label ? n.label.zh : '')) + (isDone ? ' · 已完成' : '');
+    const sub = (n.type === 'crystal' ? 'Vocab shard' : (n.label ? n.label.en : '')) + (isDone ? ' · Done' : '');
     return '<div class="' + cls + '" data-id="' + n.id + '">' +
       '<div class="qiIcon">' + icon + '</div>' +
       '<div class="qiBody"><div class="qiName">' + nodeTitle(n) + '</div>' +
@@ -218,11 +217,11 @@
     const sides = NODES.filter(n => !n.main && n.type !== 'crystal');
     const crys = NODES.filter(n => n.type === 'crystal');
 
-    let html = '<div class="qpSect">主線 MAIN</div>';
+    let html = '<div class="qpSect">MAIN</div>';
     mains.forEach((n, i) => { html += qpItem(n, i + 1, current); });
-    html += '<div class="qpSect">支線 SIDE</div>';
+    html += '<div class="qpSect">SIDE</div>';
     sides.forEach(n => { html += qpItem(n, '·', current); });
-    html += '<div class="qpSect">詞彙 GLOSSARY</div>';
+    html += '<div class="qpSect">GLOSSARY</div>';
     crys.forEach(n => { html += qpItem(n, '·', current); });
     $('qpList').innerHTML = html;
 
@@ -233,7 +232,7 @@
         trackedId = id;
         lastListSig = '';
         renderQuestPanel();
-        toast('已設為目標：' + nodeTitle(NODES.find(x => x.id === id)));
+        toast('✓ Objective set: ' + nodeTitle(NODES.find(x => x.id === id)));
         if (mapOpen) drawBigMap();
       });
     });
@@ -259,9 +258,9 @@
     $('qpBarFill').style.width = (mainDone() / MAIN_TOTAL * 100) + '%';
 
     if (!t) {
-      $('qpTag').textContent = '主線完成 · ALL DONE';
-      $('qpName').textContent = '所有主線任務完成！';
-      $('qpDesc').textContent = '可以繼續探索支線、收集詞彙，或按「↓」匯出數據交功課。';
+      $('qpTag').textContent = 'MAIN COMPLETE · ALL DONE';
+      $('qpName').textContent = 'All main quests complete!';
+      $('qpDesc').textContent = 'Keep exploring side quests, collect vocabulary, or press "↓" to export your data.';
       $('qpDist').textContent = '—';
       $('qpBear').textContent = '';
       $('qpStep').textContent = '';
@@ -271,10 +270,10 @@
       const dx = t.x - p.x, dz = t.z - p.z;
       const dist = Math.hypot(dx, dz);
       const lock = isLockedNode(t);
-      $('qpTag').textContent = t.main ? '目前目標 · CURRENT' : '支線目標 · SIDE QUEST';
+      $('qpTag').textContent = t.main ? 'CURRENT OBJECTIVE' : 'SIDE QUEST';
       $('qpName').textContent = nodeTitle(t);
-      $('qpDesc').textContent = nodeDesc(t);
-      $('qpDist').textContent = Math.round(dist) + ' m';
+      $('qpDesc').textContent = nodeDesc(t) + ' Press E when you arrive.';
+      $('qpDist').textContent = Math.round(dist) + ' m away';
       $('qpBear').textContent = '· ' + bearingText(dx, dz);
 
       const fx = -Math.sin(WORLD.yaw), fz = -Math.cos(WORLD.yaw);
@@ -283,14 +282,15 @@
       $('qpArrow').style.transform = 'rotate(' + (ang * 180 / Math.PI) + 'deg)';
 
       if (lock.locked && freePass > 0) {
-        $('qpStep').textContent = '你有公會推薦信 — 可以直接進入';
+        $('qpStep').textContent = 'You hold a Guild Pass — you can enter directly. Walk there and press E.';
       } else if (lock.locked) {
-        $('qpStep').textContent = '未解鎖：要完成 ' + lock.need + ' 題（目前 ' + correctCount + '）';
+        $('qpStep').textContent = 'Locked: complete ' + lock.need + ' questions to unlock (you have ' + correctCount + ').';
       } else if (dist <= (t.ir || 3.6)) {
-        $('qpStep').textContent = '已到達 — 按 E ' +
-          (t.type === 'npc' ? '對話' : t.type === 'chest' ? '開寶箱' : '採集');
+        $('qpStep').textContent = 'You\'ve arrived — press E to ' +
+          (t.type === 'npc' ? 'answer questions' : t.type === 'chest' ? 'open the chest'
+            : t.type === 'guild' ? 'browse quests' : t.type === 'shop' ? 'open the shop' : 'collect the shard') + '.';
       } else {
-        $('qpStep').textContent = '跟住箭頭行，或按 M 睇大地圖路線';
+        $('qpStep').textContent = 'Follow the white arrow ' + bearingText(dx, dz) + ' for ' + Math.round(dist) + ' m, or press M for the big map.';
       }
     }
     renderQuestList(t);
@@ -298,7 +298,7 @@
 
   function updateHUD() {
     const Z = ZONES[WORLD.zoneNow];
-    $('zoneLabel').textContent = Z.en + ' · ' + Z.zh;
+    $('zoneLabel').textContent = Z.en;
     $('counterNum').textContent = mainDone();
     $('counterTotal').textContent = MAIN_TOTAL;
     const tDone = $('qpTabDone'), tTotal = $('qpTabTotal');
@@ -321,25 +321,25 @@
     const dn = n ? Math.hypot(n.x - pp.x, n.z - pp.z) : Infinity;
     if (wpNear && wpNear.d < dn) {
       p.innerHTML = unlockedWp.has(wpNear.wp.id)
-        ? '按 <kbd>E</kbd> 使用傳送錨點 · ' + wpNear.wp.name.zh
-        : '按 <kbd>E</kbd> 啟動傳送錨點 · ' + wpNear.wp.name.zh;
+        ? 'Press <kbd>E</kbd> to teleport from ' + wpNear.wp.name.en
+        : 'Press <kbd>E</kbd> to activate waypoint · ' + wpNear.wp.name.en;
       p.classList.add('show');
       return;
     }
     if (!n) { p.classList.remove('show'); return; }
     const lock = isLockedNode(n);
     if (lock.locked) {
-      p.innerHTML = '🔒 完成 ' + lock.need + ' 題後解鎖（目前 ' + correctCount + '）';
+      p.innerHTML = '🔒 Unlocks after ' + lock.need + ' correct answers (you have ' + correctCount + ')';
     } else if (n.type === 'npc') {
-      p.innerHTML = '按 <kbd>E</kbd> 與 ' + n.label.zh + ' 對話';
+      p.innerHTML = 'Press <kbd>E</kbd> to talk to ' + n.label.en + ' — answer 3 questions';
     } else if (n.type === 'chest') {
-      p.innerHTML = '按 <kbd>E</kbd> 開啟 ' + n.label.zh;
+      p.innerHTML = 'Press <kbd>E</kbd> to open ' + n.label.en + ' — draw the diagram';
     } else if (n.type === 'guild') {
-      p.innerHTML = '按 <kbd>E</kbd> 進入冒險者公會';
+      p.innerHTML = 'Press <kbd>E</kbd> to enter the Guild — browse all quests';
     } else if (n.type === 'shop') {
-      p.innerHTML = '按 <kbd>E</kbd> 行入化學商店';
+      p.innerHTML = 'Press <kbd>E</kbd> to enter the Shop — spend shards';
     } else {
-      p.innerHTML = '按 <kbd>E</kbd> 採集詞彙晶體';
+      p.innerHTML = 'Press <kbd>E</kbd> to collect a vocab shard';
     }
     p.classList.add('show');
   }
@@ -367,37 +367,37 @@
 
   function optionSets(c) {
     const s1 = [
-      { v: 1, en: 'A metal + a non-metal', zh: '金屬 + 非金屬' },
-      { v: 2, en: 'Non-metal atoms only', zh: '只有非金屬原子' },
-      { v: 3, en: 'Metal atoms only', zh: '只有金屬原子' }
+      { v: 1, en: 'A metal + a non-metal', zh: '' },
+      { v: 2, en: 'Non-metal atoms only', zh: '' },
+      { v: 3, en: 'Metal atoms only', zh: '' }
     ];
     const s2 = [
-      { v: 1, en: 'Electron transfer', zh: '電子轉移' },
-      { v: 2, en: 'Electron sharing', zh: '電子共用' },
-      { v: 3, en: 'Delocalised electrons', zh: '電子離域' }
+      { v: 1, en: 'Electron transfer', zh: '' },
+      { v: 2, en: 'Electron sharing', zh: '' },
+      { v: 3, en: 'Delocalised electrons', zh: '' }
     ];
     const s3 = [
-      { v: 1, en: 'Ionic bond', zh: '離子鍵' },
-      { v: 2, en: 'Covalent bond', zh: '共價鍵' },
-      { v: 3, en: 'Metallic bond', zh: '金屬鍵' }
+      { v: 1, en: 'Ionic bond', zh: '' },
+      { v: 2, en: 'Covalent bond', zh: '' },
+      { v: 3, en: 'Metallic bond', zh: '' }
     ];
     return [s1, s2, s3];
   }
 
   function explain(c, step) {
     if (step === 1) {
-      if (c.comp === 1) return { en: 'One metal + one non-metal: the metal will lose electrons and the non-metal will gain them.', zh: '一種金屬 + 一種非金屬：金屬會失去電子，非金屬會得到電子。' };
-      if (c.comp === 2) return { en: 'All the atoms are non-metals, so no atom easily loses electrons — they share electrons instead.', zh: '全部都係非金屬原子，冇一粒會輕易失去電子，所以改為共用電子。' };
-      return { en: 'Only metal atoms are present: their valence electrons are free to move through the whole structure.', zh: '只有金屬原子：佢哋嘅價電子可以喺整個結構中自由移動。' };
+      if (c.comp === 1) return { en: 'One metal + one non-metal: the metal will lose electrons and the non-metal will gain them.', zh: '' };
+      if (c.comp === 2) return { en: 'All the atoms are non-metals, so no atom easily loses electrons — they share electrons instead.', zh: '' };
+      return { en: 'Only metal atoms are present: their valence electrons are free to move through the whole structure.', zh: '' };
     }
     if (step === 2) {
-      if (c.ebeh === 1) return { en: 'Electrons are transferred from the metal to the non-metal, forming positive and negative ions.', zh: '電子由金屬轉移到非金屬，形成正離子同負離子。' };
-      if (c.ebeh === 2) return { en: 'Each atom shares pairs of electrons so both reach a full outer shell.', zh: '每粒原子共用電子對，令雙方都達到完整最外層。' };
-      return { en: 'Valence electrons are delocalised into a "sea of electrons" shared by all the metal ions.', zh: '價電子離域成「電子海」，由所有金屬離子共享。' };
+      if (c.ebeh === 1) return { en: 'Electrons are transferred from the metal to the non-metal, forming positive and negative ions.', zh: '' };
+      if (c.ebeh === 2) return { en: 'Each atom shares pairs of electrons so both reach a full outer shell.', zh: '' };
+      return { en: 'Valence electrons are delocalised into a "sea of electrons" shared by all the metal ions.', zh: '' };
     }
-    if (c.bond === 1) return { en: 'Oppositely charged ions attract each other electrostatically — that is the ionic bond.', zh: '帶相反電荷嘅離子互相靜電吸引 — 呢個就係離子鍵。' };
-    if (c.bond === 2) return { en: 'The shared electron pairs are attracted to both nuclei — that is the covalent bond.', zh: '共用電子對同時被兩個原子核吸引 — 呢個就係共價鍵。' };
-    return { en: 'The positive metal ions are held by the delocalised electrons around them — that is the metallic bond.', zh: '正金屬離子被周圍嘅離域電子吸引住 — 呢個就係金屬鍵。' };
+    if (c.bond === 1) return { en: 'Oppositely charged ions attract each other electrostatically — that is the ionic bond.', zh: '' };
+    if (c.bond === 2) return { en: 'The shared electron pairs are attracted to both nuclei — that is the covalent bond.', zh: '' };
+    return { en: 'The positive metal ions are held by the delocalised electrons around them — that is the metallic bond.', zh: '' };
   }
 
   /* ---------------- three-part error feedback ---------------- */
@@ -408,12 +408,12 @@
     const attr = o.atom === undefined ? '' : ' data-hi="' + o.atom + '"';
     return '<div class="wx"' + attr + '>' +
       (title ? '<div class="wxTitle">' + title + '</div>' : '') +
-      '<div class="wxRow"><div class="wxTag you">你的答案<em>YOUR ANSWER</em></div>' +
-        '<div class="wxTxt"><span class="wxEn">' + you.en + '</span><span class="wxZh">' + you.zh + '</span></div></div>' +
-      '<div class="wxRow"><div class="wxTag why">為何不成立<em>WHY IT FAILS</em></div>' +
-        '<div class="wxTxt"><span class="wxEn">' + why.en + '</span><span class="wxZh">' + why.zh + '</span></div></div>' +
-      '<div class="wxRow"><div class="wxTag rule">正確規則<em>THE RULE</em></div>' +
-        '<div class="wxTxt"><span class="wxEn">' + rule.en + '</span><span class="wxZh">' + rule.zh + '</span></div></div>' +
+      '<div class="wxRow"><div class="wxTag you">YOUR ANSWER</div>' +
+        '<div class="wxTxt"><span class="wxEn">' + you.en + '</span></div></div>' +
+      '<div class="wxRow"><div class="wxTag why">WHY IT FAILS</div>' +
+        '<div class="wxTxt"><span class="wxEn">' + why.en + '</span></div></div>' +
+      '<div class="wxRow"><div class="wxTag rule">THE RULE</div>' +
+        '<div class="wxTxt"><span class="wxEn">' + rule.en + '</span></div></div>' +
       (o.tapHint ? '<div class="wxTap">' + o.tapHint + '</div>' : '') +
       '</div>';
   }
@@ -421,15 +421,15 @@
   function stepRule(step) {
     if (step === 1) return {
       en: 'Read the formula first: metal + non-metal → electrons are transferred; non-metals only → electrons are shared; metal only → electrons are delocalised.',
-      zh: '先看化學式：金屬＋非金屬 → 電子轉移；只有非金屬 → 電子共用；只有金屬 → 電子離域。'
+      zh: ''
     };
     if (step === 2) return {
       en: 'Electron behaviour follows the composition: transfer for metal + non-metal, sharing for non-metals only, delocalised for metals only.',
-      zh: '電子行為由組合決定：金屬＋非金屬＝轉移；非金屬＋非金屬＝共用；只有金屬＝離域。'
+      zh: ''
     };
     return {
       en: 'The bond type follows the electron behaviour: transfer → ionic bond; sharing → covalent bond; delocalised → metallic bond.',
-      zh: '鍵的類型跟隨電子行為：轉移 → 離子鍵；共用 → 共價鍵；離域 → 金屬鍵。'
+      zh: ''
     };
   }
 
@@ -439,30 +439,30 @@
       if (c.comp === 1) {
         if (chosen === 2) return {
           en: f + ' contains a metal as well as a non-metal, so "non-metals only" cannot be right.',
-          zh: f + ' 入面有金屬，亦有非金屬，所以唔可能係「只有非金屬原子」。'
+          zh: f + ''
         };
         return {
           en: f + ' contains a non-metal as well as a metal, so it is not "metal atoms only".',
-          zh: f + ' 入面有非金屬，所以唔可能係「只有金屬原子」。'
+          zh: f + ''
         };
       }
       if (c.comp === 2) {
         if (chosen === 1) return {
           en: 'There is no metal in ' + f + ' — every atom is a non-metal, so it cannot be metal + non-metal.',
-          zh: f + ' 冇金屬，全部原子都係非金屬，所以唔係「金屬＋非金屬」。'
+          zh: f + ''
         };
         return {
           en: 'There is no metal atom in ' + f + '; all the atoms are non-metals.',
-          zh: f + ' 冇金屬原子，全部都係非金屬。'
+          zh: f + ''
         };
       }
       if (chosen === 1) return {
         en: f + ' is a single metal — there is no non-metal in the formula.',
-        zh: f + ' 只有一種金屬，化學式入面冇非金屬。'
+        zh: f + ''
       };
       return {
         en: 'The atom in ' + f + ' is a metal, not a non-metal.',
-        zh: f + ' 係金屬原子，唔係非金屬。'
+        zh: f + ''
       };
     }
 
@@ -470,69 +470,69 @@
       if (c.ebeh === 1) {
         if (chosen === 2) return {
           en: 'In ' + f + ' the metal loses its outer electron(s) and the non-metal gains them. The electron moves completely from one atom to the other — that is transfer, not sharing.',
-          zh: f + ' 中金屬失去最外層電子，非金屬得到。電子由一粒原子完全走去另一粒 — 呢個係轉移，唔係共用。'
+          zh: f + ''
         };
         return {
           en: 'Delocalisation only happens in a metal lattice. In ' + f + ' the electrons stay with a particular ion, so they are not free to move around.',
-          zh: '離域只出現在金屬晶格。' + f + ' 嘅電子固定在某一粒離子身上，唔可以自由走動。'
+          zh: '' + f + ''
         };
       }
       if (c.ebeh === 2) {
         if (chosen === 1) return {
           en: 'Both atoms in ' + f + ' are non-metals; neither loses electrons easily, so no complete transfer happens.',
-          zh: f + ' 兩邊都係非金屬，冇一粒會輕易失去電子，所以唔會出現完整轉移。'
+          zh: f + ''
         };
         return {
           en: 'There is no metal lattice in ' + f + ', so there is no "sea" of delocalised electrons.',
-          zh: f + ' 唔係金屬晶格，冇「電子海」，所以冇離域電子。'
+          zh: f + ''
         };
       }
       if (chosen === 1) return {
         en: 'The outer electrons in ' + f + ' do not move to a particular atom — they leave their atoms and move through the whole structure.',
-        zh: f + ' 嘅最外層電子唔係轉移去某一粒原子，而係離開原子、喺整個結構中自由移動。'
+        zh: f + ''
       };
       return {
         en: 'Metals do not form fixed shared pairs; their valence electrons are delocalised.',
-        zh: '金屬冇固定嘅共用電子對；佢哋嘅價電子係離域。'
+        zh: ''
       };
     }
 
     if (c.bond === 1) {
       if (chosen === 2) return {
         en: 'A covalent bond comes from a shared pair. In ' + f + ' the electrons were transferred to make ions, so the attraction is between ions — not a shared pair.',
-        zh: '共價鍵來自共用電子對。' + f + ' 嘅電子係完全轉移，形成離子，所以係離子之間嘅吸引，唔係共用電子對。'
+        zh: '' + f + ''
       };
       return {
         en: 'A metallic bond needs a metal lattice with delocalised electrons. ' + f + ' is an ionic lattice.',
-        zh: '金屬鍵要有金屬晶格同離域電子。' + f + ' 係離子晶格。'
+        zh: '' + f + ''
       };
     }
     if (c.bond === 2) {
       if (chosen === 1) return {
         en: 'An ionic bond needs positive and negative ions. ' + f + ' has no ions — only shared electron pairs.',
-        zh: '離子鍵要有正負離子。' + f + ' 冇離子，只有共用電子對。'
+        zh: '' + f + ''
       };
       return {
         en: f + ' is not a metal, so there is no electron sea and no metallic bond.',
-        zh: f + ' 唔係金屬，冇電子海，所以唔係金屬鍵。'
+        zh: f + ''
       };
     }
     if (chosen === 1) return {
       en: 'There are no positive and negative ions in ' + f + '; it is positive metal ions surrounded by delocalised electrons.',
-      zh: f + ' 冇正負離子；佢係正金屬離子被離域電子包圍。'
+      zh: f + ''
     };
     return {
       en: 'There are no shared pairs in ' + f + '; the valence electrons are delocalised.',
-      zh: f + ' 冇共用電子對；價電子係離域。'
+      zh: f + ''
     };
   }
 
   function openDialog(node) {
     const c = COMP[node.compound];
     dlg = { node, c, step: 0, picks: [], hintUsed: false, wrongSteps: 0 };
-    $('npcName').textContent = node.label.zh + ' · ' + node.label.en;
+    $('npcName').textContent = node.label.en + ' · ' + c.f;
     $('npcAvatar').textContent = c.f.replace(/[₀-₉]/g, '').slice(0, 2);
-    $('npcLine').textContent = '幫我分類 ' + c.f + '（' + c.zh + '）— 答三個步驟。 Classify ' + c.f + ' in three steps.';
+    $('npcLine').textContent = 'Help me classify ' + c.f + ' — answer three quick steps: composition, electron behaviour, bond type.';
     setState(STATE.DIALOG);
     openModal('dialogModal');
     renderDialogStep();
@@ -541,16 +541,12 @@
   function renderDialogStep() {
     const c = dlg.c;
     const sets = optionSets(c);
-    const stepLabel = [
-      { en: 'Step 1 · Composition', zh: '步驟 1 · 元素組合' },
-      { en: 'Step 2 · Electron behaviour', zh: '步驟 2 · 電子行為' },
-      { en: 'Step 3 · Bond type', zh: '步驟 3 · 鍵的類型' }
-    ][dlg.step];
+    const stepLabel = ['Step 1 · Composition', 'Step 2 · Electron behaviour', 'Step 3 · Bond type'][dlg.step];
 
     let opts = sets[dlg.step].slice();
     const expected = [c.comp, c.ebeh, c.bond][dlg.step];
     if (c.trap && c.trap.step === dlg.step + 1) {
-      opts.push({ v: -1, en: c.trap.en, zh: c.trap.zh, trap: true });
+      opts.push({ v: -1, en: c.trap.en, trap: true });
     }
     if (dlg.shuffleSeed === undefined) dlg.shuffleSeed = Math.floor(Math.random() * 999);
     // stable-ish shuffle per step
@@ -567,12 +563,11 @@
       '<div class="d ' + (i < dlg.step ? 'done' : i === dlg.step ? 'on' : '') + '"></div>').join('');
 
     $('dialogBody').innerHTML =
-      '<div class="qBlock">' + stepLabel.en + '</div>' +
-      '<div class="qZh">' + stepLabel.zh + '</div>' +
+      '<div class="qBlock">' + stepLabel + '</div>' +
+      '<div class="qZh">Choose the best answer, then press Next.</div>' +
       '<div class="options" id="dlgOpts">' +
       shuffled.map((o, i) =>
-        '<button class="opt" data-v="' + o.v + '" data-i="' + i + '">' + o.en +
-        '<span class="optZh">' + o.zh + '</span></button>').join('') +
+        '<button class="opt" data-v="' + o.v + '" data-i="' + i + '">' + o.en + '</button>').join('') +
       '</div>' +
       '<div class="fb" id="dlgFb"></div>';
 
@@ -598,19 +593,19 @@
     let ex = explain(c, dlg.step + 1);
     if (!ok) {
       dlg.wrongSteps++;
-      const chosenOpt = opts.find(o => o.v === v) || { en: '—', zh: '—' };
+      const chosenOpt = opts.find(o => o.v === v) || { en: '—' };
       const why = (v === -1 && c.trap) ? c.trap.why : stepWhy(c, dlg.step + 1, v);
       const rule = stepRule(dlg.step + 1);
       fb.className = 'fb show no';
-      fb.innerHTML = '<div class="fbHead">✗ 答錯了 · Not quite — 睇下三個部分</div>' +
+      fb.innerHTML = '<div class="fbHead">✗ Not quite — check the three parts below</div>' +
         wxCard(chosenOpt, why, rule, '');
       setTimeout(() => { try { fb.scrollIntoView({ block: 'start' }); } catch (e) { } }, 30);
     } else {
       fb.className = 'fb show ok';
-      fb.innerHTML = '✓ ' + ex.en + '<span class="fbZh">' + ex.zh + '</span>';
+      fb.innerHTML = '✓ ' + ex.en;
     }
     if (c.note && dlg.step === 2) {
-      fb.innerHTML += '<span class="fbZh" style="margin-top:8px">💡 ' + c.note.zh + '</span>';
+      fb.innerHTML += '<span class="fbZh" style="margin-top:8px">💡 ' + c.note.en + '</span>';
     }
 
     attempts.push({
@@ -626,7 +621,7 @@
     const nb = document.createElement('button');
     nb.className = 'primary';
     nb.style.width = 'auto';
-    nb.textContent = dlg.step < 2 ? '下一步 Next' : '完成 Finish';
+    nb.textContent = dlg.step < 2 ? 'Next' : 'Finish';
     nb.addEventListener('click', () => {
       if (dlg.step < 2) { dlg.step++; renderDialogStep(); }
       else finishDialog();
@@ -650,19 +645,20 @@
     WORLD.setNodeState(dlg.node.id, 'done');
     $('dialogBody').innerHTML =
       '<div class="fb show ok" style="margin-top:0">' +
-      (perfect ? '★ 完美！你完全掌握咗 ' + c.f + ' 嘅分類。'
-               : clean ? '✓ 完成 ' + c.f + '（' + c.zh + '）。用咗提示，記得自己再講一次個理由。'
-                       : '✓ 完成 ' + c.f + '（' + c.zh + '）。有步驟答錯過，記得溫習上面嘅解釋。') +
-      '<span class="fbZh">已計入主線進度 ' + mainDone() + ' / ' + MAIN_TOTAL + '</span></div>';
+      (perfect ? '★ Perfect! You have fully mastered the classification of ' + c.f + '.'
+               : clean ? '✓ ' + c.f + ' classified. You used a hint — try explaining the reasoning again yourself.'
+                       : '✓ ' + c.f + ' classified. You missed a step — review the explanation above.') +
+      '<span class="fbZh">Main progress: ' + mainDone() + ' / ' + MAIN_TOTAL + '</span></div>';
     $('dialogHintBtn').style.display = 'none';
-    $('dialogCloseBtn').textContent = '返回世界 Back to world';
+    $('dialogCloseBtn').textContent = 'Back to world';
     refreshLocks();
+    toast((dlg.node.main ? '✓ Quest complete! +1 — ' : '✓ Side quest complete — ') + c.f + ' classified');
   }
 
   function closeDialog() {
     closeModal('dialogModal');
     setState(STATE.WORLD);
-    $('dialogCloseBtn').textContent = '離開 Leave';
+    $('dialogCloseBtn').textContent = 'Leave';
     dlg = null;
     updateHUD();
     checkAllMainDone();
@@ -678,7 +674,7 @@
     const ex = explain(c, dlg.step + 1);
     const fb = $('dlgFb');
     fb.className = 'fb show no';
-    fb.innerHTML = '提示 Hint：' + ex.en + '<span class="fbZh">' + ex.zh + '（用提示後此題不計完美）</span>';
+    fb.innerHTML = 'Hint: ' + ex.en + '<span class="fbZh">(Using a hint means this attempt will not count as perfect.)</span>';
   });
 
   /* ================= DOT-AND-CROSS ================= */
@@ -698,18 +694,18 @@
     const q = dcq.q;
     $('dcTitle').textContent = q.compound + ' — Dot-and-cross diagram';
     $('dcSub').textContent = q.type === 'ionic'
-      ? '離子化合物：畫出離子嘅最外層電子，加方括號同電荷'
-      : '共價化合物：畫出共用電子對（一點一叉）同孤對電子';
+      ? 'Ionic compound: draw the outer-shell electrons of each ion, then add square brackets and charges'
+      : 'Covalent compound: draw shared electron pairs (one dot + one cross) and lone pairs';
     $('dcFeedback').className = 'dcFeedback';
     $('dcFeedback').innerHTML = '';
-    $('dcCheckBtn').textContent = '檢查 Check';
+    $('dcCheckBtn').textContent = 'Check';
     $('dcToolbar').className = 'dcToolbar' + (q.type === 'ionic' ? ' ionic' : '');
     $('dcToolbar').innerHTML =
       '<button class="toolBtn active" data-tool="dot">• Dot</button>' +
       '<button class="toolBtn" data-tool="cross">× Cross</button>' +
       '<button class="toolBtn" data-tool="erase">⌫ Erase</button>' +
       '<span class="toolSep"></span>' +
-      '<button class="toolBtn ionOnly" id="dcBracketBtn">[ ] 方括號</button>';
+      '<button class="toolBtn ionOnly" id="dcBracketBtn">[ ] Brackets</button>';
     $('dcToolbar').querySelectorAll('[data-tool]').forEach(b => {
       b.addEventListener('click', () => {
         dcq.tool = b.dataset.tool;
@@ -780,16 +776,16 @@
     return { filled, total: slots.length, ionic, chargesOk, bracket: !!dcq.bracket };
   }
 
-  // 即時檢查清單：每一步的完成狀態由實際作答推算，並指出「而家做邊樣」
+  // Live checklist: each step's completion is worked out from the actual drawing, and the next action is highlighted.
   function renderDCHelp() {
     if (!dcq) return;
     const st = dcState();
-    const steps = [{ txt: '填滿圖上所有電子位', note: st.filled + ' / ' + st.total + ' 對', done: st.total > 0 && st.filled === st.total }];
+    const steps = [{ txt: 'Fill every electron slot on the diagram', note: st.filled + ' / ' + st.total + ' pairs', done: st.total > 0 && st.filled === st.total }];
     if (st.ionic) {
-      steps.push({ txt: '用 [ ] 包住每一粒離子', done: st.bracket });
-      steps.push({ txt: '設定每粒離子嘅電荷', done: st.chargesOk });
+      steps.push({ txt: 'Put square brackets [ ] around each ion', done: st.bracket });
+      steps.push({ txt: 'Set the charge of each ion', done: st.chargesOk });
     }
-    steps.push({ txt: '撳「檢查 Check」睇結果', done: false, act: true });
+    steps.push({ txt: 'Press "Check" to see your result', done: false, act: true });
 
     const firstTodo = steps.findIndex(s => !s.done);
     $('dcSteps').innerHTML = steps.map((s, i) => {
@@ -802,21 +798,21 @@
 
     const graded = steps.length - 1;
     const doneCount = steps.slice(0, graded).filter(s => s.done).length;
-    $('dcHowProg').textContent = doneCount + ' / ' + graded + ' 完成';
+    $('dcHowProg').textContent = doneCount + ' / ' + graded + ' done';
 
     let msg;
     if (firstTodo < 0 || steps[firstTodo].act) {
-      msg = '全部做完喇 — 撳右下角 <b>「檢查 Check」</b>。';
+      msg = 'All steps done — press <b>"Check"</b> at the bottom right.';
     } else if (firstTodo === 0) {
       const left = st.total - st.filled;
-      msg = '撳圖上面嘅 <b>虛線小圈 2 下</b>：第 1 下放 •，第 2 下再放一粒。' +
-        '孤對用 <b>••</b>，鍵對用 <b>• + ×</b>。仲有 <b>' + left + '</b> 對未放。';
+      msg = '<b>Click a dashed slot twice</b>: the 1st click places •, the 2nd adds another electron. ' +
+        'Lone pairs use <b>••</b>; bond pairs use <b>• + ×</b>. <b>' + left + '</b> pair(s) still to place.';
     } else if (!st.bracket) {
-      msg = '撳上面嘅 <b>[ ] 方括號</b> 按鈕，將每一粒離子都包住（表示電子屬於邊粒離子）。';
+      msg = 'Click the <b>[ ] Brackets</b> button above to enclose every ion — this shows which electrons belong to that ion.';
     } else if (!st.chargesOk) {
-      msg = '喺下面揀電荷：<b>金屬離子帶正電</b>（失去電子），<b>非金屬離子帶負電</b>（得到電子）。';
+      msg = 'Choose the charges below: <b>metal ions are positive</b> (they lost electrons), <b>non-metal ions are negative</b> (they gained electrons).';
     } else {
-      msg = '撳右下角 <b>「檢查 Check」</b> 睇下有冇做啱。';
+      msg = 'Press <b>"Check"</b> at the bottom right to see if you got it right.';
     }
     $('dcNow').innerHTML = msg;
   }
@@ -867,19 +863,19 @@
       const list = need2 ? [0, 1, -1, 2, -2] : [0, 1, -1];
       extra = '<div class="dcCharges">' +
         atoms.map((a, i) =>
-          '<div class="dcChRow"><span class="dcChLab">' + a.sym + ' 電荷</span>' +
+          '<div class="dcChRow"><span class="dcChLab">' + a.sym + ' charge</span>' +
           list.map(v =>
             '<button class="toolBtn dcChBtn' + ((dcq.charges[i] || 0) === v ? ' on' : '') + '" data-ch="' + i + ':' + v + '">' +
             (v === 0 ? '0' : v === 1 ? '+' : v === -1 ? '−' : v === 2 ? '2+' : '2−') + '</button>').join('') +
           '</div>').join('') + '</div>';
 
-      // 解釋「為甚麼某些離子外面沒有小圈」——這是最常見的困惑
+      // Explain why some ions have no slots around them — the most common point of confusion.
       const bare = atoms.filter(a => a.lonePairs === 0).map(a => a.sym);
       const withE = atoms.filter(a => a.lonePairs > 0).map(a => a.sym);
       if (bare.length && withE.length) {
-        extra += '<div class="dcNote">' + bare.join('、') +
-          ' 嘅最外層電子已經轉移走，所以圓圈外面<b>冇小圈</b>要放；電子只需放喺 ' +
-          withE.join('、') + ' 外面。</div>';
+        extra += '<div class="dcNote">The outer electrons of ' + bare.join(' and ') +
+          ' have been transferred away, so there are <b>no slots</b> around them — place electrons only around ' +
+          withE.join(' and ') + '.</div>';
       }
     }
     $('dcStage').innerHTML = svg + extra;
@@ -935,87 +931,87 @@
         const need = a.lonePairs * 2;
         errs.push({
           atom: i,
-          title: a.sym + ' 的孤對電子 · Lone pairs',
+          title: a.sym + ' — Lone pairs',
           you: { en: a.sym + ' currently has ' + loneCount[i] + ' lone-pair electron(s) drawn.',
-                 zh: a.sym + ' 而家畫咗 ' + loneCount[i] + ' 粒孤對電子。' },
+                 zh: a.sym + '' + loneCount[i] + '' },
           why: { en: a.sym + ' needs ' + a.lonePairs + ' lone pair' + (a.lonePairs > 1 ? 's' : '') + ' = ' + need + ' electrons' +
                    (a.bondPairs ? ', plus ' + a.bondPairs + ' shared pair' + (a.bondPairs > 1 ? 's' : '') + ' in the bond' + (a.bondPairs > 1 ? 's' : '') : '') +
                    '. Its outer shell therefore holds ' + (need + a.bondPairs * 2) + ' electrons in total.',
-                 zh: a.sym + ' 要有 ' + a.lonePairs + ' 對孤對 = ' + need + ' 粒孤對電子' +
-                   (a.bondPairs ? '，另外 ' + a.bondPairs + ' 對共用電子對喺鍵上' : '') +
-                   '，最外層合共 ' + (need + a.bondPairs * 2) + ' 粒。' },
+                 zh: a.sym + '' + a.lonePairs + '' + need + '' +
+                   (a.bondPairs ? '' + a.bondPairs + '' : '') +
+                   '' + (need + a.bondPairs * 2) + '' },
           rule: { en: 'Only outer-shell electrons are drawn; the number of lone pairs follows from the outer-shell electron count.',
-                  zh: '只畫最外層電子；孤對數目由最外層電子數決定，唔可以多畫或少畫。' }
+                  zh: '' }
         });
       }
     });
 
     if (loneMix) errs.push({
-      title: '孤對樣式 · Lone-pair symbols',
+      title: 'Lone-pair symbols',
       you: { en: loneMix + ' lone pair(s) use one dot and one cross.',
-             zh: '有 ' + loneMix + ' 對孤對用咗「一點一叉」。' },
+             zh: '' + loneMix + '' },
       why: { en: 'A lone pair is supplied by ONE atom, so its two electrons are drawn with the same symbol (both dots or both crosses). Only a shared pair mixes the symbols.',
-             zh: '孤對由同一粒原子提供，所以兩粒電子用同一種符號（兩點或兩叉）。只有共用電子對才會一點一叉。' },
+             zh: '' },
       rule: { en: 'Lone pair = same symbol. Bond pair = 1 dot + 1 cross.',
-              zh: '孤對＝同款符號；鍵對＝1 點＋1 叉。' }
+              zh: '' }
     });
 
     if (bondShort) errs.push({
-      title: '鍵對數目 · Bond pairs',
+      title: 'Bond pairs',
       you: { en: bondShort + ' shared pair(s) have fewer than 2 electrons.',
-             zh: '有 ' + bondShort + ' 對共用電子未畫齊 2 粒。' },
+             zh: '' + bondShort + '' },
       why: { en: 'A shared pair is made of one electron from each atom — so it always contains 2 electrons.',
-             zh: '共用電子對由兩粒原子各出一粒，所以一定有 2 粒電子。' },
+             zh: '' },
       rule: { en: 'Every bond pair must be drawn as 1 dot + 1 cross.',
-              zh: '每個鍵對都要畫成 1 點＋1 叉。' }
+              zh: '' }
     });
 
     if (bondMix) errs.push({
-      title: '鍵對樣式 · Bond-pair symbols',
+      title: 'Bond-pair symbols',
       you: { en: bondMix + ' shared pair(s) use two symbols of the same kind.',
-             zh: '有 ' + bondMix + ' 對鍵對用咗兩粒同款符號。' },
+             zh: '' + bondMix + '' },
       why: { en: 'Two dots would mean one atom supplied both electrons — then it is not a shared pair.',
-             zh: '兩粒都係點代表同一粒原子出晒兩粒電子，咁就唔係共用。' },
+             zh: '' },
       rule: { en: 'Every bond pair must be drawn as 1 dot + 1 cross.',
-              zh: '每個鍵對都要畫成 1 點＋1 叉。' }
+              zh: '' }
     });
 
     if (q.type === 'ionic') {
       if (!dcq.bracket) errs.push({
-        title: '方括號 · Square brackets',
+        title: 'Square brackets',
         you: { en: 'No square brackets are drawn around the ions.',
-               zh: '離子未加上方括號。' },
+               zh: '' },
         why: { en: 'In an ionic lattice each ion owns a fixed set of electrons; the brackets show which electrons belong to that ion.',
-               zh: '離子晶格中每粒離子有固定嘅電子；方括號表示「呢啲電子屬於呢粒離子」。' },
+               zh: '' },
         rule: { en: 'Draw [ ] around every ion and write its charge at the top right.',
-                zh: '每個離子都要用 [ ] 包住，電荷寫在括號右上角。' }
+                zh: '' }
       });
       atoms.forEach((a, i) => {
         const ch = dcq.charges[i] || 0;
         if (ch !== a.charge) {
           errs.push({
             atom: i,
-            title: a.sym + ' 的電荷 · Charge',
-            you: { en: a.sym + ' is labelled ' + fmtC(ch) + '.', zh: a.sym + ' 標成 ' + fmtC(ch) + '。' },
+            title: a.sym + ' — Charge',
+            you: { en: a.sym + ' is labelled ' + fmtC(ch) + '.', zh: a.sym + '' + fmtC(ch) + '' },
             why: { en: a.sym + ' must be ' + fmtC(a.charge) + ': it has ' +
                      (a.charge > 0 ? 'lost ' + a.charge + ' electron' + (a.charge > 1 ? 's' : '')
                                    : 'gained ' + Math.abs(a.charge) + ' electron' + (Math.abs(a.charge) > 1 ? 's' : '')) + '.',
-                   zh: a.sym + ' 應該係 ' + fmtC(a.charge) + '：佢' +
-                     (a.charge > 0 ? '失去咗 ' + a.charge + ' 粒電子' : '得到咗 ' + Math.abs(a.charge) + ' 粒電子') + '。' },
+                   zh: a.sym + '' + fmtC(a.charge) + '' +
+                     (a.charge > 0 ? '' + a.charge + '' : '' + Math.abs(a.charge) + '') + '' },
             rule: { en: 'Charge = protons − electrons; write it at the top right of the ion.',
-                    zh: '電荷＝質子數 − 電子數，寫在離子右上角。' }
+                    zh: '' }
           });
         }
       });
       const total = atoms.reduce((sum, a, i) => sum + (dcq.charges[i] || 0), 0);
       if (total !== 0) errs.push({
-        title: '整體電荷 · Overall charge',
+        title: 'Overall charge',
         you: { en: 'All the ion charges add up to ' + (total > 0 ? '+' : '') + total + '.',
-               zh: '所有離子電荷加起來係 ' + (total > 0 ? '+' : '') + total + '。' },
+               zh: '' + (total > 0 ? '+' : '') + total + '' },
         why: { en: 'A compound is electrically neutral overall, so the positive and negative charges must cancel exactly.',
-               zh: '化合物整體唔帶電，所以正負電荷一定要完全抵消。' },
+               zh: '' },
         rule: { en: 'The sum of all ion charges must equal 0.',
-                zh: '所有離子電荷相加必須等於 0。' }
+                zh: '' }
       });
     }
 
@@ -1028,33 +1024,34 @@
     if (ok) {
       dcq.solved = true;
       fb.innerHTML = '<div class="fbBanner ok"><span class="fbIcon">✓</span><div>' +
-        '<b>完全正確！</b>' +
+        '<b>Perfect diagram!</b>' +
         '<em>' + (q.type === 'ionic'
-          ? '電子完全轉移：陽離子失去電子、陰離子達到完整最外層，離子有方括號同電荷。'
-          : '每對共用電子都係 1 點 + 1 叉；孤對電子留喺所屬原子，唔係共用。') + '</em>' +
+          ? 'Electrons were transferred completely: the cation lost electrons, the anion reached a full outer shell, and every ion has brackets and a charge.'
+          : 'Every shared pair is 1 dot + 1 cross; lone pairs stay with their own atom and are not shared.') + '</em>' +
         '</div></div>';
       correctCount++;
       nodeCorrect.set(dcq.node.id, true);
       done.add(dcq.node.id);
       WORLD.setNodeState(dcq.node.id, 'done');
-      $('dcCheckBtn').textContent = '返回世界 Done';
+      $('dcCheckBtn').textContent = 'Back to world';
+      toast((dcq.node.main ? '✓ Quest complete! +1 — ' : '✓ Chest complete — ') + q.compound + ' mastered');
       logEvent({ type: 'dotcross', compound: q.compound, correct: true, attempt: dcq.tries, hintUsed: dcq.hintUsed });
       refreshLocks();
       updateHUD();
     } else {
       const MAXW = 2;
       fb.innerHTML = '<div class="fbBanner bad"><span class="fbIcon">✗</span><div>' +
-        '<b>仲有 ' + errs.length + ' 樣未做啱</b>' +
-        '<em>唔緊要，逐張卡睇：你畫咗乜、為何唔啱、正確規則。<b>撳卡片</b>會喺圖上用黃圈指出位置。</em>' +
+        '<b>' + errs.length + ' thing(s) still need fixing</b>' +
+        '<em>No worries — read each card: what you drew, why it fails, and the correct rule. <b>Tap a card</b> to highlight the spot on the diagram.</em>' +
         '</div></div>' +
         errs.slice(0, MAXW).map((e, i) => wxCard(e.you, e.why, e.rule, NUMC[i] + ' ' + e.title,
-          { atom: e.atom, tapHint: e.atom === undefined ? '' : '撳一下 → 喺圖上用<b>黃圈</b>指出位置' })).join('') +
-        (errs.length > MAXW ? '<div class="wxRest"><b>另外 ' + (errs.length - MAXW) + ' 項要改：</b>' +
-          errs.slice(MAXW).map(e => e.title.split(' · ')[0]).join('、') + '</div>' : '') +
+          { atom: e.atom, tapHint: e.atom === undefined ? '' : 'Tap → highlighted with a <b>yellow ring</b> on the diagram' })).join('') +
+        (errs.length > MAXW ? '<div class="wxRest"><b>' + (errs.length - MAXW) + ' more to fix:</b>' +
+          errs.slice(MAXW).map(e => e.title).join(', ') + '</div>' : '') +
         (dcq.tries >= 3 ? '<div class="wxRest" style="border-color:rgba(255,220,120,.4);background:rgba(255,220,120,.08);color:#ffe8b0">' +
-          '已經試咗 3 次 — 撳「提示 Hint」會直接指出下一個要放電子嘅位置。</div>' : '');
+          'You have tried 3 times — press <b>Hint</b> to reveal exactly where the next electron goes.</div>' : '');
 
-      // 撳卡片 → 喺圖上圈出對應原子
+      // Tap a card → highlight the matching atom on the diagram
       fb.querySelectorAll('.wx[data-hi]').forEach(el => {
         el.addEventListener('click', () => {
           const i = Number(el.dataset.hi);
@@ -1074,7 +1071,7 @@
   function closeDC() {
     closeModal('dotcrossModal');
     setState(STATE.WORLD);
-    $('dcCheckBtn').textContent = '檢查 Check';
+    $('dcCheckBtn').textContent = 'Check';
     dcq = null;
     updateHUD();
     checkAllMainDone();
@@ -1086,7 +1083,7 @@
   $('dcResetBtn').addEventListener('click', () => {
     if (!dcq) return;
     dcq.marks = {}; dcq.hintSlot = null; dcq.solved = false;
-    $('dcCheckBtn').textContent = '檢查 Check';
+    $('dcCheckBtn').textContent = 'Check';
     renderDC();
     $('dcFeedback').className = 'dcFeedback';
   });
@@ -1107,22 +1104,22 @@
     if (target >= 0) {
       const s = dcq.slots[target];
       const owner = s.kind === 'lone'
-        ? q.atoms[s.atom].sym + ' 嘅孤對'
-        : q.atoms[s.a].sym + ' — ' + q.atoms[s.b].sym + ' 嘅鍵對';
+        ? q.atoms[s.atom].sym + ' lone pair'
+        : q.atoms[s.a].sym + ' — ' + q.atoms[s.b].sym + ' bond pair';
       fb.innerHTML =
-        '<div class="hintBox"><b>①</b> 搵圖上<b>發光嘅小圈</b>（' + owner + '）<br>' +
-        '<b>②</b> 撳個圈 <b>2 下</b>，放一對電子<br>' +
-        '<b>③</b> ' + (s.kind === 'lone' ? '孤對用<b>同一款</b>符號（兩點 ••）' : '鍵對要<b>一 • 一 ×</b>') + '</div>' +
-        '<div class="fbSub">' + q.hint.zh + '</div>';
+        '<div class="hintBox"><b>①</b> Find the <b>glowing slot</b> on the diagram (' + owner + ')<br>' +
+        '<b>②</b> Click that slot <b>twice</b> to place a pair of electrons<br>' +
+        '<b>③</b> ' + (s.kind === 'lone' ? 'A lone pair uses the <b>same symbol</b> (two dots ••)' : 'A bond pair needs <b>one • and one ×</b>') + '</div>' +
+        '<div class="fbSub">' + q.hint.en + '</div>';
     } else if (q.type === 'ionic' && !dcq.bracket) {
-      fb.innerHTML = '<div class="hintBox">電子放齊喇 — 而家撳上面嘅 <b>[ ] 方括號</b>，將每一粒離子包住。</div>';
+      fb.innerHTML = '<div class="hintBox">All electrons are placed — now click <b>[ ] Brackets</b> above to enclose each ion.</div>';
     } else if (q.type === 'ionic' && q.atoms.some((a, i) => (dcq.charges[i] || 0) !== a.charge)) {
-      fb.innerHTML = '<div class="hintBox">最後一步：喺下面揀電荷。<br>' +
-        '<b>金屬</b>失電子 → 帶<b>正</b>電；<b>非金屬</b>得電子 → 帶<b>負</b>電。<br>' +
-        '電荷數字要等於佢失去／得到嘅電子數目。</div>';
+      fb.innerHTML = '<div class="hintBox">Last step: choose the charges below.<br>' +
+        '<b>Metals</b> lose electrons → become <b>positive</b>; <b>non-metals</b> gain electrons → become <b>negative</b>.<br>' +
+        'The charge number equals the number of electrons lost or gained.</div>';
     } else {
-      fb.innerHTML = '<div class="hintBox">圖已經畫齊 — 撳右下角 <b>「檢查 Check」</b> 睇下有冇做啱。</div>' +
-        '<div class="fbSub">' + q.hint.zh + '</div>';
+      fb.innerHTML = '<div class="hintBox">The diagram is complete — press <b>"Check"</b> at the bottom right to see your result.</div>' +
+        '<div class="fbSub">' + q.hint.en + '</div>';
     }
     try { $('dcStage').scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { }
   });
@@ -1133,8 +1130,8 @@
     vocabNode = node;
     const t = TERM[node.term];
     $('vocabTerm').textContent = t.en;
-    $('vocabZh').textContent = t.zh;
-    $('vocabDef').innerHTML = t.def.en + '<br><span style="color:#8fb2a6;font-size:13px">' + t.def.zh + '</span>';
+    $('vocabZh').textContent = 'Glossary term · newly unlocked';
+    $('vocabDef').innerHTML = t.def.en;
     setState(STATE.VOCAB);
     openModal('vocabModal');
   }
@@ -1145,7 +1142,7 @@
     logEvent({ type: 'vocab', term: vocabNode.term });
     closeModal('vocabModal');
     setState(STATE.WORLD);
-    toast('已收集詞彙：<b>' + TERM[vocabNode.term].en + '</b>');
+    toast('✓ Vocabulary collected: <b>' + TERM[vocabNode.term].en + '</b> — added to your glossary');
     vocabNode = null;
     updateHUD();
     refreshGlossary();
@@ -1172,16 +1169,16 @@
     const pct = totalT ? Math.round(totalC / totalT * 100) : 0;
 
     $('sumStats').innerHTML =
-      stat('完成題目 Objectives', mainDone() + ' / ' + MAIN_TOTAL) +
-      stat('總正確率 Accuracy', pct + '%') +
-      stat('用時 Time', Math.floor(activeTime / 60) + ' 分 ' + Math.floor(activeTime % 60) + ' 秒') +
-      stat('詞彙收集 Glossary', done.size >= 0 ? countCollected() + ' 個' : '0') +
-      stat('傳送錨點 Waypoints', unlockedWp.size + ' / ' + WAYPOINTS.length);
+      stat('Objectives completed', mainDone() + ' / ' + MAIN_TOTAL) +
+      stat('Accuracy', pct + '%') +
+      stat('Time', Math.floor(activeTime / 60) + ' min ' + Math.floor(activeTime % 60) + ' s') +
+      stat('Glossary', countCollected() + ' collected') +
+      stat('Waypoints', unlockedWp.size + ' / ' + WAYPOINTS.length);
 
     const rows = [
-      ['ionic', '離子鍵 Ionic', '#6fb8e8'],
-      ['covalent', '共價鍵 Covalent', '#5fd0a8'],
-      ['metallic', '金屬鍵 Metallic', '#c9b36a']
+      ['ionic', 'Ionic', '#6fb8e8'],
+      ['covalent', 'Covalent', '#5fd0a8'],
+      ['metallic', 'Metallic', '#c9b36a']
     ];
     $('sumBars').innerHTML = rows.map(([k, label, col]) => {
       const d = by[k];
@@ -1191,17 +1188,17 @@
     }).join('');
 
     const weak = [];
-    if (by.ionic.t && by.ionic.c / by.ionic.t < 0.75) weak.push('離子鍵（記得加方括號同電荷，電子要完全轉移）');
-    if (by.covalent.t && by.covalent.c / by.covalent.t < 0.75) weak.push('共價鍵（鍵對要 1 點 + 1 叉，孤對唔係共用）');
-    if (by.metallic.t && by.metallic.c / by.metallic.t < 0.75) weak.push('金屬鍵（電子係離域，唔係轉移）');
+    if (by.ionic.t && by.ionic.c / by.ionic.t < 0.75) weak.push('Ionic bonding (remember square brackets and charges — electrons are transferred completely)');
+    if (by.covalent.t && by.covalent.c / by.covalent.t < 0.75) weak.push('Covalent bonding (bond pairs = 1 dot + 1 cross; lone pairs are not shared)');
+    if (by.metallic.t && by.metallic.c / by.metallic.t < 0.75) weak.push('Metallic bonding (electrons are delocalised, not transferred)');
     $('sumWeak').innerHTML = weak.length
-      ? '<b>建議再溫：</b> ' + weak.join('；') + '。可以開詞彙表睇定義。'
-      : '<b>做得好！</b> 三種鍵都掌握得唔錯。可以挑戰晶體洞窟嘅陌生化合物。';
+      ? '<b>Review:</b> ' + weak.join('; ') + '. Open the glossary to check the definitions.'
+      : '<b>Well done!</b> You have a solid grasp of all three bond types. Try the unfamiliar compounds in Crystal Cavern.';
 
     const mins = activeTime / 60;
-    $('sumFootNote').textContent = '建議遊玩時間 6–10 分鐘：你用咗 ' + mins.toFixed(1) +
-      ' 分鐘' + (mins < 6 ? '，可以再慢慢睇多啲解釋。' : mins > 10 ? '，唔使急，可以分幾次溫。' : '，節奏好好。') +
-      '　數據只存喺你部機，唔會上傳。';
+    $('sumFootNote').textContent = 'Suggested play time: 6–10 minutes. You used ' + mins.toFixed(1) +
+      ' minutes' + (mins < 6 ? ' — take your time and read the explanations.' : mins > 10 ? ' — no rush, you can revisit in several sessions.' : ' — nicely paced.') +
+      '  Your data stays on this device and is never uploaded.';
 
     setState(STATE.SUMMARY);
     openModal('summaryModal');
@@ -1288,7 +1285,7 @@
     Object.assign(WORLD.BEACON_CFG, { size: 1, height: 42, radius: 2.4, maxDist: 240, duration: 0, through: true, condition: 'all' });
     renderBeaconCfg(); saveBeaconCfg();
     WORLD.setBeacon(trackedNode());
-    toast('已重設標記設定');
+    toast('✓ Objective marker settings reset');
   });
   ['bcSize', 'bcHeight', 'bcRadius', 'bcDist'].forEach(function (id) {
     $(id).addEventListener('input', function () {
@@ -1316,11 +1313,11 @@
 
   /* ================= COACH (first-run guide) ================= */
   const COACH_STEPS = [
-    { sel: '#questPanel', title: '① 左邊係你嘅任務', text: '話你知而家要做乜、距離幾遠、邊個方向。跟住佢做就得。' },
-    { sel: '#minimap', title: '② 右上係小地圖', text: '白色箭頭係你，綠圈係目標，虛線就係路線。' },
-    { sel: '#topbar', title: '③ 上面係進度', text: '「0 / 9」代表完成咗幾多個任務。按 M 開大地圖，按 ? 再睇說明。' },
-    { sel: null, title: '④ 行到目標，按 E', text: '行近發光嘅人／寶箱／晶石，畫面中間會出現「按 E 互動」，跟住按鍵盤 E。' },
-    { sel: '#qpWpBtn', title: '⑤ 傳送錨點', text: '行到藍色錨點按 E 啟動。之後按 T 或者呢個掣，就可以喺已啟動嘅錨點之間快速移動。' }
+    { sel: null, title: '① Welcome to Bond Quest', text: 'Your mission: explore 4 regions and complete 9 quests about chemical bonding. This quick tour shows you exactly how to play.' },
+    { sel: '#questPanel', title: '② Follow your CURRENT OBJECTIVE', text: 'This panel tells you what to do next, the distance in metres, and a compass direction. Follow the white arrow and you will get there.' },
+    { sel: '#minimap', title: '③ Use the maps', text: 'Top right is the mini-map: the white arrow is you, the green ring is your target. Press M any time for the big map — drag to pan, scroll to zoom, click a marker to make it your objective.' },
+    { sel: null, title: '④ Get close, then press E', text: 'Walk up to a glowing NPC, chest or crystal. When you are close enough, a prompt appears — press E. If a quest says LOCKED, answer a few questions first or buy a Guild Pass.' },
+    { sel: '#topbar', title: '⑤ Answer or draw — then repeat', text: 'Talk to an NPC and answer 3 questions, or open a chest and place electrons on the dotted slots then press Check. Each finished quest adds +1 to the counter above. That is the whole game!' }
   ];
   let coachOn = false, coachIdx = 0;
 
@@ -1335,7 +1332,8 @@
     $('coachStep').textContent = (coachIdx + 1) + ' / ' + COACH_STEPS.length;
     $('coachTitle').textContent = st.title;
     $('coachText').textContent = st.text;
-    $('coachNext').textContent = coachIdx === COACH_STEPS.length - 1 ? '開始玩' : '下一步';
+    $('coachNext').textContent = coachIdx === COACH_STEPS.length - 1 ? 'Start playing' : 'Next';
+    $('coachSkip').textContent = 'Skip';
 
     if (st.sel === '#questPanel' && questCollapsed) setQuestCollapsed(false);
     if (st.sel && document.querySelector(st.sel)) {
@@ -1363,7 +1361,7 @@
     $('coachHole').style.display = 'none';
     syncPaused();
     if (state === STATE.WORLD) { WORLD.setLocked(false); WORLD.relock(); }
-    try { localStorage.setItem('bq_coach_v1', '1'); } catch (e) { }
+    try { localStorage.setItem('bq_coach_v2', '1'); } catch (e) { }
     try { CLOUD.save(); } catch (e) { }
   }
 
@@ -1418,7 +1416,7 @@
     logEvent({ type: 'waypoint-unlock', id: w.id, name: w.name.en });
     SESSION.exploration.waypoints = [...unlockedWp];
     persist();
-    toast('⟡ 傳送錨點已啟動：' + w.name.zh + '<br><span style="font-size:11.5px;color:#8fb2a6">之後按 M 開地圖，撳藍色錨點就可以傳送</span>', 3600);
+    toast('⟡ Fast travel unlocked: ' + w.name.en + '<br><span style="font-size:11.5px;color:#8fb2a6">Press M to open the map, then click this blue anchor to teleport</span>', 3600);
     refreshPrompt();
     updateHUD();
   }
@@ -1440,11 +1438,11 @@
       const Z = ZONES[w.zone];
       html += '<div class="wpRow ' + (on ? 'on' : 'locked') + (here ? ' here' : '') + '">' +
         '<div class="wpIcon"><span>⟡</span></div>' +
-        '<div class="wpBody"><div class="wpName">' + w.name.zh + '<em>' + w.name.en + '</em></div>' +
-        '<div class="wpSub">' + Z.zh + ' · ' + (here ? '你而家喺呢度' : on ? '已啟動' : '未啟動 — 行到現場按 E') + '</div></div>' +
+        '<div class="wpBody"><div class="wpName">' + w.name.en + '</div>' +
+        '<div class="wpSub">' + Z.en + ' · ' + (here ? 'You are here' : on ? 'Active — ready to teleport' : 'Inactive — walk here and press E') + '</div></div>' +
         '<div class="wpDist">' + d + ' m</div>' +
-        (here ? '<button disabled>此處</button>'
-          : '<button data-go="' + w.id + '"' + (on ? '' : ' disabled') + '>傳送</button>') +
+        (here ? '<button disabled>Here</button>'
+          : '<button data-go="' + w.id + '"' + (on ? '' : ' disabled') + '>Teleport</button>') +
         '</div>';
     });
     $('wpList').innerHTML = html;
@@ -1474,7 +1472,7 @@
 
   function doTeleport(w) {
     if (tpBusy) return;
-    if (!unlockedWp.has(w.id)) { toast('呢個錨點仲未啟動 — 要行到現場按 E'); return; }
+    if (!unlockedWp.has(w.id)) { toast('This waypoint is not active — walk here and press E to activate it'); return; }
     tpBusy = true;
     hideTpPop();
     if (mapOpen) closeBigMap();
@@ -1492,7 +1490,7 @@
       refreshPrompt();
       setTimeout(() => {
         fade.classList.remove('on');
-        toast('⟡ 已傳送到 ' + w.name.zh + ' · ' + ZONES[w.zone].zh, 2600);
+        toast('⟡ Teleported to ' + w.name.en + ' · ' + ZONES[w.zone].en, 2600);
         tpBusy = false;
         WORLD.relock();
       }, 280);
@@ -1777,12 +1775,12 @@
     if (BM.zoom >= 1.7) {
       WAYPOINTS.forEach(w => {
         if (!unlockedWp.has(w.id)) return;
-        mapLabel(ctx, w.name.zh, bmX(w.x), bmY(w.z) - 26, false, boxes);
+        mapLabel(ctx, w.name.en, bmX(w.x), bmY(w.z) - 26, false, boxes);
       });
     }
 
     if (t && tLabel) mapLabel(ctx, nodeTitle(t), tLabel.x, tLabel.y, true, null);
-    mapLabel(ctx, '你 YOU', bmX(p.x), bmY(p.z) + 34, false, boxes);
+    mapLabel(ctx, 'YOU', bmX(p.x), bmY(p.z) + 34, false, boxes);
 
     ctx.save();
     ctx.translate(bmX(p.x), bmY(p.z));
@@ -1856,13 +1854,13 @@
     const on = unlockedWp.has(w.id);
     const d = Math.round(Math.hypot(w.x - WORLD.player.position.x, w.z - WORLD.player.position.z));
     const el = $('tpPop');
-    $('tpName').textContent = w.name.zh;
+    $('tpName').textContent = w.name.en;
     $('tpMeta').className = 'tpMeta' + (on ? ' on' : '');
-    $('tpMeta').textContent = ZONES[w.zone].zh + ' · ' + d + ' m · ' +
-      (on ? '已啟動，可以傳送' : '未啟動 · 要行到現場按 E');
+    $('tpMeta').textContent = ZONES[w.zone].en + ' · ' + d + ' m · ' +
+      (on ? 'Active — ready to teleport' : 'Inactive — walk here and press E');
     const go = $('tpGo');
     go.disabled = !on;
-    go.textContent = on ? '傳送' : '未啟動';
+    go.textContent = on ? 'Teleport' : 'Locked';
 
     el.classList.add('show');
     const ww = el.offsetWidth || 208, wh = el.offsetHeight || 96;
@@ -1908,12 +1906,12 @@
       hideTpPop();
       const hit = hitTest(px, py);
       if (!hit) return;
-      if (done.has(hit.id)) { toast('呢個點已經完成咗'); return; }
+      if (done.has(hit.id)) { toast('This objective is already complete'); return; }
       trackedId = hit.id;
       lastListSig = '';
       renderQuestPanel();
       drawBigMap();
-      toast('已設為目標：' + nodeTitle(hit));
+      toast('✓ Objective set: ' + nodeTitle(hit));
     });
     c.addEventListener('wheel', e => {
       e.preventDefault();
@@ -2014,9 +2012,9 @@
     $('glossaryList').innerHTML = GLOSSARY.map(g => {
       const unlocked = termUnlocked(g.id);
       return '<div class="glItem ' + (unlocked ? '' : 'locked') + '">' +
-        '<div><span class="t">' + g.en + '</span><span class="z">' + g.zh + '</span></div>' +
-        '<div class="d">' + (unlocked ? g.def.en : '🔒 去世界搵晶體解鎖') + '</div>' +
-        (unlocked ? '<div class="d zh">' + g.def.zh + '</div>' : '') + '</div>';
+        '<div><span class="t">' + g.en + '</span></div>' +
+        '<div class="d">' + (unlocked ? g.def.en : '🔒 Find the glowing shard in the world to unlock') + '</div>' +
+        '</div>';
     }).join('');
   }
   $('glossaryBtn').addEventListener('click', openGlossary);
@@ -2042,37 +2040,37 @@
     $('shopShards').textContent = bal;
     $('shopItems').innerHTML =
       '<div class="shopItem"><div class="siBody">' +
-        '<div class="siName">詞彙卷軸</div>' +
-        '<div class="siDesc">隨機解鎖一個未收集嘅詞彙（仲有 ' + left + ' 個未解鎖）。</div></div>' +
-        '<button id="buyTerm"' + (bal < 1 || left === 0 ? ' disabled' : '') + '>1 結晶</button></div>' +
+        '<div class="siName">Vocabulary Scroll</div>' +
+        '<div class="siDesc">Unlock one random word you have not collected yet (' + left + ' still locked).</div></div>' +
+        '<button id="buyTerm"' + (bal < 1 || left === 0 ? ' disabled' : '') + '>1 shard</button></div>' +
       '<div class="shopItem"><div class="siBody">' +
-        '<div class="siName">公會推薦信</div>' +
-        '<div class="siDesc">可以直接進入下一個「未解鎖」嘅任務點，無視門檻。' +
-        (freePass > 0 ? '（持有 ' + freePass + ' 張）' : '') + '</div></div>' +
-        '<button id="buyPass"' + (bal < 2 ? ' disabled' : '') + '>2 結晶</button></div>';
+        '<div class="siName">Guild Pass</div>' +
+        '<div class="siDesc">Enter the next locked quest location directly, ignoring the requirement.' +
+        (freePass > 0 ? ' (You hold ' + freePass + '.)' : '') + '</div></div>' +
+        '<button id="buyPass"' + (bal < 2 ? ' disabled' : '') + '>2 shards</button></div>';
     const b1 = $('buyTerm'); if (b1) b1.addEventListener('click', buyTerm);
     const b2 = $('buyPass'); if (b2) b2.addEventListener('click', buyPass);
   }
 
   function buyTerm() {
-    if (shardBalance() < 1) { toast('結晶不足'); return; }
+    if (shardBalance() < 1) { toast('Not enough shards'); return; }
     const pool = GLOSSARY.filter(g => !termUnlocked(g.id));
-    if (!pool.length) { toast('全部詞彙已解鎖'); return; }
+    if (!pool.length) { toast('All words are already unlocked'); return; }
     const pick = pool[Math.floor(Math.random() * pool.length)];
     boughtTerms.add(pick.id);
     shardsSpent += 1;
     refreshGlossary();
     renderShop();
     updateHUD();
-    toast('解鎖詞彙：' + pick.en + ' ' + pick.zh);
+    toast('✓ New word unlocked: ' + pick.en + ' — check your glossary');
   }
 
   function buyPass() {
-    if (shardBalance() < 2) { toast('結晶不足'); return; }
+    if (shardBalance() < 2) { toast('Not enough shards'); return; }
     shardsSpent += 2;
     freePass += 1;
     renderShop();
-    toast('已購買公會推薦信（' + freePass + ' 張）');
+    toast('✓ Guild Pass purchased — you now hold ' + freePass + '.');
   }
 
   function openShop() {
@@ -2098,7 +2096,7 @@
       const Z = ZONES[k];
       const list = NODES.filter(n => n.zone === k && n.type !== 'crystal');
       if (!list.length) return;
-      html += '<div class="guildZone">' + Z.zh + ' · ' + Z.en + '</div>';
+      html += '<div class="guildZone">' + Z.en + '</div>';
       list.forEach(n => {
         const isDone = done.has(n.id);
         const lock = isLockedNode(n);
@@ -2107,8 +2105,8 @@
         html += '<div class="' + cls + '" data-id="' + n.id + '">' +
           '<div class="grIcon">' + (isDone ? '✓' : lock.locked ? '!' : '›') + '</div>' +
           '<div class="grBody"><div class="grName">' + nodeTitle(n) + '</div>' +
-          '<div class="grSub">' + (n.label ? n.label.zh : '') +
-          (isDone ? ' · 已完成' : lock.locked ? ' · 需完成 ' + lock.need + ' 題' : '') + '</div></div>' +
+          '<div class="grSub">' + (n.label ? n.label.en : '') +
+          (isDone ? ' · Done' : lock.locked ? ' · Complete ' + lock.need + ' questions to unlock' : '') + '</div></div>' +
           '<div class="grDist">' + d + ' m</div></div>';
       });
     });
@@ -2116,12 +2114,12 @@
     $('guildBody').querySelectorAll('.guildRow').forEach(el => {
       el.addEventListener('click', () => {
         const id = el.dataset.id;
-        if (done.has(id)) { toast('呢個委託已完成'); return; }
+        if (done.has(id)) { toast('This quest is already complete'); return; }
         trackedId = id;
         lastListSig = '';
         renderQuestPanel();
         closeGuild();
-        toast('已接受委託：' + nodeTitle(NODES.find(x => x.id === id)));
+        toast('✓ Quest accepted: ' + nodeTitle(NODES.find(x => x.id === id)));
       });
     });
   }
@@ -2155,7 +2153,7 @@
     attempts.forEach(a => rows.push([a.type, a.compound, a.step || '', a.chosen !== undefined ? a.chosen : '', a.correct ? 1 : 0, a.hintUsed ? 1 : 0, a.attempt || 1]));
     const csv = rows.map(r => r.join(',')).join('\n');
     setTimeout(() => download('bondquest_attempts.csv', '\ufeff' + csv, 'text/csv'), 500);
-    toast('已匯出 JSON + CSV — 交功課時可作 pilot record 證據');
+    toast('✓ Exported JSON + CSV — keep these for your project record');
   }
   function download(name, text, mime) {
     try {
@@ -2165,7 +2163,7 @@
       a.href = url; a.download = name;
       document.body.appendChild(a); a.click();
       setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 800);
-    } catch (e) { toast('匯出失敗：' + e.message); }
+    } catch (e) { toast('Export failed: ' + e.message); }
   }
   $('exportBtn').addEventListener('click', exportData);
 
@@ -2186,14 +2184,14 @@
     const dn = n ? Math.hypot(n.x - pp.x, n.z - pp.z) : Infinity;
     if (wpNear && wpNear.d < dn) { onWpInteract(wpNear.wp); return; }
     if (!n) return;
-    if (done.has(n.id)) { toast('呢個點已經完成咗'); return; }
+    if (done.has(n.id)) { toast('This objective is already complete'); return; }
     const lock = isLockedNode(n);
     if (lock.locked) {
       if (freePass > 0) {
         freePass--;
-        toast('使用公會推薦信 — 直接進入');
+        toast('✓ Guild Pass used — entering directly');
       } else {
-        toast('🔒 完成 ' + lock.need + ' 題先解鎖（目前 ' + correctCount + '）');
+        toast('🔒 Unlocks after ' + lock.need + ' correct answers (you have ' + correctCount + ')');
         return;
       }
     }
@@ -2239,7 +2237,7 @@
   function boot() {
     loadBeaconCfg();
     WORLD.init($('scene'));
-    // 觸控「E 互動」按鈕：與鍵盤 E 走同一個入口
+    // Touch "E interact" button: goes through the same entry point as the E key
     WORLD.setInteractHandler(function () {
       if (helpOpen || mapOpen || wpOpen || shopOpen || guildOpen || beaconOpen) return;
       interact();
@@ -2247,7 +2245,7 @@
     loadWaypoints();
     WORLD.onZoneChange = k => {
       const Z = ZONES[k];
-      toast('進入 ' + Z.zh + ' · ' + Z.en);
+      toast('Now entering ' + Z.en);
       if (!SESSION.exploration.zonesVisited.includes(k)) SESSION.exploration.zonesVisited.push(k);
       persist();
     };
@@ -2271,9 +2269,9 @@
     updateHUD();
     WORLD.setBeacon(trackedNode());
 
-    // ---- 帳號系統 ----
+    // ---- Account system ----
     $('authBtn').addEventListener('click', () => CLOUD.open());
-    // 帳號視窗打開時凍結角色，避免打字時 WASD 令角色亂走
+    // Freeze the character while the account window is open so WASD typing does not move the player
     document.addEventListener('bq:auth-open', () => { WORLD.setLocked(true); });
     document.addEventListener('bq:auth-close', () => {
       WORLD.clearKeys();
@@ -2292,10 +2290,10 @@
       logEvent({ type: 'start' });
       WORLD.requestLock();
       let seenCoach = false;
-      try { seenCoach = !!localStorage.getItem('bq_coach_v1'); } catch (e) { }
+      try { seenCoach = !!localStorage.getItem('bq_coach_v2'); } catch (e) { }
       if (!seenCoach) setTimeout(() => coachShow(0), 500);
-      if (!storeOk) setTimeout(() => toast('⚠️ 瀏覽器封鎖咗本機儲存，進度唔會自動保存 — 記得用「↓」匯出數據。', 5000), 1200);
-      toast('跟住左邊任務面板嘅箭頭行，到咗按 E 互動');
+      if (!storeOk) setTimeout(() => toast('⚠️ Browser storage is blocked — progress will not save automatically. Use "↓" to export your data.', 5000), 1200);
+      toast('Follow the arrow in the quest panel on the left — when you arrive, press E to interact.');
     });
 
     lastFrame = performance.now();

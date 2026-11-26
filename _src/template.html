@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -17,25 +17,25 @@
     <div class="pill" id="counterPill"><b id="counterNum">0</b> / <b id="counterTotal">9</b></div>
     <div class="pill" id="timerPill">00:00</div>
     <div class="spacer"></div>
-    <button class="iconBtn" id="authBtn" title="登入 / 註冊帳號">登</button>
-    <button class="iconBtn" id="mapBtn" title="大地圖 Map (M)">▦</button>
-    <button class="iconBtn" id="helpBtn" title="遊戲說明 How to play">?</button>
-    <button class="iconBtn" id="glossaryBtn" title="Glossary 詞彙表">Aa</button>
-    <button class="iconBtn" id="exportBtn" title="Export data 匯出數據">↓</button>
+    <button class="iconBtn" id="authBtn" title="Sign in / Register">◎</button>
+    <button class="iconBtn" id="mapBtn" title="World map (M)">▦</button>
+    <button class="iconBtn" id="helpBtn" title="How to play">?</button>
+    <button class="iconBtn" id="glossaryBtn" title="Glossary">Aa</button>
+    <button class="iconBtn" id="exportBtn" title="Export data">↓</button>
   </div>
 
   <div id="questPanel">
     <div class="qpHead">
-      <span class="qpTitle">任務 MISSION</span>
+      <span class="qpTitle">MISSIONS</span>
       <span class="qpProg"><b id="qpDone">0</b>/<b id="qpTotal">9</b></span>
-      <button class="qpIcon" id="qpBeaconBtn" title="目標標記設定">◈</button>
-      <button class="qpFold" id="qpFoldBtn" title="收起任務面板 Collapse" aria-label="收起任務面板" aria-expanded="true">
-        <span class="qpFoldChev">‹</span><em>收起</em>
+      <button class="qpIcon" id="qpBeaconBtn" title="Objective marker settings">◈</button>
+      <button class="qpFold" id="qpFoldBtn" title="Collapse quest panel" aria-label="Collapse quest panel" aria-expanded="true">
+        <span class="qpFoldChev">‹</span><em>Hide</em>
       </button>
     </div>
 
     <div class="qpCur">
-      <div class="qpTag" id="qpTag">目前目標 · CURRENT</div>
+      <div class="qpTag" id="qpTag">CURRENT OBJECTIVE</div>
       <div class="qpName" id="qpName">—</div>
       <div class="qpDesc" id="qpDesc">—</div>
       <div class="qpMeta">
@@ -47,34 +47,34 @@
       <div class="qpStep" id="qpStep"></div>
     </div>
 
-    <button class="qpToggle" id="qpToggle">任務清單 Quest list <span id="qpCaret">▾</span></button>
+    <button class="qpToggle" id="qpToggle">Quest list <span id="qpCaret">▾</span></button>
     <div class="qpList" id="qpList"></div>
 
     <div class="qpBtnRow">
-      <button class="qpMapBtn" id="qpMapBtn">地圖 <kbd>M</kbd></button>
-      <button class="qpMapBtn" id="qpWpBtn">傳送 <kbd>T</kbd></button>
+      <button class="qpMapBtn" id="qpMapBtn">Map <kbd>M</kbd></button>
+      <button class="qpMapBtn" id="qpWpBtn">Warp <kbd>T</kbd></button>
     </div>
   </div>
 
-  <button id="qpTab" class="qpTab" aria-label="展開任務面板 Expand" aria-expanded="false">
+  <button id="qpTab" class="qpTab" aria-label="Expand quest panel" aria-expanded="false">
     <span class="qpTabIcon">▤</span>
-    <span class="qpTabText">任務</span>
+    <span class="qpTabText">Quests</span>
     <span class="qpTabProg"><b id="qpTabDone">0</b>/<b id="qpTabTotal">9</b></span>
     <span class="qpTabArrow">›</span>
   </button>
 
   <canvas id="minimap" width="360" height="360"></canvas>
 
-  <div id="prompt">按 <kbd>E</kbd> 互動</div>
-  <div id="controlsHint">WASD 移動 · 空白鍵跳躍 · 滑鼠轉視角 · E 互動 · M 地圖 · T 傳送 · H 說明</div>
-  <div id="lockHint">點擊畫面鎖定滑鼠</div>
+  <div id="prompt">Press <kbd>E</kbd> to interact</div>
+  <div id="controlsHint">WASD move · Space jump · Mouse look · E interact · M map · T warp · H help</div>
+  <div id="lockHint">Click to lock mouse</div>
 
-  <!-- 觸控控件：只有偵測到觸控裝置（pointer: coarse）時才顯示 -->
+  <!-- Touch controls: only shown on devices with a coarse pointer -->
   <div id="touchUI">
     <div id="stickBase"><div id="stickKnob"></div></div>
     <div id="touchRight">
-      <button id="actBtn" class="tBtn" aria-label="互動 Interact">E<small>互動</small></button>
-      <button id="jumpBtn" class="tBtn" aria-label="跳躍 Jump">↑<small>跳躍</small></button>
+      <button id="actBtn" class="tBtn" aria-label="Interact">E<small>Interact</small></button>
+      <button id="jumpBtn" class="tBtn" aria-label="Jump">↑<small>Jump</small></button>
     </div>
   </div>
 </div>
@@ -86,18 +86,18 @@
     <div class="startScroll">
     <div class="kicker">F4E Interdisciplinary Project</div>
     <h1>Bond Quest</h1>
-    <p class="sub">化學鍵 3D 開放世界溫習遊戲<span class="en">An open-world revision game about chemical bonding</span></p>
+    <p class="sub">A 3D open-world game<span class="en">for revising chemical bonds</span></p>
 
     <div id="startIntro"></div>
 
     <div class="startMeta">
-      <span>建議遊玩 8 分鐘</span>
-      <span>數據只存本機，不收集個人資料</span>
+      <span>About 8 minutes</span>
+      <span>Progress is saved on this device — no personal data collected</span>
     </div>
-    <div id="touchTip">已啟用<b>觸控模式</b>：左搖桿移動 · 右側拖曳轉視角 · 右下按鈕跳躍／互動。想更順暢可改用電腦（WASD + 滑鼠）。</div>
+    <div id="touchTip"><b>Touch mode</b> enabled: left stick to move · drag on the right to look · bottom-right buttons to jump / interact. Use a computer (WASD + mouse) for a smoother experience.</div>
     </div>
     <div class="startFoot">
-      <button id="startBtn" class="primary">開始探索 · Start exploring</button>
+      <button id="startBtn" class="primary">Start exploring</button>
     </div>
   </div>
 </div>
@@ -105,11 +105,11 @@
 <div id="helpModal" class="modal">
   <div class="modalCard">
     <div class="kicker">How to play</div>
-    <h2 class="helpTitle">遊戲說明 · Game guide</h2>
+    <h2 class="helpTitle">Game guide</h2>
     <div id="helpBody" class="modalBody"></div>
     <div class="modalFoot">
-      <button class="ghost" id="helpCoachBtn">重看新手引導</button>
-      <button class="primary" id="helpCloseBtn">明白，開始玩</button>
+      <button class="ghost" id="helpCoachBtn">Replay tutorial</button>
+      <button class="primary" id="helpCloseBtn">Got it, let's play</button>
     </div>
   </div>
 </div>
@@ -119,46 +119,46 @@
     <div class="mapTop">
       <div>
         <div class="kicker">World map</div>
-        <div class="mapTitle">大地圖 · 拖曳平移、滾輪縮放</div>
+        <div class="mapTitle">World map · drag to pan, scroll to zoom</div>
       </div>
       <div class="mapTools">
-        <button class="toolBtn" id="mapZoomOut" title="縮小">−</button>
+        <button class="toolBtn" id="mapZoomOut" title="Zoom out">−</button>
         <span class="mapZoomVal" id="mapZoomVal">100%</span>
-        <button class="toolBtn" id="mapZoomIn" title="放大">+</button>
-        <button class="toolBtn" id="mapReset" title="重設視角">重設</button>
+        <button class="toolBtn" id="mapZoomIn" title="Zoom in">+</button>
+        <button class="toolBtn" id="mapReset" title="Reset view">Reset</button>
       </div>
     </div>
     <div class="mapWrap" id="mapWrap">
       <canvas id="bigMap" width="960" height="620"></canvas>
-      <div class="mapHint" id="mapHint">拖曳平移 · 滾輪縮放 · 點擊錨點傳送 · 點擊其他標記設為目標</div>
+      <div class="mapHint" id="mapHint">Drag to pan · scroll to zoom · click a beacon to warp · click a quest pin to track it</div>
       <div id="tpPop" class="tpPop">
         <div class="tpName" id="tpName">—</div>
         <div class="tpMeta" id="tpMeta"></div>
         <div class="tpBtns">
-          <button class="ghost" id="tpCancel">取消</button>
-          <button class="primary" id="tpGo">傳送</button>
+          <button class="ghost" id="tpCancel">Cancel</button>
+          <button class="primary" id="tpGo">Warp</button>
         </div>
       </div>
     </div>
     <div class="mapLegend">
-      <span><i class="lg lg-npc"></i>NPC 分類題</span>
-      <span><i class="lg lg-chest"></i>寶箱 點叉圖</span>
-      <span><i class="lg lg-cry"></i>詞彙晶體</span>
-      <span><i class="lg lg-done"></i>已完成</span>
-      <span><i class="lg lg-lock"></i>未解鎖</span>
-      <span><i class="lg lg-guild"></i>公會</span>
-      <span><i class="lg lg-shop"></i>商店</span>
-      <span><i class="lg lg-wp"></i>傳送錨點</span>
-      <span><i class="lg lg-you"></i>你</span>
+      <span><i class="lg lg-npc"></i>NPC — quiz</span>
+      <span><i class="lg lg-chest"></i>Chest — dot & cross</span>
+      <span><i class="lg lg-cry"></i>Vocabulary crystal</span>
+      <span><i class="lg lg-done"></i>Completed</span>
+      <span><i class="lg lg-lock"></i>Locked</span>
+      <span><i class="lg lg-guild"></i>Guild</span>
+      <span><i class="lg lg-shop"></i>Shop</span>
+      <span><i class="lg lg-wp"></i>Waypoint</span>
+      <span><i class="lg lg-you"></i>You</span>
       <span class="lgSep"></span>
-      <span><i class="lg lg-zA"></i>離子平原</span>
-      <span><i class="lg lg-zB"></i>共價森林</span>
-      <span><i class="lg lg-zC"></i>金屬山脈</span>
-      <span><i class="lg lg-zD"></i>晶體洞窟</span>
+      <span><i class="lg lg-zA"></i>Ionic Plains</span>
+      <span><i class="lg lg-zB"></i>Covalent Forest</span>
+      <span><i class="lg lg-zC"></i>Metallic Mountains</span>
+      <span><i class="lg lg-zD"></i>Crystal Cavern</span>
     </div>
     <div class="modalFoot">
-      <button class="ghost" id="mapWpBtn">傳送錨點 <kbd>T</kbd></button>
-      <button class="ghost" id="mapCloseBtn">關閉 Close</button>
+      <button class="ghost" id="mapWpBtn">Waypoints <kbd>T</kbd></button>
+      <button class="ghost" id="mapCloseBtn">Close</button>
     </div>
   </div>
 </div>
@@ -177,8 +177,8 @@
       <div id="dialogBody"></div>
     </div>
     <div class="modalFoot">
-      <button class="ghost" id="dialogHintBtn">提示 Hint</button>
-      <button class="ghost" id="dialogCloseBtn">離開 Leave</button>
+      <button class="ghost" id="dialogHintBtn">Hint</button>
+      <button class="ghost" id="dialogCloseBtn">Leave</button>
     </div>
   </div>
 </div>
@@ -196,21 +196,21 @@
       <div id="dcToolbar" class="dcToolbar"></div>
       <div id="dcHow" class="dcHow">
         <div class="dcHowHead">
-          <span class="dcHowTitle">點做？Follow these steps</span>
+          <span class="dcHowTitle">How to do it — follow these steps</span>
           <span id="dcHowProg" class="dcHowProg"></span>
         </div>
         <ol id="dcSteps" class="dcSteps"></ol>
         <div id="dcNow" class="dcNow"></div>
-        <div class="dcLegend">虛線小圈 ＝ 可以放電子嘅位置　·　撳 <b>2 下</b> 放一對　·　⌫ 可擦掉重畫</div>
+        <div class="dcLegend">Dashed circles = slots for electrons · click <b>twice</b> to place a pair · Backspace to erase</div>
       </div>
       <div id="dcStage" class="dcStage"></div>
       <div id="dcFeedback" class="dcFeedback"></div>
     </div>
     <div class="modalFoot">
-      <button class="ghost" id="dcHintBtn">提示 Hint</button>
-      <button class="ghost" id="dcResetBtn">重設 Reset</button>
-      <button class="ghost" id="dcCloseBtn">離開 Leave</button>
-      <button class="primary" id="dcCheckBtn">檢查 Check</button>
+      <button class="ghost" id="dcHintBtn">Hint</button>
+      <button class="ghost" id="dcResetBtn">Reset</button>
+      <button class="ghost" id="dcCloseBtn">Leave</button>
+      <button class="primary" id="dcCheckBtn">Check</button>
     </div>
   </div>
 </div>
@@ -220,27 +220,27 @@
     <div class="modalHead">
       <div class="chestIcon">◍</div>
       <div>
-        <div class="npcName">帳號 Account</div>
-        <div class="npcLine">用電郵驗證碼登入，進度自動同步到雲端</div>
+        <div class="npcName">Account</div>
+        <div class="npcLine">Sign in with an email code — your progress syncs to the cloud</div>
       </div>
     </div>
     <div class="modalBody">
       <div id="clGuest">
         <form id="clForm" novalidate>
           <div class="authField">
-            <label for="clEmail">電郵 Email</label>
+            <label for="clEmail">Email</label>
             <input id="clEmail" type="email" placeholder="you@example.com" autocomplete="email" inputmode="email">
             <em class="authErr" id="clErrEmail"></em>
           </div>
-          <button type="button" class="ghost authSend" id="clSend">取得驗證碼 Get code</button>
+          <button type="button" class="ghost authSend" id="clSend">Send code</button>
           <div class="authField" id="clCodeRow" style="display:none">
-            <label for="clCode">6 位驗證碼 Verification code</label>
+            <label for="clCode">6-digit code</label>
             <input id="clCode" type="text" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code">
             <em class="authErr" id="clErrCode"></em>
             <div class="authResend" id="clResend"></div>
           </div>
           <div class="authMsg" id="clMsg"></div>
-          <button type="button" class="primary authSubmit" id="clVerify" style="display:none">登入 / 註冊</button>
+          <button type="button" class="primary authSubmit" id="clVerify" style="display:none">Sign in / Register</button>
         </form>
         <div class="authAlt" id="clAlt"></div>
       </div>
@@ -255,14 +255,14 @@
         </div>
         <div class="authStats" id="clStats"></div>
         <div class="authUserActions">
-          <button type="button" class="ghost" id="clExport">匯出進度</button>
-          <button type="button" class="primary" id="clSignOut">登出</button>
+          <button type="button" class="ghost" id="clExport">Export progress</button>
+          <button type="button" class="primary" id="clSignOut">Sign out</button>
         </div>
       </div>
     </div>
     <div class="modalFoot authFoot">
-      <span class="authNote">一次性驗證碼登入，不設密碼；首次使用同一電郵會自動建立帳號。進度以 owner 隔離，其他人讀唔到。</span>
-      <button class="ghost" id="clClose">關閉</button>
+      <span class="authNote">Passwordless one-time code. Progress is private to your account.</span>
+      <button class="ghost" id="clClose">Close</button>
     </div>
   </div>
 </div>
@@ -276,7 +276,7 @@
       <div id="vocabDef" class="vocabDef"></div>
     </div>
     <div class="modalFoot">
-      <button class="primary" id="vocabCollectBtn">收集 Collect</button>
+      <button class="primary" id="vocabCollectBtn">Collect</button>
     </div>
   </div>
 </div>
@@ -284,7 +284,7 @@
 <div id="summaryModal" class="modal">
   <div class="modalCard">
     <div class="kicker">Session complete</div>
-    <h2 id="sumTitle">探索完成</h2>
+    <h2 id="sumTitle">Exploration complete</h2>
     <div class="modalBody">
       <div id="sumStats" class="sumStats"></div>
       <div id="sumBars" class="sumBars"></div>
@@ -292,9 +292,9 @@
       <div id="sumFootNote" class="sumFootNote"></div>
     </div>
     <div class="modalFoot">
-      <button class="ghost" id="sumGlossaryBtn">詞彙表 Glossary</button>
-      <button class="ghost" id="sumExportBtn">匯出數據 Export</button>
-      <button class="primary" id="sumCloseBtn">繼續探索 Keep exploring</button>
+      <button class="ghost" id="sumGlossaryBtn">Glossary</button>
+      <button class="ghost" id="sumExportBtn">Export data</button>
+      <button class="primary" id="sumCloseBtn">Keep exploring</button>
     </div>
   </div>
 </div>
@@ -303,13 +303,13 @@
 <div id="guildModal" class="modal">
   <div class="modalCard">
     <div class="kicker">Adventurers' Guild</div>
-    <h2 class="helpTitle">冒險者公會 · 委託板</h2>
+    <h2 class="helpTitle">Adventurers' Guild · Quest board</h2>
     <div class="modalBody">
       <div id="guildBody" class="guildBody"></div>
     </div>
     <div class="modalFoot">
-      <button class="ghost" id="guildMapBtn">喺地圖睇</button>
-      <button class="primary" id="guildCloseBtn">離開</button>
+      <button class="ghost" id="guildMapBtn">Show on map</button>
+      <button class="primary" id="guildCloseBtn">Leave</button>
     </div>
   </div>
 </div>
@@ -317,14 +317,14 @@
 <div id="shopModal" class="modal">
   <div class="modalCard">
     <div class="kicker">Chem Supply Shop</div>
-    <h2 class="helpTitle">化學商店</h2>
+    <h2 class="helpTitle">Chem Supply Shop</h2>
     <div class="modalBody">
-      <div class="shopWallet">你有 <b id="shopShards">0</b> 粒結晶</div>
+      <div class="shopWallet">You have <b id="shopShards">0</b> crystals</div>
       <div id="shopItems" class="shopItems"></div>
-      <div class="shopNote">結晶＝你喺世界採集到嘅詞彙晶體。用嚟換提示同解鎖。</div>
+      <div class="shopNote">Crystals are vocabulary shards you collect in the world — spend them here.</div>
     </div>
     <div class="modalFoot">
-      <button class="primary" id="shopCloseBtn">離開</button>
+      <button class="primary" id="shopCloseBtn">Leave</button>
     </div>
   </div>
 </div>
@@ -333,26 +333,26 @@
 <div id="beaconModal" class="modal">
   <div class="modalCard">
     <div class="kicker">Objective marker</div>
-    <h2 class="helpTitle">目標標記設定</h2>
+    <h2 class="helpTitle">Objective marker settings</h2>
     <div class="modalBody">
-      <div class="bcRow"><label>標記大小</label><input type="range" id="bcSize" min="0.4" max="2.5" step="0.1"><span class="bcVal" id="bcSizeV"></span></div>
-      <div class="bcRow"><label>光柱高度</label><input type="range" id="bcHeight" min="14" max="80" step="2"><span class="bcVal" id="bcHeightV"></span></div>
-      <div class="bcRow"><label>光柱粗細</label><input type="range" id="bcRadius" min="0.8" max="6" step="0.2"><span class="bcVal" id="bcRadiusV"></span></div>
-      <div class="bcRow"><label>可見距離</label><input type="range" id="bcDist" min="50" max="300" step="10"><span class="bcVal" id="bcDistV"></span></div>
-      <div class="bcRow"><label>持續時間</label>
-        <select id="bcDur"><option value="0">一直顯示</option><option value="10">10 秒</option><option value="30">30 秒</option><option value="60">60 秒</option></select>
+      <div class="bcRow"><label>Marker size</label><input type="range" id="bcSize" min="0.4" max="2.5" step="0.1"><span class="bcVal" id="bcSizeV"></span></div>
+      <div class="bcRow"><label>Beam height</label><input type="range" id="bcHeight" min="14" max="80" step="2"><span class="bcVal" id="bcHeightV"></span></div>
+      <div class="bcRow"><label>Beam width</label><input type="range" id="bcRadius" min="0.8" max="6" step="0.2"><span class="bcVal" id="bcRadiusV"></span></div>
+      <div class="bcRow"><label>View distance</label><input type="range" id="bcDist" min="50" max="300" step="10"><span class="bcVal" id="bcDistV"></span></div>
+      <div class="bcRow"><label>Duration</label>
+        <select id="bcDur"><option value="0">Always</option><option value="10">10 s</option><option value="30">30 s</option><option value="60">60 s</option></select>
         <span class="bcVal"></span></div>
-      <div class="bcRow"><label>顯示條件</label>
-        <select id="bcCond"><option value="all">所有目標</option><option value="main">只顯示主線</option></select>
+      <div class="bcRow"><label>Show for</label>
+        <select id="bcCond"><option value="all">All objectives</option><option value="main">Main quests only</option></select>
         <span class="bcVal"></span></div>
-      <div class="bcRow"><label>穿透顯示</label>
-        <div class="bcCheck"><input type="checkbox" id="bcThrough"><span>被地形遮擋時仍半透明顯示</span></div>
+      <div class="bcRow"><label>Show through terrain</label>
+        <div class="bcCheck"><input type="checkbox" id="bcThrough"><span>Stay semi-transparent when hidden by terrain</span></div>
         <span class="bcVal"></span></div>
-      <div class="bcNote">提示：標記會自動跟住「目前目標」。想換目標，喺任務清單或公會委託板揀另一個。</div>
+      <div class="bcNote">Tip: the marker follows your current objective automatically.</div>
     </div>
     <div class="modalFoot">
-      <button class="ghost" id="bcReset">重設</button>
-      <button class="primary" id="bcClose">完成</button>
+      <button class="ghost" id="bcReset">Reset</button>
+      <button class="primary" id="bcClose">Done</button>
     </div>
   </div>
 </div>
@@ -361,24 +361,24 @@
 <div id="wpModal" class="modal">
   <div class="modalCard">
     <div class="kicker">Teleport waypoints</div>
-    <h2 class="helpTitle">傳送錨點</h2>
+    <h2 class="helpTitle">Waypoints</h2>
     <div class="modalBody">
       <div class="wpHead">
-        <div class="wpHint">行到錨點旁邊按 <kbd>E</kbd> 啟動。啟動後可以喺呢度或者地圖直接傳送。</div>
+        <div class="wpHint">Walk up to a waypoint and press <kbd>E</kbd> to activate it.</div>
         <div class="wpProg"><b id="wpDone">1</b> / <b id="wpTotal">7</b></div>
       </div>
       <div id="wpList" class="wpList"></div>
     </div>
     <div class="modalFoot">
-      <button class="ghost" id="wpMapBtn">喺地圖睇</button>
-      <button class="primary" id="wpCloseBtn">離開</button>
+      <button class="ghost" id="wpMapBtn">Show on map</button>
+      <button class="primary" id="wpCloseBtn">Leave</button>
     </div>
   </div>
 </div>
 
 <div id="glossaryDrawer">
   <div class="drawerHead">
-    <div>Glossary 詞彙表</div>
+    <div>Glossary</div>
     <button class="iconBtn" id="glossaryCloseBtn">×</button>
   </div>
   <div id="glossaryList" class="glossaryList"></div>
@@ -391,8 +391,8 @@
   <div class="coachTitle" id="coachTitle"></div>
   <div class="coachText" id="coachText"></div>
   <div class="coachFoot">
-    <button class="ghost" id="coachSkip">跳過</button>
-    <button class="primary" id="coachNext">下一步</button>
+    <button class="ghost" id="coachSkip">Skip</button>
+    <button class="primary" id="coachNext">Next</button>
   </div>
 </div>
 
