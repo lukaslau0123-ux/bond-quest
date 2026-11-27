@@ -133,7 +133,7 @@
     score: 0,
     gold: 0,
     weapons: ['sword'],          // owned weapon ids
-    characters: ['lyra'],        // unlocked character ids
+    characters: ['lyra', 'kael'],  // unlocked character ids (both starters are free)
     skins: ['default'],          // owned skin ids
     weapon: 'sword',             // equipped
     character: 'lyra',           // active
@@ -178,7 +178,11 @@
       if (!d) return;
       COMBAT.score = d.score || 0; COMBAT.gold = d.gold || 0;
       COMBAT.weapons = Array.isArray(d.weapons) ? d.weapons : ['sword'];
-      COMBAT.characters = Array.isArray(d.characters) ? d.characters : ['lyra'];
+      COMBAT.characters = Array.isArray(d.characters) ? d.characters.slice() : ['lyra', 'kael'];
+      /* starter characters are free: make sure an older save can still swap */
+      if (typeof CHARACTERS !== 'undefined') {
+        CHARACTERS.forEach(function (c) { if (c.scoreReq <= 0 && COMBAT.characters.indexOf(c.id) < 0) COMBAT.characters.push(c.id); });
+      }
       COMBAT.skins = Array.isArray(d.skins) ? d.skins : ['default'];
       COMBAT.weapon = WPN[d.weapon] ? d.weapon : 'sword';
       COMBAT.character = CHR[d.character] ? d.character : 'lyra';
@@ -253,6 +257,7 @@
     WORLD.setCombatHooks({
       onHit: function (enemy, dmg, combo, isSkill, attackType) {
         SFX.hit();
+        screenPunch(isSkill ? 2.2 : 1);
         COMBAT.burstCharge = Math.min(3, (COMBAT.burstCharge || 0) + 1);
         syncBurstMeter();
         const s = COMBAT_RULES.hitScore + (combo || 0);
@@ -264,6 +269,7 @@
       onReaction: function (info) { showBondReaction(info); },
       onKill: function (enemy) {
         SFX.kill();
+        screenPunch(2.6);
         COMBAT.kills++;
         addScore(enemy.type.score); addGold(enemy.type.gold);
         toast('⚔ ' + enemy.type.name + ' defeated! <b>+' + enemy.type.score + ' XP</b> · <b>+' + enemy.type.gold + ' gold</b>', 1800);
@@ -296,12 +302,31 @@
     WORLD.equipWeapon(COMBAT.weapon);
     WORLD.applyCharacterLook(COMBAT.character, COMBAT.skin);
     syncParty();
-    let enabled = false;
-    try { enabled = localStorage.getItem('bq_combat_enabled') === '1'; } catch (e) { }
+    /* Combat is ON by default — a fresh player pressing J used to get nothing
+       at all, which is why attacks felt like they did not exist. Only an
+       explicit "off" stored by the player turns it back off. */
+    let enabled = true;
+    try { enabled = localStorage.getItem('bq_combat_enabled') !== '0'; } catch (e) { }
     setCombatMode(enabled);
     updateCombatHUD();
   }
   COMBAT.hurtCd = 0;
+
+  /* A quick white flash on the HUD layer whenever a hit lands — together with
+     the world-space impact and the camera kick this is what makes an attack
+     feel like it connected instead of just "something happened". */
+  function screenPunch(strength, colorHex) {
+    const el = $('hitFlash'); if (!el) return;
+    if (colorHex) {
+      const c = '#' + ('000000' + Number(colorHex).toString(16)).slice(-6);
+      el.style.background = 'radial-gradient(circle at 50% 55%,rgba(255,255,255,.26),' + c + '55 42%,transparent 76%)';
+    } else {
+      el.style.background = '';
+    }
+    el.style.opacity = String(Math.min(0.92, 0.22 + strength * 0.26));
+    clearTimeout(screenPunch.t);
+    screenPunch.t = setTimeout(function () { el.style.opacity = '0'; }, 110);
+  }
 
   function setCombatMode(enabled) {
     $('combatToggle').checked = enabled;
@@ -486,24 +511,40 @@
   /* Perform a player attack. combo advances within a short window. */
   function playerAttack(mode) {
     if (!started || paused || state !== STATE.WORLD || !WORLD.combatState.enabled) return;
-    const attackType = mode === true ? 'burst' : (typeof mode === 'string' ? mode : 'light');
+    let attackType = mode === true ? 'burst' : (typeof mode === 'string' ? mode : 'light');
+    const comboIndex = COMBAT.lightStep || 0;
+    if (attackType === 'light' && comboIndex >= 3) attackType = 'finisher';
     const now = performance.now() / 1000; const w = WPN[COMBAT.weapon];
     if (now - COMBAT.lastHit > COMBAT_RULES.comboWindow) { COMBAT.combo = 0; COMBAT.lightStep = 0; }
     if (attackType === 'burst') {
-      if ((COMBAT.burstCharge || 0) < 3) { toast(bi('Burst needs 3 hits — keep attacking to charge it.', 'Burst 需要 3 次命中 — 繼續攻擊充能。')); return; }
-      if (COMBAT.skillCd > 0) { toast('Burst recharging — ' + COMBAT.skillCd.toFixed(1) + 's'); return; }
+      if (COMBAT.skillCd > 0) { toast(bi('Skill recharging — ' + COMBAT.skillCd.toFixed(1) + 's', '技能冷卻中 — ' + COMBAT.skillCd.toFixed(1) + ' 秒')); return; }
     }
-    const minGap = attackType === 'heavy' ? 0.82 : attackType === 'burst' ? 0.25 : w.rate;
+    const minGap = attackType === 'heavy' ? 0.82
+      : attackType === 'charged' ? 0.95
+      : attackType === 'burst' ? 0.25
+      : attackType === 'finisher' ? Math.max(0.26, w.rate * 1.1)
+      : w.rate;
     if (now - COMBAT.lastHit < minGap) return;
-    const comboStep = attackType === 'light' ? (COMBAT.lightStep || 0) : 0;
-    if (!WORLD.performAttack(w, comboStep, attackType, updateAttackCombo)) return;
-    if (attackType === 'light') { COMBAT.lightStep = (comboStep + 1) % 3; SFX.swing(); }
+    const comboStep = (attackType === 'light' || attackType === 'finisher') ? Math.min(2, comboIndex) : 0;
+    /* A skill always fires. Charging 3 hits makes it full power; casting early
+       still works at reduced power, so pressing K never feels like nothing. */
+    const charge = Math.max(0, Math.min(3, COMBAT.burstCharge || 0));
+    const power = attackType === 'burst' ? (charge >= 3 ? 1 : 0.42 + charge * 0.16) : 1;
+    if (!WORLD.performAttack(w, comboStep, attackType, updateAttackCombo, power)) return;
+    if (attackType === 'light' || attackType === 'finisher') {
+      COMBAT.lightStep = (comboIndex + 1) % 4;
+      SFX.swing();
+      if (attackType === 'finisher') { SFX.hit(); toast(bi('Combo finisher — big hit', '連段終結 — 重擊'), 650); }
+    }
     else if (attackType === 'heavy') { SFX.hit(); toast(bi('Charged heavy — brace impact', '蓄力重擊 — 準備命中'), 700); }
+    else if (attackType === 'charged') { SFX.hit(); toast(bi('Charged slam — ground shatter', '蓄力猛擊 — 震裂地面'), 800); }
     else {
       const C = CHR[COMBAT.character];
       const EL = (typeof ELEMENTS !== 'undefined') && C && ELEMENTS[C.element];
-      COMBAT.burstCharge = 0; COMBAT.skillCd = 1.2; syncBurstMeter(); SFX.skill();
+      COMBAT.burstCharge = charge >= 3 ? 0 : charge;
+      COMBAT.skillCd = 1.2; syncBurstMeter(); SFX.skill();
       showBanner((EL ? EL.name : 'BURST BOND').toUpperCase(), bi(EL ? C.name + ' releases ' + EL.en : '3-hit charge released', EL ? C.name + ' 施放' + EL.zh : '3 次命中充能已釋放'));
+      screenPunch(2.8, EL ? EL.color : null);
     }
     COMBAT.lastHit = now;
   }
@@ -805,7 +846,7 @@
     document.body.classList.toggle('lang-zh', isZh());
     const lb = $('langBtn'); if (lb) lb.textContent = isZh() ? '中文' : 'EN';
     document.querySelectorAll('[data-lang-toggle]').forEach(b => { b.textContent = isZh() ? '中文 / EN' : 'EN / 中文'; });
-    const ch = $('controlsHint'); if (ch) ch.textContent = bi('WASD move · LMB 3-hit combo · F heavy · Shift dash · K burst · E interact', 'WASD 移動 · 左鍵 3 連擊 · F 重擊 · Shift 衝刺 · K 爆發 · E 互動');
+    const ch = $('controlsHint'); if (ch) ch.textContent = bi('WASD move · LMB 4-hit combo · F heavy / hold = charged slam · Shift dash · K burst · E interact', 'WASD 移動 · 左鍵 4 連擊 · F 重擊（長按=蓄力猛擊）· Shift 衝刺 · K 爆發 · E 互動');
     syncBurstMeter();
   }
   function toggleLanguage() {
@@ -2273,7 +2314,7 @@
     { sel: '#minimap', title: '③ Use the maps', text: 'Top right is the mini-map: the white arrow is you, the green ring is your target. Press M any time for the big map — drag to pan, scroll to zoom, click a marker to make it your objective.' },
     { sel: null, title: '④ Get close, then press E', text: 'Walk up to a glowing NPC, chest or crystal. When you are close enough, a prompt appears — press E. If a quest says LOCKED, answer a few questions first or buy a Guild Pass.' },
     { sel: '#topbar', title: '⑤ Answer or draw — then repeat', text: 'Talk to an NPC and answer 3 questions, or open a chest and place electrons on the dotted slots then press Check. Each finished quest adds +1 to the counter above.' },
-    { sel: '#scorePill', title: '⑥ Fight enemies & earn rewards', text: 'Wild enemies roam the fields. Left-click for a 3-hit light combo, F for charged heavy, Shift to dash through attacks, and K for a burst once 3 hits charge it. Every hit gives XP and Gold — B opens the Shop, C swaps character.' }
+    { sel: '#scorePill', title: '⑥ Fight enemies & earn rewards', text: 'Wild enemies roam the fields. Left-click chains a 4-hit combo (the 4th is a finisher), hold F and release for a charged ground slam, Shift dashes through attacks, and K casts your element burst. Every hit gives XP and Gold — B opens the Shop, C swaps character, 1-5 swaps instantly.' }
   ];
   let coachOn = false, coachIdx = 0;
 
@@ -3050,10 +3091,19 @@
     } else if (shopTab === 'supplies') {
       const bal = shardBalance();
       const left = GLOSSARY.filter(g => !termUnlocked(g.id)).length;
-      html += '<div class="shopItem"><div class="siBody"><div class="siName">Vocabulary Scroll</div>' +
+      const scrollArt = '<span class="siArt hasImg"><svg viewBox="0 0 48 48" aria-hidden="true">' +
+        '<rect x="13" y="9" width="22" height="30" rx="3" fill="#e8dfc6"/>' +
+        '<rect x="13" y="9" width="22" height="5" rx="2.4" fill="#c9bda0"/>' +
+        '<circle cx="10.5" cy="28" r="4.2" fill="#c9bda0"/><circle cx="37.5" cy="28" r="4.2" fill="#c9bda0"/>' +
+        '<path d="M18 20h12M18 25h12M18 30h8" stroke="#8a7c5e" stroke-width="1.6" stroke-linecap="round"/></svg></span>';
+      const passArt = '<span class="siArt hasImg"><svg viewBox="0 0 48 48" aria-hidden="true">' +
+        '<path d="M9 16h30v16H9z" fill="#8ff0c8"/><path d="M9 16h30v5H9z" fill="#5fd0a8"/>' +
+        '<circle cx="33" cy="27" r="4.6" fill="#0b1418" opacity=".35"/>' +
+        '<path d="M15 24h9M15 28h6" stroke="#0b1418" stroke-width="1.8" stroke-linecap="round" opacity=".55"/></svg></span>';
+      html += '<div class="shopItem">' + scrollArt + '<div class="siBody"><div class="siName">Vocabulary Scroll</div>' +
         '<div class="siDesc">Unlock one random word you have not collected yet (' + left + ' still locked).</div></div>' +
         '<button data-act="term"' + (bal < 1 || left === 0 ? ' disabled' : '') + '>1 shard</button></div>' +
-        '<div class="shopItem"><div class="siBody"><div class="siName">Guild Pass</div>' +
+        '<div class="shopItem">' + passArt + '<div class="siBody"><div class="siName">Guild Pass</div>' +
         '<div class="siDesc">Enter the next locked quest location directly, ignoring the requirement.' +
         (freePass > 0 ? ' (You hold ' + freePass + '.)' : '') + '</div></div>' +
         '<button data-act="pass"' + (bal < 2 ? ' disabled' : '') + '>2 shards</button></div>';
@@ -3064,12 +3114,30 @@
     });
   }
 
+  /* Shop artwork: real 3D renders of the actual weapon mesh or character model,
+     produced once by the world and cached. Outfits show their palette instead. */
+  function shopArt(id, tab) {
+    let thumb = '';
+    try { if (WORLD.shopThumb) thumb = WORLD.shopThumb(tab, id) || ''; } catch (e) { thumb = ''; }
+    if (thumb) return { cls: ' hasImg', html: '<img class="siImg" alt="" src="' + thumb + '">' };
+    let chips = null;
+    if (tab === 'skins') {
+      try { if (WORLD.skinSwatch) chips = WORLD.skinSwatch(id); } catch (e) { chips = null; }
+    }
+    if (chips && chips.length) {
+      return { cls: ' hasChips', html: '<span class="siChips">' + chips.map(c => '<i style="background:' + c + '"></i>').join('') + '</span>' };
+    }
+    const glyph = tab === 'gear' ? '⚔' : tab === 'characters' ? '☻' : '✦';
+    return { cls: '', html: glyph };
+  }
+
   function shopCard(id, name, desc, meta, gold, scoreReq, owned, equipped, gateOk, label, dis, tab) {
     const gateTag = scoreReq > 0 ? '<span class="siGate' + (gateOk ? ' ok' : '') + '">' + (gateOk ? '✓ ' : '🔒 ') + scoreReq + ' XP</span>' : '';
     const priceTag = gold > 0 ? '<span class="siPrice">' + gold + ' g</span>' : (owned ? '' : '<span class="siPrice free">Free</span>');
     const ownedTag = owned ? '<span class="siOwned">Owned</span>' : '';
+    const art = shopArt(id, tab);
     return '<div class="shopItem' + (equipped ? ' equipped' : '') + '" data-kind="' + tab + '">' +
-      '<div class="siArt si-' + id + '">' + (tab === 'gear' ? '⚔' : tab === 'characters' ? '☻' : '✦') + '</div>' +
+      '<div class="siArt si-' + id + art.cls + '">' + art.html + '</div>' +
       '<div class="siBody"><div class="siName">' + name + ' ' + ownedTag + '</div>' +
       '<div class="siMeta">' + meta + ' ' + gateTag + ' ' + priceTag + '</div>' +
       '<div class="siDesc">' + desc + '</div></div>' +
@@ -3387,12 +3455,21 @@
   }
   function switchToCharacter(id) {
     const c = CHR[id]; if (!c || COMBAT.characters.indexOf(id) < 0) return;
+    const nowMs = performance.now();
+    if (nowMs - (COMBAT.lastSwitchMs || 0) < 90) return;
+    COMBAT.lastSwitchMs = nowMs;
     COMBAT.character = id;
+    COMBAT.lightStep = 0;
     WORLD.applyCharacterLook(COMBAT.character, COMBAT.skin);
     syncParty();
     saveCombat(); updateCombatHUD();
+    /* visible confirmation: element-coloured burst + ring at the player's feet */
+    if (WORLD.characterSwitchFlare) WORLD.characterSwitchFlare(true);
+    screenPunch(1.1, (typeof ELEMENTS !== 'undefined' && ELEMENTS[c.element]) ? ELEMENTS[c.element].color : null);
+    if (window.SFX && SFX.skill) SFX.skill();
+    showBanner(c.name.toUpperCase(), bi('Now playing · ' + c.role, '現在操作 · ' + c.role));
     const EL = (typeof ELEMENTS !== 'undefined') && ELEMENTS[c.element];
-    toast('☻ Now playing as <b>' + c.name + '</b> — ' + c.role + (EL ? ' · ' + EL.name : ''));
+    toast('☻ Now playing as <b>' + c.name + '</b> — ' + c.role + (EL ? ' · ' + EL.name : ''), 1400);
   }
   function syncParty() {
     /* companions = every owned character except the active one */
@@ -3695,7 +3772,7 @@
     /* ---- combat controls ---- */
     if (paused || state !== STATE.WORLD) return;
     if (k === 'j') { playerAttack(false); return; }
-    if (k === 'f') { playerAttack('heavy'); return; }
+    if (k === 'f') { COMBAT.heavyAt = performance.now(); return; }
     if (k === 'shift') { WORLD.dashPlayer(); return; }
     if (k === 'k') { playerAttack('burst'); return; }
     if (k === 'c') { cycleCharacter(); return; }
@@ -3710,6 +3787,15 @@
       else if (c) toast('Already playing as <b>' + CHR[c].name + '</b>');
       else toast('Party slot ' + k + ' is empty — unlock more companions to fill it');
     }
+  });
+
+  /* release F: a tap is a normal heavy swing, a hold becomes the charged slam */
+  window.addEventListener('keyup', e => {
+    if (e.key.toLowerCase() !== 'f' || !COMBAT.heavyAt) return;
+    const held = (performance.now() - COMBAT.heavyAt) / 1000;
+    COMBAT.heavyAt = 0;
+    if (!started || paused || state !== STATE.WORLD) return;
+    playerAttack(held >= 0.45 ? 'charged' : 'heavy');
   });
 
   /* ================= BOOT / LOOP ================= */

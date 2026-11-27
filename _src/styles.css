@@ -757,6 +757,10 @@ body.is-touch #touchTip{display:block}
 #comboBadge.show{opacity:1;transform:translateX(-50%) scale(1)}
 #hurtFlash{position:fixed;inset:0;background:radial-gradient(circle,transparent 40%,rgba(220,60,60,.55));
   opacity:0;pointer-events:none;z-index:55;transition:opacity .15s}
+/* hit feedback: a warm screen bloom that flashes for ~90ms when a blow lands */
+#hitFlash{position:fixed;inset:0;pointer-events:none;z-index:56;opacity:0;
+  mix-blend-mode:screen;transition:opacity .09s;
+  background:radial-gradient(circle at 50% 55%,rgba(255,255,255,.24),rgba(255,214,150,.16) 38%,transparent 72%)}
 
 /* ---- skill cooldown meter ---- */
 #skillMeter{position:absolute;right:24px;bottom:24px;width:210px;pointer-events:none;z-index:7}
@@ -1152,9 +1156,9 @@ body.intro-trial #minimap,body.intro-trial .qpTab{display:none!important}
 body.is-touch .kbdHint{display:none}
 
 /* trial combat feedback */
-.damageNumber{position:fixed;z-index:74;pointer-events:none;transform:translate(-50%,-50%);font-weight:900;font-size:18px;color:#fff4d6;text-shadow:0 2px 0 #3c1608,0 0 10px rgba(255,180,70,.7);animation:damageFloat .72s ease-out forwards;white-space:nowrap}
-.damageNumber.crit{font-size:26px;color:#ffe17a;text-shadow:0 2px 0 #5a2704,0 0 18px rgba(255,190,60,.85)}
-.damageNumber.reaction{color:#8ff0c8;font-size:16px}
+.damageNumber{position:fixed;z-index:74;pointer-events:none;transform:translate(-50%,-50%);font-weight:900;font-size:24px;color:#fff4d6;text-shadow:0 2px 0 #3c1608,0 0 12px rgba(255,180,70,.8);animation:damageFloat .78s ease-out forwards;white-space:nowrap;-webkit-text-stroke:1px rgba(40,12,0,.55)}
+.damageNumber.crit{font-size:36px;color:#ffe17a;text-shadow:0 3px 0 #5a2704,0 0 22px rgba(255,190,60,.95)}
+.damageNumber.reaction{color:#8ff0c8;font-size:20px}
 @keyframes damageFloat{0%{opacity:0;transform:translate(-50%,-20%) scale(.7)}18%{opacity:1;transform:translate(-50%,-60%) scale(1.12)}100%{opacity:0;transform:translate(-50%,-155%) scale(.95)}}
 .bondReaction{position:fixed;left:50%;top:34%;z-index:73;pointer-events:none;transform:translate(-50%,-50%) scale(.8);padding:8px 18px;border-radius:999px;font-weight:900;font-size:16px;letter-spacing:1.4px;white-space:nowrap;opacity:0;animation:bondReactionPop .9s cubic-bezier(.15,.9,.2,1) forwards;border:1px solid rgba(255,255,255,.3);background:rgba(6,20,22,.9);text-shadow:0 2px 8px #000}
 .bondReaction small{display:block;text-align:center;font-size:10px;letter-spacing:.8px;margin-top:2px;opacity:.8}
@@ -1162,3 +1166,223 @@ body.is-touch .kbdHint{display:none}
 .bondReaction.covalent{color:#7dffc8;box-shadow:0 0 28px rgba(95,208,168,.35);border-color:rgba(95,208,168,.55)}
 .bondReaction.metallic{color:#ffe08a;box-shadow:0 0 28px rgba(255,200,95,.38);border-color:rgba(255,200,95,.55)}
 @keyframes bondReactionPop{0%{opacity:0;transform:translate(-50%,-50%) scale(.68)}20%{opacity:1;transform:translate(-50%,-50%) scale(1.08)}100%{opacity:0;transform:translate(-50%,-78%) scale(1)}}
+
+/* ============================================================
+   MOTION LAYER
+   Springy micro-interactions for the HUD, panels and modals.
+   Layout is untouched: everything here is transform/opacity plus
+   a couple of gradient shimmers, so the page stays at 60fps.
+   ============================================================ */
+:root{
+  --e-out:cubic-bezier(.22,.9,.24,1);
+  --e-spring:cubic-bezier(.18,1.34,.32,1);
+  --e-in:cubic-bezier(.5,0,.85,.35);
+}
+
+/* ---------- every control answers the pointer ---------- */
+:where(button,.primary,.ghost,.iconBtn,.toolBtn,.tBtn,.shopTab,.pill,.charCard,.gachaDrawBtn){
+  transition:transform .16s var(--e-out),box-shadow .24s var(--e-out),
+             background-color .2s var(--e-out),border-color .2s var(--e-out),
+             color .2s var(--e-out),filter .2s var(--e-out);
+}
+:where(button,.primary,.ghost,.iconBtn,.toolBtn,.tBtn,.shopTab):not(:disabled):active{
+  transform:translateY(1px) scale(.962);
+}
+:where(button,.primary,.ghost,.iconBtn,.toolBtn,.tBtn,.shopTab):not(:disabled):hover{
+  filter:brightness(1.06);
+}
+
+/* sheen that sweeps across the big call-to-action buttons */
+.mo-sheen{position:relative;overflow:hidden;isolation:isolate}
+.mo-sheen::after{
+  content:"";position:absolute;inset:-60% -40%;pointer-events:none;
+  background:linear-gradient(110deg,transparent 42%,rgba(255,255,255,.4) 50%,transparent 58%);
+  transform:translateX(-135%);transition:transform .75s var(--e-out);mix-blend-mode:screen;
+}
+.mo-sheen:hover::after{transform:translateX(135%)}
+
+/* click ripple */
+.mo-ripple{
+  position:absolute;border-radius:50%;pointer-events:none;mix-blend-mode:screen;
+  background:radial-gradient(circle,rgba(143,240,200,.6),rgba(143,240,200,0) 70%);
+  transform:scale(.18);animation:moRipple .6s var(--e-out) forwards;
+}
+@keyframes moRipple{to{transform:scale(1);opacity:0}}
+
+/* ---------- modal choreography ---------- */
+.modal.mo-in{animation:moBackdropIn .3s var(--e-out) both}
+.modal.mo-in .modalCard{animation:moCardIn .5s var(--e-spring) both}
+.modal.mo-out{display:flex!important;pointer-events:none;animation:moBackdropOut .22s var(--e-in) both}
+.modal.mo-out .modalCard{animation:moCardOut .2s var(--e-in) both}
+.screen.mo-in{animation:moBackdropIn .4s var(--e-out) both}
+.screen.mo-in .startCard{animation:moCardIn .62s var(--e-spring) both}
+.screen.mo-out{display:flex!important;pointer-events:none;animation:moBackdropOut .26s var(--e-in) both}
+.screen.mo-out .startCard{animation:moCardOut .22s var(--e-in) both}
+
+@keyframes moBackdropIn{from{opacity:0;backdrop-filter:blur(0)}to{opacity:1;backdrop-filter:blur(5px)}}
+@keyframes moBackdropOut{from{opacity:1}to{opacity:0;backdrop-filter:blur(0)}}
+@keyframes moCardIn{
+  0%{opacity:0;transform:translateY(26px) scale(.93);filter:blur(6px)}
+  60%{opacity:1;filter:blur(0)}
+  100%{opacity:1;transform:none;filter:blur(0)}
+}
+@keyframes moCardOut{from{opacity:1;transform:none}to{opacity:0;transform:translateY(14px) scale(.96)}}
+
+/* children of a freshly opened panel rise in sequence */
+.mo-rise{animation:moRise .55s var(--e-spring) backwards;animation-delay:calc(var(--mo-i,0) * 45ms)}
+@keyframes moRise{from{opacity:0;transform:translateY(14px) scale(.986)}to{opacity:1;transform:none}}
+
+/* the hud drifts in once the world starts */
+.mo-hud-in{animation:moHudIn .55s var(--e-spring) backwards;animation-delay:calc(var(--mo-i,0) * 55ms)}
+@keyframes moHudIn{from{opacity:0;transform:translateY(-10px) scale(.96)}to{opacity:1;transform:none}}
+
+/* ---------- toasts ---------- */
+.toast.mo-toast{animation:moToastIn .5s var(--e-spring) both}
+@keyframes moToastIn{0%{opacity:0;transform:translateY(-18px) scale(.88)}100%{opacity:1;transform:none}}
+
+/* ---------- numbers & badges ---------- */
+.mo-pop{animation:moNumPop .44s var(--e-spring)}
+@keyframes moNumPop{0%{transform:scale(.72);filter:brightness(1.9)}55%{transform:scale(1.17)}100%{transform:scale(1);filter:none}}
+.mo-pop-big{animation:moComboPop .5s var(--e-spring)}
+@keyframes moComboPop{0%{transform:scale(.6) rotate(-3deg)}55%{transform:scale(1.18) rotate(1.5deg)}100%{transform:scale(1) rotate(0)}}
+.mo-nudge{animation:moNudge .4s var(--e-out)}
+@keyframes moNudge{0%,100%{transform:none}30%{transform:translateY(-5px) scale(1.01)}60%{transform:translateY(2px)}}
+
+/* ---------- cards tilt toward the cursor ---------- */
+.charCard,.shopItem{position:relative}
+.mo-tilting{
+  transform:perspective(780px) rotateX(calc(var(--my,0) * -7deg)) rotateY(calc(var(--mx,0) * 9deg))
+            translateY(-3px) scale(1.012)!important;
+  box-shadow:0 20px 44px rgba(0,0,0,.45),0 0 0 1px rgba(143,240,200,.28);
+  z-index:2;
+}
+.mo-tilting::after{
+  content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:radial-gradient(220px circle at calc(50% + var(--mx,0) * 130px) calc(50% + var(--my,0) * 110px),
+             rgba(143,240,200,.16),transparent 68%);
+}
+
+/* ---------- hud accents ---------- */
+#topbar > *{transition:transform .2s var(--e-out),box-shadow .25s var(--e-out)}
+#topbar .pill:hover{transform:translateY(-1px);box-shadow:0 10px 22px rgba(0,0,0,.34)}
+#topbar .iconBtn:hover{transform:translateY(-1px) scale(1.05)}
+
+#qpBarFill,#skillFill,#bhFill,#dailyProgress{position:relative;overflow:hidden;transition:width .55s var(--e-out)}
+#qpBarFill::after,#skillFill::after,#bhFill::after,#dailyProgress::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.5),transparent);
+  transform:translateX(-110%);animation:moShimmer 2.6s linear infinite;
+}
+@keyframes moShimmer{to{transform:translateX(110%)}}
+
+.qpTab{position:relative;transition:color .2s var(--e-out),background .2s var(--e-out),transform .2s var(--e-out)}
+.qpTab:hover{transform:translateY(-1px)}
+.qpTab::after{
+  content:"";position:absolute;left:14%;right:14%;bottom:3px;height:2px;border-radius:2px;
+  background:linear-gradient(90deg,transparent,#8ff0c8,transparent);
+  transform:scaleX(0);transform-origin:center;transition:transform .32s var(--e-out);
+}
+.qpTab:hover::after,.qpTab.active::after{transform:scaleX(1)}
+
+#skillMeter.ready #skillBar,#skillMeter.full #skillBar{animation:moReadyPulse 1.2s ease-in-out infinite}
+@keyframes moReadyPulse{0%,100%{box-shadow:0 0 0 0 rgba(143,240,200,0)}50%{box-shadow:0 0 18px 2px rgba(143,240,200,.45)}}
+
+#bigHint.bh.show .bhText{animation:moTextReveal .55s var(--e-out) both}
+@keyframes moTextReveal{from{clip-path:inset(0 100% 0 0);opacity:.25}to{clip-path:inset(0 0 0 0);opacity:1}}
+
+#glossaryDrawer.mo-in{animation:moDrawerIn .44s var(--e-spring) both}
+@keyframes moDrawerIn{from{opacity:0;transform:translateX(-24px) scale(.98)}to{opacity:1;transform:none}}
+
+/* focused control is always obvious, even with a controller-like flow */
+:focus-visible{outline:2px solid rgba(143,240,200,.8);outline-offset:2px;border-radius:8px}
+
+/* respect the OS setting */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{
+    animation-duration:.001ms!important;animation-iteration-count:1!important;
+    transition-duration:.001ms!important;scroll-behavior:auto!important;
+  }
+}
+
+/* ---------- title screen ambience ---------- */
+#startScreen{overflow:hidden}
+#startScreen::before{
+  content:"";position:absolute;inset:-28%;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(circle at 28% 34%,rgba(96,240,200,.22),transparent 46%),
+    radial-gradient(circle at 72% 66%,rgba(90,180,255,.20),transparent 46%),
+    radial-gradient(circle at 56% 12%,rgba(255,216,106,.13),transparent 42%);
+  filter:blur(46px);
+  animation:moAurora 20s ease-in-out infinite alternate;
+}
+@keyframes moAurora{
+  0%{transform:translate3d(-2%,-1%,0) scale(1)}
+  50%{transform:translate3d(2%,1.5%,0) scale(1.07)}
+  100%{transform:translate3d(-1%,2%,0) scale(1.02)}
+}
+#startScreen .startCard{
+  position:relative;z-index:1;
+  background-image:linear-gradient(155deg,rgba(143,240,200,.12),transparent 38%,rgba(90,180,255,.12) 72%,transparent);
+  background-size:230% 230%;
+  animation:moCardGlow 11s ease-in-out infinite alternate;
+}
+@keyframes moCardGlow{from{background-position:0% 0%}to{background-position:100% 100%}}
+
+#startScreen h1{
+  background:linear-gradient(100deg,#eafff6 0%,#8ff0c8 34%,#cfe9ff 50%,#ffe9a8 62%,#eafff6 78%);
+  background-size:240% 100%;
+  -webkit-background-clip:text;background-clip:text;
+  -webkit-text-fill-color:transparent;color:transparent;
+  animation:moTitleShimmer 7s ease-in-out infinite;
+}
+@keyframes moTitleShimmer{0%{background-position:0% 50%}50%{background-position:120% 50%}100%{background-position:0% 50%}}
+
+#startScreen .startMeta span{
+  display:inline-flex;align-items:center;gap:6px;
+  transition:transform .22s var(--e-out),color .22s var(--e-out);
+}
+#startScreen .startMeta span:hover{transform:translateY(-2px);color:#c8ffe8}
+
+#startBtn{box-shadow:0 10px 28px rgba(56,214,168,.28)}
+#startBtn:hover{box-shadow:0 16px 38px rgba(56,214,168,.42);transform:translateY(-2px)}
+#startBtn:active{transform:translateY(0) scale(.985)}
+
+/* drifting motes behind the title card */
+.mo-sparks{position:absolute;inset:0;pointer-events:none;z-index:0;overflow:hidden}
+.mo-spark{
+  position:absolute;width:6px;height:6px;border-radius:50%;
+  background:radial-gradient(circle,rgba(200,255,236,.95),rgba(143,240,200,0) 70%);
+  animation:moDrift linear infinite;opacity:.55;
+}
+@keyframes moDrift{
+  0%{transform:translate3d(0,30px,0) scale(.6);opacity:0}
+  15%{opacity:.7}
+  85%{opacity:.5}
+  100%{transform:translate3d(24px,-120px,0) scale(1.1);opacity:0}
+}
+
+/* drawer + list rows get a soft rail highlight on hover */
+.glossaryList > *, #charList > *, .shopItems > *{
+  transition:transform .2s var(--e-out),background-color .2s var(--e-out),box-shadow .24s var(--e-out);
+}
+#charList > *:hover, .shopItems > *:hover{
+  transform:translateX(2px);
+}
+
+/* number counters driven by anime.js */
+.mo-counting{color:#b6ffe4 !important;text-shadow:0 0 12px rgba(143,240,200,.55)}
+
+/* ---------- shop artwork: 3D item renders ---------- */
+.shopItem .siArt{position:relative;overflow:hidden;transition:transform .25s var(--e-out,ease),box-shadow .25s}
+.shopItem:hover .siArt.hasImg{transform:translateY(-1px) scale(1.04)}
+.shopItem .siArt.hasImg{flex:0 0 66px;width:66px;height:66px;padding:3px;border-radius:14px;
+  background:radial-gradient(circle at 50% 32%,rgba(95,208,168,.20),rgba(9,16,20,.62) 72%);
+  border:1px solid rgba(143,240,200,.28);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.10),0 4px 14px rgba(0,0,0,.28)}
+.shopItem.equipped .siArt.hasImg{border-color:rgba(143,240,200,.62);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.14),0 0 0 1px rgba(143,240,200,.20),0 6px 18px rgba(20,120,96,.35)}
+.siImg{width:100%;height:100%;object-fit:contain;display:block;
+  filter:drop-shadow(0 4px 7px rgba(0,0,0,.45))}
+.siArt svg{width:80%;height:80%;display:block}
+.siChips{display:flex;gap:3px;align-items:center;justify-content:center}
+.siChips i{width:10px;height:26px;border-radius:3px;display:block;box-shadow:inset 0 0 0 1px rgba(0,0,0,.28)}

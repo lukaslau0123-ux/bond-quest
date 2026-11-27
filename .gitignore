@@ -25,3 +25,18 @@ qa-*.png
 *.swp
 *~
 ~$*
+
+# QA / dev artefacts (never ship to git)
+.clip-*/
+screenshots/
+godot/
+*.zip
+_docs-*.docx
+qa-*.png
+_patch*.py
+_tmp*.py
+_gif.py
+_qa*.html
+_qa*.js
+_smoke*.js
+_smoke*.html

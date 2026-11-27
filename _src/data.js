@@ -9,7 +9,7 @@ const ZONES = {
   B: { key:'B', en:'Covalent Forest',    zh:'共價森林', cx: 60, cz:-60,
        fog:0x8dbf9a, sky:0xc9e6d2, skyTop:0x2f6a4a, skyBot:0xcbe8d4, ground:[0.12,0.28,0.16] },
   C: { key:'C', en:'Metallic Mountains', zh:'金屬山脈', cx:-60, cz: 60,
-       fog:0xa3aab5, sky:0xc4c9d2, skyTop:0x535c6b, skyBot:0xc9ced6, ground:[0.26,0.25,0.24] },
+       fog:0x8f9aa8, sky:0xaeb7c3, skyTop:0x49525f, skyBot:0xb2bac5, ground:[0.26,0.25,0.24] },
   D: { key:'D', en:'Crystal Cavern',     zh:'晶體洞窟', cx: 60, cz: 60,
        fog:0x3b2f57, sky:0x322547, skyTop:0x1d1533, skyBot:0x5c4a86, ground:[0.10,0.08,0.19] }
 };
@@ -296,7 +296,9 @@ const WEAPONS = [
   { id:'great',   name:'Ion Cleaver',     type:'great',  damage:26, reach:4.0, rate:0.72, anim:'heavy',   color:0xc9d6e4, glow:0xffc85f, gold:120, scoreReq:40,  quest:'n4',  desc:'Heavy two-handed edge. Slow but hits hard with a wide arc. Forged only after the Forge Keeper\'s metal remembers.' },
   { id:'staff',   name:'Orb Staff',       type:'staff',  damage:16, reach:6.2, rate:0.52, anim:'cast',    color:0xb9a7f0, glow:0x7fd8ff, gold:180, scoreReq:80,  quest:'n4',  desc:'Channels orbital energy. Long range and a radiant burst. Unlocked by the Forge Keeper\'s gratitude.' },
   { id:'bows',    name:'Electron Bow',    type:'bow',    damage:10, reach:9.0, rate:0.30, anim:'shoot',   color:0xe8d9a8, glow:0xffe08a, gold:220, scoreReq:120, quest:null,  desc:'Fires electron bolts from afar. Rapid and precise.' },
-  { id:'daggers', name:'Twin Sigils',     type:'daggers',damage:8,  reach:2.8, rate:0.20, anim:'flurry',  color:0xf0c8d8, glow:0xff8fc8, gold:260, scoreReq:180, quest:null,  desc:'Paired blades for a blur of rapid strikes.' }
+  { id:'daggers', name:'Twin Sigils',     type:'daggers',damage:8,  reach:2.8, rate:0.20, anim:'flurry',  color:0xf0c8d8, glow:0xff8fc8, gold:260, scoreReq:180, quest:null,  desc:'Paired blades for a blur of rapid strikes.' },
+  { id:'lance',   name:'Ion Lance',       type:'spear',  damage:18, reach:5.4, rate:0.44, anim:'thrust',  color:0xcdeeff, glow:0x7fd8ff, gold:150, scoreReq:60,  quest:'n4',  desc:'A long ion-tipped spear. Strikes from a step further out than any blade.' },
+  { id:'scythe',  name:'Bond Scythe',     type:'scythe', damage:24, reach:4.8, rate:0.66, anim:'sweep',   color:0xe6d4ff, glow:0xc07fe8, gold:340, scoreReq:240, quest:null,  desc:'A crescent of bonded light. Wide sweeps catch several enemies at once.' }
 ];
 
 /* Playable characters. role affects stats; scoreReq gates shop unlock;

@@ -299,11 +299,140 @@ const WORLD = (function () {
       const layer = v.y + 0.21 * v.x - 0.12 * v.z + 0.035 * Math.sin(v.z * 10 + seed);
       const vein = Math.pow(Math.max(0, Math.cos(layer * 21 + seed)), 9);
       const shade = 0.73 + v.y * 0.105 + 0.05 * Math.sin(layer * 12 + seed);
-      colors.set([shade + vein * 0.24, shade * 0.98 + vein * 0.23, shade * 0.94 + vein * 0.22], i * 3);
+      /* lichen / moss creeps over the upward-facing faces so boulders read as
+         weathered rock instead of grey blobs. */
+      const up = Math.max(0, Math.min(1, (v.y - 0.20) * 1.7));
+      const moss = up * (0.45 + 0.55 * Math.max(0, Math.sin(v.x * 5.3 + v.z * 4.1 + seed * 2.0)));
+      colors.set([
+        shade + vein * 0.26 - moss * 0.26,
+        shade * 0.98 + vein * 0.24 + moss * 0.16,
+        shade * 0.94 + vein * 0.22 - moss * 0.17
+      ], i * 3);
     }
     g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     g.computeVertexNormals();
     return g;
+  }
+
+  /* ---------- low vegetation (baked vertex colours) ---------- */
+
+  /* merge geometries while keeping their baked vertex colours */
+  function mergeColored(items) {
+    const gs = items.map(function (it) {
+      let g = it.g.clone();
+      if (it.m) g.applyMatrix4(it.m);
+      if (g.index) g = g.toNonIndexed();
+      return g;
+    });
+    let n = 0;
+    gs.forEach(function (g) { n += g.attributes.position.count; });
+    const pos = new Float32Array(n * 3), col = new Float32Array(n * 3);
+    let o = 0;
+    gs.forEach(function (g) {
+      const c = g.attributes.position.count;
+      pos.set(g.attributes.position.array, o * 3);
+      if (g.attributes.color) col.set(g.attributes.color.array, o * 3);
+      else col.fill(1, o * 3, (o + c) * 3);
+      o += c;
+    });
+    const out = new THREE.BufferGeometry();
+    out.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    out.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    out.computeVertexNormals();
+    return out;
+  }
+
+  /* paint every vertex of a geometry with one linear colour (slight variation) */
+  function paintGeometry(g, hex, vary) {
+    const base = plS(hex);
+    const n = g.attributes.position.count;
+    const arr = new Float32Array(n * 3);
+    const amt = vary == null ? 0.12 : vary;
+    for (let i = 0; i < n; i++) {
+      const j = 1 + (Math.random() - 0.5) * amt;
+      arr[i * 3] = base.r * j; arr[i * 3 + 1] = base.g * j; arr[i * 3 + 2] = base.b * j;
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(arr, 3));
+    return g;
+  }
+
+  /* one tapered grass blade, root at the origin, tip toward +y */
+  function makeBladeGeometry(o) {
+    const segs = o.segs || 4, h = o.height, w = o.width, lean = o.lean || 0;
+    const ang = o.angle || 0;
+    const root = plS(o.root), tip = plS(o.tip);
+    const dx = Math.sin(ang), dz = Math.cos(ang);
+    const sx = Math.cos(ang), sz = -Math.sin(ang);
+    const pos = [], col = [], idx = [];
+    for (let i = 0; i <= segs; i++) {
+      const t = i / segs;
+      const half = Math.max(0.005, w * (1 - t) * (1 - t * 0.3));
+      const bend = lean * h * t * t;
+      const y = h * t * (1 - lean * 0.12 * t);
+      pos.push(dx * bend + sx * half, y, dz * bend + sz * half);
+      pos.push(dx * bend - sx * half, y, dz * bend - sz * half);
+      const k = Math.pow(t, 0.7);
+      const r = root.r + (tip.r - root.r) * k;
+      const gg = root.g + (tip.g - root.g) * k;
+      const bb = root.b + (tip.b - root.b) * k;
+      col.push(r, gg, bb, r, gg, bb);
+      if (i < segs) { const a = i * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    return geo;
+  }
+
+  function makeTuftGeometry(o) {
+    const blades = o.blades || 5, parts = [];
+    for (let i = 0; i < blades; i++) {
+      const ang = (i / blades) * Math.PI * 2 + Math.random() * 0.8;
+      parts.push({
+        g: makeBladeGeometry({
+          angle: ang,
+          height: o.height * (0.62 + Math.random() * 0.55),
+          width: o.width * (0.7 + Math.random() * 0.6),
+          lean: (o.spread || 0.3) * (0.5 + Math.random() * 0.9),
+          segs: 4,
+          root: o.root == null ? 0x1d3f1d : o.root,
+          tip: o.tip == null ? 0x86cf5e : o.tip
+        }),
+        m: plM((Math.random() - 0.5) * 0.14, 0, (Math.random() - 0.5) * 0.14)
+      });
+    }
+    return mergeColored(parts);
+  }
+
+  function makeFernGeometry() {
+    const parts = [], fronds = 7;
+    for (let i = 0; i < fronds; i++) {
+      parts.push({
+        g: makeBladeGeometry({
+          angle: (i / fronds) * Math.PI * 2 + 0.25,
+          height: 1.0 + Math.random() * 0.4,
+          width: 0.15,
+          lean: 0.95 + Math.random() * 0.45,
+          segs: 5,
+          root: 0x16301a,
+          tip: 0x5fae47
+        })
+      });
+    }
+    return mergeColored(parts);
+  }
+
+  function makeMushroomGeometry(capHex) {
+    const stalk = new THREE.CylinderGeometry(0.05, 0.075, 0.3, 6, 1);
+    stalk.translate(0, 0.15, 0);
+    paintGeometry(stalk, 0xe8dfc6, 0.10);
+    const cap = new THREE.SphereGeometry(0.2, 9, 5, 0, Math.PI * 2, 0, Math.PI * 0.55);
+    cap.scale(1, 0.72, 1);
+    cap.translate(0, 0.29, 0);
+    paintGeometry(cap, capHex, 0.10);
+    return mergeColored([{ g: stalk }, { g: cap }]);
   }
 
   function buildSky() {
@@ -733,40 +862,152 @@ const WORLD = (function () {
       return true;
     }
 
-    /* trees */
-    const treeN = 210;
-    const trunkGeo = new THREE.CylinderGeometry(0.55, 0.75, 5, 6);
-    const trunkMat = toonMat(0x5a4432, null, { rimStrength: 0.12 });
-    const leafGeo = new THREE.ConeGeometry(2.6, 6.4, 7);
-    const leafMat = toonMat(0x3f7a46, null, { rimColor: 0xb8e8b6, rimStrength: 0.2 });
+    /* trees — two species, each with layered canopies so the forest reads as a
+       forest instead of a field of identical traffic cones. */
+    const treeN = 340;
+    const trunkGeo = new THREE.CylinderGeometry(0.46, 0.82, 5.6, 7);
+    /* bark is the one surface the strong ambient light washes out worst, so it
+       uses the character material (linear colour + rim) instead of toonMat */
+    const trunkMat = plMat(0x4e3626, plRamps().G3, { rimStrength: 0.10 });
+    /* pine: three stacked skirts, wide at the bottom, tight at the top */
+    const pineA = new THREE.ConeGeometry(2.85, 3.9, 9);
+    const pineB = new THREE.ConeGeometry(2.15, 3.4, 9);
+    const pineC = new THREE.ConeGeometry(1.35, 2.8, 8);
+    /* broadleaf: a cluster of rounded blobs */
+    const broadA = new THREE.IcosahedronGeometry(1.72, 1);
+    const broadB = new THREE.IcosahedronGeometry(1.20, 1);
+    const leafMat = toonMat(0x3f7a46, null, { rimColor: 0xb8e8b6, rimStrength: 0.2, flatShading: true });
+    const leafMat2 = toonMat(0x4f8f4a, null, { rimColor: 0xcdeec0, rimStrength: 0.22, flatShading: true });
     const trunks = new THREE.InstancedMesh(trunkGeo, trunkMat, treeN);
-    const leaves = new THREE.InstancedMesh(leafGeo, leafMat, treeN);
+    const pineMeshes = [pineA, pineB, pineC].map(function (geo) {
+      const im = new THREE.InstancedMesh(geo, leafMat, treeN);
+      im.castShadow = true; im.receiveShadow = true; return im;
+    });
+    const broadMeshes = [broadA, broadB].map(function (geo) {
+      const im = new THREE.InstancedMesh(geo, leafMat2, treeN);
+      im.castShadow = true; im.receiveShadow = true; return im;
+    });
+    const pineCount = [0, 0, 0], broadCount = [0, 0];
     const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(), p = new THREE.Vector3();
     const c = new THREE.Color();
+    const PINE_LAYER_Y = [3.15, 6.05, 8.55];
+    const PINE_LAYER_S = [1.0, 0.78, 0.55];
     let placed = 0, guard = 0;
-    while (placed < treeN && guard++ < 6000) {
+    while (placed < treeN && guard++ < 30000) {
       const x = (rand() * 2 - 1) * 185, z = (rand() * 2 - 1) * 185;
       if (zoneWeight(x, z, 'B') < 0.68) continue;
       if (Math.hypot(x, z) < 26) continue;
       const sc = 0.7 + rand() * 0.9;
       if (!reserve(x, z, 2.6 * sc, 3.8)) continue;
       const y = heightAt(x, z);
-      p.set(x, y + 2.5 * sc - 0.17, z);
-      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand() * Math.PI * 2);
+      const yaw = rand() * Math.PI * 2;
+      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw);
+      /* trunk: a little lean so the treeline is not perfectly vertical */
       s.set(sc, sc, sc);
+      p.set(x, y + 2.7 * sc - 0.2, z);
       m.compose(p, q, s);
       trunks.setMatrixAt(placed, m);
-      p.set(x, y + 6.2 * sc, z);
-      m.compose(p, q, s);
-      leaves.setMatrixAt(placed, m);
-      c.setHSL(0.30 + rand() * 0.06, 0.38 + rand() * 0.18, 0.26 + rand() * 0.12);
-      leaves.setColorAt(placed, c);
+      const pine = rand() < 0.72;
+      if (pine) {
+        PINE_LAYER_Y.forEach(function (ly, i) {
+          const ls = sc * PINE_LAYER_S[i];
+          p.set(x, y + ly * sc, z);
+          s.set(ls * (0.92 + rand() * 0.16), sc * (0.92 + rand() * 0.2), ls * (0.92 + rand() * 0.16));
+          m.compose(p, q, s);
+          pineMeshes[i].setMatrixAt(pineCount[i], m);
+          c.setHSL(0.30 + rand() * 0.05, 0.40 + rand() * 0.16, 0.24 + rand() * 0.11);
+          pineMeshes[i].setColorAt(pineCount[i], c);
+          pineCount[i]++;
+        });
+      } else {
+        /* broadleaf: main crown plus two offset lobes for a lumpy silhouette */
+        const lobes = [
+          [0, 7.1, 0, 1.0],
+          [0.95, 6.2, 0.55, 0.72],
+          [-0.85, 6.5, -0.62, 0.66],
+          [0.15, 8.05, -0.35, 0.58]
+        ];
+        lobes.forEach(function (L, i) {
+          const mesh = i < 2 ? broadMeshes[0] : broadMeshes[1];
+          const idx = i < 2 ? broadCount[0]++ : broadCount[1]++;
+          p.set(x + L[0] * sc, y + L[1] * sc, z + L[2] * sc);
+          const ls = sc * L[3] * (0.9 + rand() * 0.2);
+          s.set(ls, ls * (0.82 + rand() * 0.2), ls);
+          m.compose(p, q, s);
+          mesh.setMatrixAt(idx, m);
+          c.setHSL(0.26 + rand() * 0.07, 0.38 + rand() * 0.2, 0.30 + rand() * 0.14);
+          mesh.setColorAt(idx, c);
+        });
+      }
       colliders.push({ x, z, r: 0.75 * sc });
       placed++;
     }
-    trunks.count = placed; leaves.count = placed;
-    trunks.castShadow = true; leaves.castShadow = true;
-    scene.add(trunks); scene.add(leaves);
+    trunks.count = placed;
+    pineMeshes.forEach(function (mm, i) { mm.count = pineCount[i]; scene.add(mm); });
+    broadMeshes.forEach(function (mm, i) { mm.count = broadCount[i]; scene.add(mm); });
+    trunks.castShadow = true;
+    scene.add(trunks);
+
+    /* fallen logs + stumps give the woodland floor some structure */
+    const logN = 26, stumpN = 34;
+    const logGeo = new THREE.CylinderGeometry(0.34, 0.38, 3.4, 7);
+    const stumpGeo = new THREE.CylinderGeometry(0.42, 0.52, 0.72, 8);
+    const logs = new THREE.InstancedMesh(logGeo, trunkMat, logN);
+    const stumps = new THREE.InstancedMesh(stumpGeo, trunkMat, stumpN);
+    let ln = 0, sn = 0; guard = 0;
+    while (ln < logN && guard++ < 4000) {
+      const x = (rand() * 2 - 1) * 170, z = (rand() * 2 - 1) * 170;
+      if (zoneWeight(x, z, 'B') < 0.6 || Math.hypot(x, z) < 30) continue;
+      const sc = 0.8 + rand() * 0.7;
+      if (!reserve(x, z, 1.6 * sc, 2.4)) continue;
+      const y = heightAt(x, z);
+      q.setFromEuler(new THREE.Euler(Math.PI / 2, rand() * Math.PI * 2, rand() * 0.12));
+      s.set(sc, sc, sc);
+      p.set(x, y + 0.36 * sc, z);
+      m.compose(p, q, s);
+      logs.setMatrixAt(ln++, m);
+      colliders.push({ x, z, r: 1.1 * sc });
+    }
+    guard = 0;
+    while (sn < stumpN && guard++ < 4000) {
+      const x = (rand() * 2 - 1) * 175, z = (rand() * 2 - 1) * 175;
+      if (zoneWeight(x, z, 'B') < 0.55 || Math.hypot(x, z) < 28) continue;
+      const sc = 0.75 + rand() * 0.85;
+      if (!reserve(x, z, 0.9 * sc, 2.2)) continue;
+      const y = heightAt(x, z);
+      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand() * Math.PI * 2);
+      s.set(sc, sc, sc);
+      p.set(x, y + 0.3 * sc, z);
+      m.compose(p, q, s);
+      stumps.setMatrixAt(sn++, m);
+    }
+    logs.count = ln; stumps.count = sn;
+    logs.castShadow = true; stumps.castShadow = true; stumps.receiveShadow = true;
+    scene.add(logs); scene.add(stumps);
+
+    /* undergrowth — low shrubs and fern clumps so the forest floor is not bare */
+    const shrubN = 260;
+    const shrubGeo = new THREE.IcosahedronGeometry(0.62, 0);
+    const shrubMat = toonMat(0x3a6f3c, null, { rimColor: 0xa8e0a0, rimStrength: 0.24, flatShading: true });
+    const shrubs = new THREE.InstancedMesh(shrubGeo, shrubMat, shrubN);
+    let sh = 0; guard = 0;
+    while (sh < shrubN && guard++ < 6000) {
+      const x = (rand() * 2 - 1) * 178, z = (rand() * 2 - 1) * 178;
+      if (zoneWeight(x, z, 'B') < 0.5 || Math.hypot(x, z) < 24) continue;
+      const y = heightAt(x, z);
+      const sc = 0.55 + rand() * 1.0;
+      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand() * Math.PI * 2);
+      s.set(sc * (0.9 + rand() * 0.5), sc * (0.55 + rand() * 0.35), sc * (0.9 + rand() * 0.5));
+      p.set(x, y + 0.36 * sc, z);
+      m.compose(p, q, s);
+      shrubs.setMatrixAt(sh, m);
+      c.setHSL(0.27 + rand() * 0.08, 0.36 + rand() * 0.22, 0.24 + rand() * 0.14);
+      shrubs.setColorAt(sh, c);
+      sh++;
+    }
+    shrubs.count = sh;
+    shrubs.castShadow = true; shrubs.receiveShadow = true;
+    scene.add(shrubs);
 
     /* rocks — three deformed variants + small stones */
     const rockN = 210;
@@ -814,10 +1055,12 @@ const WORLD = (function () {
       if (!radius) continue;
       V.mesh.setMatrixAt(V.n, m);
       const wA = zoneWeight(x, z, 'A'), wC = zoneWeight(x, z, 'C'), wD = zoneWeight(x, z, 'D');
-      if (wA > 0.5) c.setRGB(0.86 + rand() * 0.08, 0.88 + rand() * 0.07, 0.90 + rand() * 0.06);
-      else if (wC > 0.5) c.setRGB(0.44 + rand() * 0.1, 0.42 + rand() * 0.09, 0.40 + rand() * 0.08);
-      else if (wD > 0.5) c.setRGB(0.34 + rand() * 0.09, 0.30 + rand() * 0.08, 0.44 + rand() * 0.1);
-      else c.setRGB(0.48 + rand() * 0.1, 0.50 + rand() * 0.09, 0.46 + rand() * 0.08);
+      /* these are linear multipliers, so keep them low: 0.44 linear reads as
+         ~0.70 on screen and turned every boulder into a pale blob */
+      if (wA > 0.5) c.setRGB(0.34 + rand() * 0.08, 0.35 + rand() * 0.07, 0.37 + rand() * 0.07);
+      else if (wC > 0.5) c.setRGB(0.19 + rand() * 0.06, 0.18 + rand() * 0.05, 0.17 + rand() * 0.05);
+      else if (wD > 0.5) c.setRGB(0.15 + rand() * 0.05, 0.12 + rand() * 0.04, 0.24 + rand() * 0.07);
+      else c.setRGB(0.21 + rand() * 0.06, 0.23 + rand() * 0.06, 0.20 + rand() * 0.05);
       V.mesh.setColorAt(V.n, c);
       V.n++;
       rIdx++;
@@ -837,7 +1080,7 @@ const WORLD = (function () {
       s.set(sc, sc * (0.6 + rand() * 0.5), sc);
       if (!positionRock(stoneMesh.geometry, x, z, sc * 0.18)) continue;
       stoneMesh.setMatrixAt(si, m);
-      c.setRGB(0.42 + rand() * 0.22, 0.43 + rand() * 0.2, 0.41 + rand() * 0.18);
+      c.setRGB(0.20 + rand() * 0.09, 0.21 + rand() * 0.08, 0.19 + rand() * 0.08);
       stoneMesh.setColorAt(si, c);
       si++;
     }
@@ -859,7 +1102,7 @@ const WORLD = (function () {
       const radius = positionRock(spireMesh.geometry, x, z, hh * 0.12);
       if (!radius) continue;
       spireMesh.setMatrixAt(pi2, m);
-      c.setRGB(0.40 + rand() * 0.1, 0.38 + rand() * 0.09, 0.36 + rand() * 0.08);
+      c.setRGB(0.17 + rand() * 0.05, 0.16 + rand() * 0.05, 0.15 + rand() * 0.05);
       spireMesh.setColorAt(pi2, c);
       pi2++;
       colliders.push({ x, z, r: radius * 0.82 });
@@ -896,14 +1139,17 @@ const WORLD = (function () {
     shards.count = placed;
     scene.add(shards);
 
-    /* grass tufts */
+    /* grass tufts — tapered blades with baked vertex colours. The old
+       three-sided cones could not carry colour per blade and read as pale
+       cream spikes in daylight, which made the forest floor look painted. */
+    const windTime = { value: 0 };
     const grassN = 1800;
-    const gGeo = new THREE.ConeGeometry(0.11, 0.78, 3, 4);
-    gGeo.translate(0, 0.39, 0);
+    const gGeo = makeTuftGeometry({ blades: 6, height: 0.92, spread: 0.34, width: 0.072 });
     const gMat = animeToonMaterial({
-      color: 0xffffff, flatShading: true, side: THREE.DoubleSide,
-      rimColor: 0xd8ffd0, rimStrength: 0.2, wind: true
+      color: 0xffffff, vertexColors: true, side: THREE.DoubleSide,
+      rimColor: 0xc8f0b8, rimStrength: 0.14, wind: true
     });
+    gMat.userData.windTime = windTime;
     const grass = new THREE.InstancedMesh(gGeo, gMat, grassN);
     let gi = 0, gg = 0;
     while (gi < grassN && gg++ < 20000) {
@@ -913,21 +1159,84 @@ const WORLD = (function () {
       if (townDistance(x, z) < 1 || nearNode(x, z, 4)) continue;
       const y = heightAt(x, z);
       if (y < -0.9) continue;
-      const sc = 0.6 + rand() * 0.9;
-      p.set(x, y - 0.03, z);
+      const sc = 0.7 + rand() * 1.0;
+      p.set(x, y - 0.04, z);
       q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand() * Math.PI * 2);
-      s.set(sc * (0.8 + rand() * 0.5), sc, sc * (0.8 + rand() * 0.5));
+      s.set(sc * (0.85 + rand() * 0.4), sc * (0.8 + rand() * 0.55), sc * (0.85 + rand() * 0.4));
       m.compose(p, q, s);
       grass.setMatrixAt(gi, m);
       const g2 = rand();
-      c.setRGB(0.20 + g2 * 0.16, 0.42 + g2 * 0.22, 0.20 + g2 * 0.10);
+      c.setRGB(0.86 + g2 * 0.18, 0.9 + g2 * 0.16, 0.8 + g2 * 0.14);
       grass.setColorAt(gi, c);
       gi++;
     }
     grass.count = gi;
     grass.frustumCulled = false;
-    scene.userData.grassWindTime = gMat.userData.windTime;
+    grass.receiveShadow = true;
     scene.add(grass);
+
+    /* ferns — bigger fronds that break up the flat floor between grass patches */
+    const fernN = 340;
+    const fernGeo = makeFernGeometry();
+    const fernMat = animeToonMaterial({
+      color: 0xffffff, vertexColors: true, side: THREE.DoubleSide,
+      rimColor: 0xa8e0a0, rimStrength: 0.18, wind: true
+    });
+    fernMat.userData.windTime = windTime;
+    const ferns = new THREE.InstancedMesh(fernGeo, fernMat, fernN);
+    let fn = 0, fguard = 0;
+    while (fn < fernN && fguard++ < 9000) {
+      const x = (rand() * 2 - 1) * 184, z = (rand() * 2 - 1) * 184;
+      if (zoneWeight(x, z, 'B') < 0.55 || Math.hypot(x, z) < 20) continue;
+      if (townDistance(x, z) < 1 || nearNode(x, z, 3.4)) continue;
+      const y = heightAt(x, z);
+      if (y < -0.6) continue;
+      const sc = 0.8 + rand() * 0.9;
+      p.set(x, y - 0.03, z);
+      q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand() * Math.PI * 2);
+      s.set(sc, sc * (0.85 + rand() * 0.5), sc);
+      m.compose(p, q, s);
+      ferns.setMatrixAt(fn, m);
+      c.setRGB(0.78 + rand() * 0.3, 0.9 + rand() * 0.26, 0.7 + rand() * 0.26);
+      ferns.setColorAt(fn, c);
+      fn++;
+    }
+    ferns.count = fn;
+    ferns.frustumCulled = false;
+    scene.add(ferns);
+
+    /* mushrooms — small clusters that give the floor a readable scale */
+    const mushMat = animeToonMaterial({
+      color: 0xffffff, vertexColors: true, side: THREE.DoubleSide,
+      rimColor: 0xffe6c0, rimStrength: 0.16
+    });
+    const mushSets = [
+      { geo: makeMushroomGeometry(0xc4553f), n: 150 },
+      { geo: makeMushroomGeometry(0xd9a24a), n: 110 }
+    ];
+    mushSets.forEach(function (set) {
+      const mesh = new THREE.InstancedMesh(set.geo, mushMat, set.n);
+      let mi = 0, mguard = 0;
+      while (mi < set.n && mguard++ < 8000) {
+        const x = (rand() * 2 - 1) * 182, z = (rand() * 2 - 1) * 182;
+        if (zoneWeight(x, z, 'B') < 0.5 || Math.hypot(x, z) < 18) continue;
+        if (townDistance(x, z) < 1 || nearNode(x, z, 3)) continue;
+        const y = heightAt(x, z);
+        if (y < -0.7) continue;
+        const sc = 0.7 + rand() * 0.8;
+        p.set(x, y - 0.02, z);
+        q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rand() * Math.PI * 2);
+        s.set(sc, sc * (0.9 + rand() * 0.5), sc);
+        m.compose(p, q, s);
+        mesh.setMatrixAt(mi, m);
+        mi++;
+      }
+      mesh.count = mi;
+      mesh.castShadow = true;
+      scene.add(mesh);
+    });
+
+    scene.userData.grassWindTime = windTime;
 
     /* wildflowers */
     const flN = 240;
@@ -2928,6 +3237,20 @@ const WORLD = (function () {
       bow.scale.set(0.55, 1, 1);
       add(new THREE.CylinderGeometry(0.004, 0.004, 0.82, 5), glow, 0.10, 0.25, 0);          // string
       add(new THREE.CylinderGeometry(0.028, 0.028, 0.24, 8), grip, 0, 0.10, 0);
+    } else if (t === 'spear') {
+      add(new THREE.CylinderGeometry(0.022, 0.026, 1.62, 7), grip, 0, 0.30, 0);
+      add(new THREE.CylinderGeometry(0.03, 0.03, 0.10, 8), gold, 0, 1.12, 0);
+      add(new THREE.ConeGeometry(0.075, 0.46, 6), steel, 0, 1.42, 0);
+      add(new THREE.ConeGeometry(0.032, 0.20, 5), glow, 0, 1.40, 0);
+      add(new THREE.BoxGeometry(0.012, 1.30, 0.009), glow, 0, 0.34, 0.026);
+      add(new THREE.ConeGeometry(0.05, 0.20, 4), steel, 0, -0.52, 0);
+    } else if (t === 'scythe') {
+      add(new THREE.CylinderGeometry(0.024, 0.028, 1.58, 7), grip, 0, 0.28, 0);
+      const arc = add(new THREE.TorusGeometry(0.52, 0.045, 6, 22, Math.PI * 0.95), steel, 0.34, 1.14, 0);
+      arc.rotation.set(0, 0, Math.PI * 0.92);
+      const edge = add(new THREE.TorusGeometry(0.52, 0.014, 5, 22, Math.PI * 0.95), glow, 0.34, 1.14, 0.012);
+      edge.rotation.set(0, 0, Math.PI * 0.92);
+      add(new THREE.SphereGeometry(0.062, 8, 6), gold, 0.02, 1.02, 0);
     } else if (t === 'daggers') {
       [-1, 1].forEach(sd => {
         add(new THREE.CylinderGeometry(0.020, 0.024, 0.18, 8), grip, sd * 0.07, -0.09, 0);
@@ -2937,7 +3260,7 @@ const WORLD = (function () {
     }
     g.userData.type = t;
     g.userData.kind = 'weapon';
-    g.userData.tipY = t === 'great' ? 1.34 : t === 'daggers' ? 0.42 : 1.01;
+    g.userData.tipY = t === 'great' ? 1.34 : t === 'daggers' ? 0.42 : t === 'spear' ? 1.62 : t === 'scythe' ? 1.60 : 1.01;
     return g;
   }
 
@@ -2957,6 +3280,212 @@ const WORLD = (function () {
   }
 
   /* ---------- apply a colour skin + gender/role tint to the character ---------- */
+  /* Big readable burst the moment you swap characters: the ground implodes into
+     a rune ring, twin light columns erupt, motes spiral up, and the camera kicks.
+     Colour is the *new* character's element, so the swap also tells you who you
+     just became. */
+  function characterSwitchFlare(quick) {
+    if (!player) return;
+    /* quick = keep it snappy for rapid party swapping (0.3 s instead of 0.7 s) */
+    const Q = !!quick;
+    const C = (typeof CHARACTERS !== 'undefined') && CHARACTERS.find(c => c.id === charId);
+    const EL = (typeof ELEMENTS !== 'undefined' && C && ELEMENTS[C.element]) ? ELEMENTS[C.element] : null;
+    const col = EL ? EL.color : 0x9ff5d0;
+    const px = player.position.x, py = player.position.y, pz = player.position.z;
+    /* ground: a ring that implodes inward (energy being drawn in) ... */
+    const gather = new THREE.Mesh(
+      new THREE.RingGeometry(0.92, 1.06, 48),
+      new THREE.MeshBasicMaterial({
+        color: col, transparent: true, opacity: 0.85, side: THREE.DoubleSide,
+        depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false
+      })
+    );
+    gather.rotation.x = -Math.PI / 2;
+    gather.position.set(px, py + 0.05, pz);
+    gather.renderOrder = 6;
+    scene.add(gather);
+    fx.push({ mesh: gather, t: 0, dur: Q ? 0.24 : 0.42, kind: 'ring', maxR: -0.86 });
+    /* ... and two shockwaves that blast outward right after */
+    addFxRing(px, py + 0.02, pz, col, Q ? 3.0 : 3.8, Q ? 0.34 : 0.62);
+    addFxRing(px, py + 0.03, pz, 0xffffff, Q ? 1.6 : 2.0, Q ? 0.22 : 0.36);
+    addFxDust(px, py, pz);
+    /* twin light columns: a white core inside an element-coloured sheath */
+    const sheath = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.48, 1.15, 7.4, 18, 1, true),
+      new THREE.MeshBasicMaterial({
+        color: col, transparent: true, opacity: 0.78, side: THREE.DoubleSide,
+        depthWrite: false, blending: THREE.NormalBlending, toneMapped: false,
+        map: burstFadeTexture()
+      })
+    );
+    sheath.position.set(px, py + 3.7, pz);
+    sheath.renderOrder = 9;
+    scene.add(sheath);
+    fx.push({ mesh: sheath, t: 0, dur: Q ? 0.32 : 0.72, kind: 'pillar' });
+    const core = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.16, 0.34, 6.6, 12, 1, true),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff, transparent: true, opacity: 1.0, side: THREE.DoubleSide,
+        depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false,
+        map: burstFadeTexture()
+      })
+    );
+    core.position.set(px, py + 3.3, pz);
+    core.renderOrder = 10;
+    scene.add(core);
+    fx.push({ mesh: core, t: 0, dur: Q ? 0.26 : 0.5, kind: 'pillar', baseOpacity: 0.95 });
+    /* motes spiral up out of the ground */
+    const moteCount = Q ? 9 : 18;
+    for (let i = 0; i < moteCount; i++) {
+      const a = (i / moteCount) * Math.PI * 2;
+      const spMat = new THREE.SpriteMaterial({
+        map: fxGlow || (fxGlow = softDot(64)), color: i % 3 ? col : 0xffffff,
+        transparent: true, opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending
+      });
+      const sp = new THREE.Sprite(spMat);
+      sp.position.set(px + Math.cos(a) * 0.9, py + 0.4 + Math.random() * 0.8, pz + Math.sin(a) * 0.9);
+      sp.scale.setScalar(0.34 + Math.random() * 0.22);
+      scene.add(sp);
+      fx.push({
+        mesh: sp, t: 0, dur: (Q ? 0.34 : 0.62) + Math.random() * 0.3, kind: 'trail',
+        vx: Math.cos(a) * 0.9, vy: 3.4 + Math.random() * 1.6, vz: Math.sin(a) * 0.9
+      });
+    }
+    /* flash the character's own aura so the new body reads as "powered up" */
+    if (charAura) charAura.userData.pulse = 1;
+    triggerShake(Q ? 0.12 : 0.22, Q ? 0.16 : 0.3);
+  }
+
+  /* ---------- per-character element aura ---------- */
+  let charAura = null;
+  function ensureCharacterAura() {
+    if (charAura || !player) return charAura;
+    charAura = new THREE.Group();
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: fxGlow || (fxGlow = softDot(64)), color: 0xffffff, transparent: true,
+      opacity: 0.1, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false
+    }));
+    halo.position.set(0, 1.34, -0.34);
+    halo.scale.setScalar(1.5);
+    charAura.add(halo);
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(1.02, 1.16, 44),
+      new THREE.MeshBasicMaterial({
+        color: 0xffffff, transparent: true, opacity: 0.4, side: THREE.DoubleSide,
+        depthWrite: false, blending: THREE.NormalBlending, toneMapped: false
+      })
+    );
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.y = 0.07;
+    charAura.add(ring);
+    charAura.renderOrder = 8;
+    charAura.userData = { halo: halo, ring: ring, pulse: 0, t: 0 };
+    player.add(charAura);
+    return charAura;
+  }
+
+  function updateCharacterAura(dt) {
+    if (!charAura) return;
+    const u = charAura.userData;
+    u.t += dt;
+    u.pulse = Math.max(0, u.pulse - dt * 1.7);
+    const breathe = 0.5 + 0.5 * Math.sin(u.t * 2.1);
+    u.halo.material.opacity = 0.06 + breathe * 0.04 + u.pulse * 0.3;
+    u.ring.material.opacity = 0.26 + breathe * 0.1 + u.pulse * 0.55;
+    u.ring.rotation.z += dt * 0.8;
+    const s = 1 + u.pulse * 0.55;
+    u.ring.scale.set(s, s, s);
+    u.halo.scale.setScalar(1.5 + u.pulse * 0.9);
+    if (charGear && charGear.mira.visible && charGear.mira.userData.orbs) {
+      const orbs = charGear.mira.userData.orbs;
+      for (let i = 0; i < orbs.length; i++) {
+        const a = u.t * 1.5 + i * (Math.PI * 2 / orbs.length);
+        orbs[i].position.set(Math.cos(a) * 0.72, 1.55 + Math.sin(u.t * 2.2 + i) * 0.1, Math.sin(a) * 0.72);
+      }
+    }
+  }
+
+  /* ---- signature gear: each character keeps one unmistakable silhouette
+     cue on top of the recoloured outfit (shield, orbs, bow, hood). ---- */
+  let charGear = null;
+  function ensureCharGear() {
+    if (charGear || !player || !limbs) return charGear;
+    const gear = { kael: new THREE.Group(), mira: new THREE.Group(), dorian: new THREE.Group(), vex: new THREE.Group() };
+    const steel = toonMat(0xb8c6d6, 0x223040);
+    const steelDark = toonMat(0x7d8fa3, 0x141d26);
+    const wood = toonMat(0x6d4a2c);
+    const cloth = toonMat(0x2a2136, 0x120c1a);
+
+    /* Kael — round shield strapped to the left forearm + steel pauldrons */
+    const shieldMount = new THREE.Group();
+    shieldMount.position.set(-0.10, 1.96, -0.36);
+    shieldMount.rotation.set(0.12, Math.PI - 0.22, 0.06);
+    const shield = new THREE.Group();
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.32, 0.055, 18), steel);
+    disc.rotation.x = Math.PI / 2;
+    shield.add(disc);
+    const boss = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 10), steelDark);
+    boss.position.z = 0.045;
+    shield.add(boss);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.305, 0.022, 6, 22), steelDark);
+    shield.add(rim);
+    shield.scale.setScalar(1.45);
+    shieldMount.add(shield);
+    gear.kael.add(shieldMount);
+    [-1, 1].forEach(function (sd) {
+      const p = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 9), steel);
+      p.position.set(0.30 * sd, 2.30, 0.0);
+      p.scale.set(1.15, 0.8, 1.05);
+      gear.kael.add(p);
+    });
+
+    /* Mira — three tide orbs circling her */
+    const orbMat = toonMat(0x9ff4ff, 0x1d7fa8);
+    gear.mira.userData.orbs = [];
+    for (let i = 0; i < 3; i++) {
+      const orb = new THREE.Mesh(new THREE.SphereGeometry(0.105, 12, 10), orbMat);
+      gear.mira.add(orb);
+      gear.mira.userData.orbs.push(orb);
+    }
+
+    /* Dorian — longbow slung across the back + quiver */
+    const bow = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.028, 5, 24, Math.PI * 1.08), wood);
+    bow.position.set(0.06, 2.06, -0.40);
+    bow.rotation.set(0.28, 0.45, -0.55);
+    gear.dorian.add(bow);
+    const string = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 1.18, 4), toonMat(0xf0e6cf));
+    string.position.set(0.06, 2.06, -0.40);
+    string.rotation.set(0.28, 0.45, Math.PI / 2 - 0.55);
+    gear.dorian.add(string);
+    const quiver = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.075, 0.52, 10), steelDark);
+    quiver.position.set(-0.26, 2.06, -0.34);
+    quiver.rotation.set(0.30, 0, 0.26);
+    gear.dorian.add(quiver);
+
+    /* Vex — deep hood + twin daggers */
+    const hood = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.56, 10, 1, true), cloth);
+    hood.position.set(0, 2.86, -0.02);
+    hood.rotation.set(0.14, 0, 0);
+    gear.vex.add(hood);
+    const hoodBack = new THREE.Mesh(new THREE.ConeGeometry(0.36, 0.72, 9, 1, true), cloth);
+    hoodBack.position.set(0, 2.62, -0.20);
+    hoodBack.rotation.set(-0.52, 0, 0);
+    gear.vex.add(hoodBack);
+    [-1, 1].forEach(function (sd) {
+      const blade = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.42, 4), steel);
+      blade.position.set(0.34 * sd, 1.62, 0.06);
+      blade.rotation.set(Math.PI, 0, 0.18 * sd);
+      gear.vex.add(blade);
+    });
+
+    Object.keys(gear).forEach(function (k) {
+      gear[k].visible = false;
+      player.add(gear[k]);
+    });
+    charGear = gear;
+    return charGear;
+  }
+
   function applyCharacterLook(charIdArg, skinIdArg) {
     if (charIdArg) charId = charIdArg;
     if (skinIdArg) skinId = skinIdArg;
@@ -2990,6 +3519,187 @@ const WORLD = (function () {
     if (charMats.tights) tint(charMats.tights, male ? 0x24303c : (charId === 'lyra' ? 0x382D2D : 0x1B3A46));
     player.scale.set(male ? 1.06 : 1.0, male ? 1.03 : 1.0, male ? 1.06 : 1.0);
     if (limbs.torso && !attackAnim) limbs.torso.scale.x = male ? 1.18 : 1.0;
+    /* element aura: a soft halo + a ring at the feet in the character's element
+       colour, so who is on the field is readable at a glance */
+    const gear = ensureCharGear();
+    if (gear) {
+      gear.kael.visible = charId === 'kael';
+      gear.mira.visible = charId === 'mira';
+      gear.dorian.visible = charId === 'dorian';
+      gear.vex.visible = charId === 'vex';
+    }
+    const aura = ensureCharacterAura();
+    if (aura) {
+      const el = (EL_COLOR(C.element));
+      aura.userData.halo.material.color.copy(el);
+      aura.userData.ring.material.color.copy(el);
+      aura.visible = true;
+    }
+  }
+
+  function EL_COLOR(elementId) {
+    const EL = (typeof ELEMENTS !== 'undefined' && ELEMENTS[elementId]) ? ELEMENTS[elementId] : null;
+    const c = new THREE.Color(EL ? EL.color : 0x9ff5d0);
+    return c;
+  }
+
+  /* ---------- shop thumbnails ----------
+     Real 3D renders of the actual weapon meshes and character models, baked once into
+     data URLs and reused as shop artwork. A dedicated offscreen renderer keeps this
+     away from the game canvas (no resize, no flicker) and the cache makes it a
+     one-time cost of a few milliseconds per item. */
+  let thumbRig = null;
+  let thumbScene = null;
+  let thumbCam = null;
+  const thumbCache = {};
+
+  function ensureThumbRig() {
+    if (thumbRig) return true;
+    try {
+      const cv = document.createElement('canvas');
+      thumbRig = new THREE.WebGLRenderer({ canvas: cv, alpha: true, antialias: true, preserveDrawingBuffer: true });
+      if (THREE.sRGBEncoding !== undefined) thumbRig.outputEncoding = THREE.sRGBEncoding;
+      thumbRig.toneMapping = THREE.ACESFilmicToneMapping;
+      thumbRig.toneMappingExposure = 1.06;
+      thumbRig.setClearColor(0x000000, 0);
+      thumbScene = new THREE.Scene();
+      const key = new THREE.DirectionalLight(0xffe9cf, 2.1);
+      key.position.set(2.6, 3.4, 3.0); thumbScene.add(key);
+      const fillL = new THREE.DirectionalLight(0x9fd4ff, 1.0);
+      fillL.position.set(-3.0, 1.2, 1.6); thumbScene.add(fillL);
+      const backL = new THREE.DirectionalLight(0xffffff, 0.9);
+      backL.position.set(0.4, 2.0, -3.4); thumbScene.add(backL);
+      thumbScene.add(new THREE.AmbientLight(0xffffff, 0.62));
+      thumbCam = new THREE.PerspectiveCamera(30, 1, 0.02, 80);
+      return true;
+    } catch (e) {
+      thumbRig = null;
+      return false;
+    }
+  }
+
+  /* render whatever is currently in the thumb scene with an explicit camera setup */
+  function renderThumbCam(px, py, pz, tx, ty, tz, fov) {
+    thumbCam.fov = fov;
+    thumbCam.position.set(px, py, pz);
+    thumbCam.lookAt(tx, ty, tz);
+    thumbCam.near = 0.05;
+    thumbCam.far = 60;
+    thumbCam.updateProjectionMatrix();
+    thumbRig.setSize(224, 224, false);
+    thumbRig.render(thumbScene, thumbCam);
+    return thumbRig.domElement.toDataURL('image/png');
+  }
+
+  function bakeThumb(obj) {
+    const holder = new THREE.Group();
+    holder.add(obj);
+    holder.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(holder);
+    if (box.isEmpty()) return '';
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    holder.position.copy(center).multiplyScalar(-1);
+    thumbScene.add(holder);
+    const maxDim = Math.max(size.x, size.y, size.z) || 1;
+    const fov = 30;
+    const dist = (maxDim * 0.5) / Math.tan((fov * 0.5) * Math.PI / 180) * 1.02;
+    thumbCam.fov = fov;
+    thumbCam.position.set(dist * 0.17, maxDim * 0.07, dist);
+    thumbCam.lookAt(0, 0, 0);
+    thumbCam.near = Math.max(0.01, maxDim * 0.04);
+    thumbCam.far = maxDim * 24;
+    thumbCam.updateProjectionMatrix();
+    thumbRig.setSize(224, 224, false);
+    thumbRig.render(thumbScene, thumbCam);
+    const url = thumbRig.domElement.toDataURL('image/png');
+    thumbScene.remove(holder);
+    holder.remove(obj);
+    return url;
+  }
+
+  /* a weapon is modelled along +Y from the grip, so tilt it into a 3/4 hero pose */
+  function weaponThumb(id) {
+    const key = 'w:' + id;
+    if (thumbCache[key] !== undefined) return thumbCache[key];
+    let url = '';
+    if (ensureThumbRig()) {
+      try {
+        const g = buildWeapon(id);
+        const type = g.userData.type;
+        const tilt = (type === 'scythe' || type === 'bow') ? -0.46 : (type === 'spear') ? -0.34 : -0.68;
+        g.rotation.set(0, Math.PI * 0.20, tilt);
+        url = bakeThumb(g);
+      } catch (e) { url = ''; }
+    }
+    thumbCache[key] = url;
+    return url;
+  }
+
+  /* character portrait: borrow the real player model, swap its look, render, restore */
+  function characterThumb(cid) {
+    const key = 'c:' + cid;
+    if (thumbCache[key] !== undefined) return thumbCache[key];
+    let url = '';
+    if (ensureThumbRig() && player && player.parent) {
+      const home = player.parent;
+      const pos = player.position.clone();
+      const rot = player.rotation.clone();
+      const scl = player.scale.clone();
+      const prevChar = charId, prevSkin = skinId;
+      const aura = ensureCharacterAura();
+      const auraVis = aura ? aura.visible : true;
+      try {
+        home.remove(player);
+        thumbScene.add(player);
+        player.position.set(0, 0, 0);
+        player.rotation.set(0, 0, 0);
+        player.scale.set(1, 1, 1);
+        if (aura) aura.visible = false;
+        applyCharacterLook(cid, 'default');
+        player.position.set(0, 0, 0);
+        player.rotation.set(0, -0.34, 0);
+        /* the model carries a contact shadow and a feet ring: neither belongs in a portrait */
+        const hidden = [];
+        player.children.forEach(function (ch) {
+          if (ch.isMesh && ch.geometry && (ch.geometry.type === 'PlaneGeometry' || ch.geometry.type === 'RingGeometry')) {
+            hidden.push([ch, ch.visible]); ch.visible = false;
+          }
+        });
+        /* 3/4 bust: head, shoulders and coat read better than a full body at shop size */
+        thumbScene.add(player);
+        player.position.set(0, 0, 0);
+        url = renderThumbCam(0.62, 2.78, 3.05, 0, 2.42, 0, 32);
+        thumbScene.remove(player);
+        hidden.forEach(function (pair) { pair[0].visible = pair[1]; });
+      } catch (e) { url = ''; }
+      try {
+        if (player.parent) player.parent.remove(player);
+        home.add(player);
+        player.position.copy(pos);
+        player.rotation.copy(rot);
+        player.scale.copy(scl);
+        charId = prevChar; skinId = prevSkin;
+        applyCharacterLook(prevChar, prevSkin);
+        if (aura) aura.visible = auraVis;
+      } catch (e2) { /* restore best effort */ }
+    }
+    thumbCache[key] = url;
+    return url;
+  }
+
+  /* outfit tab: three colour chips that describe the palette */
+  const SKIN_SWATCH = {
+    default: [0x343a4d, 0x8a9bb2, 0x5a3828],
+    ember: [0xC8453A, 0xE8915A, 0xF0B44A],
+    tide: [0x2F74A8, 0x5FC8D8, 0x8FE8F0],
+    aurora: [0x8A5FC0, 0xB89AE8, 0x8FF0D8],
+    nova: [0xC9A83A, 0xF0DC7A, 0xFFF0A0]
+  };
+
+  function skinSwatch(id) {
+    const s = SKIN_SWATCH[id] || SKIN_SWATCH.default;
+    return s.map(function (h) { return '#' + ('000000' + h.toString(16)).slice(-6); });
   }
 
   /* ---------- enemy model factory (original procedural animals) ---------- */
@@ -3291,6 +4001,154 @@ const WORLD = (function () {
     scene.add(sp);
     fx.push({ mesh: sp, t: 0, dur: 0.23, kind: 'spark' });
   }
+  /* ---------- slash FX ----------
+     A crescent of energy that sweeps out in front of the player on every swing.
+     It is drawn in the plane facing the camera (the plane a flat floor ring can
+     never fill) and layered three times: a wide tinted smear that survives bright
+     sand, a saturated body, and a white-hot core. This fires even on a whiff, so
+     "did my attack come out?" is always answered. */
+  let _slashTex = null;
+  function slashTexture() {
+    if (_slashTex) return _slashTex;
+    const c = document.createElement('canvas');
+    c.width = 128; c.height = 32;
+    const g = c.getContext('2d');
+    const img = g.createImageData(128, 32);
+    for (let y = 0; y < 32; y++) {
+      for (let x = 0; x < 128; x++) {
+        const u = x / 127, v = y / 31;
+        const across = Math.sin(Math.PI * v);
+        const along = Math.sin(Math.PI * u);
+        const a = Math.pow(across, 0.65) * Math.pow(along, 0.45);
+        const i4 = (y * 128 + x) * 4;
+        img.data[i4] = img.data[i4 + 1] = img.data[i4 + 2] = 255;
+        img.data[i4 + 3] = Math.round(a * 255);
+      }
+    }
+    g.putImageData(img, 0, 0);
+    _slashTex = new THREE.CanvasTexture(c);
+    _slashTex.needsUpdate = true;
+    return _slashTex;
+  }
+
+  /* one curved band: inner and outer edge sweep together, tapered at both tips */
+  function makeSlashBandGeometry(radius, width, sweep, segs) {
+    const pos = [], uv = [], idx = [];
+    for (let i = 0; i <= segs; i++) {
+      const t = i / segs;
+      const a = -sweep * 0.5 + sweep * t;
+      const w = Math.max(0.02, width * Math.pow(Math.sin(Math.PI * t), 0.55));
+      const rIn = radius - w * 0.5, rOut = radius + w * 0.5;
+      const cx = Math.cos(a), cy = Math.sin(a);
+      pos.push(cx * rIn, cy * rIn, 0, cx * rOut, cy * rOut, 0);
+      uv.push(t, 0, t, 1);
+      if (i < segs) { const b = i * 2; idx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2); }
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    geo.setIndex(idx);
+    return geo;
+  }
+
+  function addSlashLayer(x, y, z, yaw, radius, width, sweep, color, o) {
+    const opt = o || {};
+    const geo = makeSlashBandGeometry(radius, width, sweep, 26);
+    const mat = new THREE.MeshBasicMaterial({
+      map: slashTexture(), color: color, transparent: true,
+      opacity: opt.opacity == null ? 0.9 : opt.opacity,
+      blending: opt.additive ? THREE.AdditiveBlending : THREE.NormalBlending,
+      side: THREE.DoubleSide, depthWrite: false, depthTest: false, toneMapped: false
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.y = yaw + Math.PI;             /* plane faces the camera */
+    mesh.rotation.z = opt.rot0 == null ? 0.95 : opt.rot0;
+    const fwd = opt.forward == null ? radius * 0.4 : opt.forward;
+    mesh.position.set(x + Math.sin(yaw) * fwd, y + (opt.height == null ? 1.22 : opt.height), z + Math.cos(yaw) * fwd);
+    mesh.renderOrder = opt.renderOrder == null ? 12 : opt.renderOrder;
+    scene.add(mesh);
+    fx.push({
+      mesh: mesh, t: 0, dur: (opt.dur || 0.3), kind: 'slash',
+      rot0: opt.rot0 == null ? 0.95 : opt.rot0,
+      spin: opt.spin == null ? 1.9 : opt.spin,
+      scale0: opt.scale0 == null ? 0.7 : opt.scale0,
+      scale1: opt.scale1 == null ? 1.2 : opt.scale1,
+      baseOpacity: mat.opacity
+    });
+  }
+
+  function addSwingArc(x, y, z, yaw, radius, color, dur) {
+    const d = dur || 0.28;
+    const base = new THREE.Color(color);
+    const bright = base.clone().lerp(new THREE.Color(0xffffff), 0.5);
+    /* wide soft smear — the layer that guarantees the swing is visible */
+    addSlashLayer(x, y, z, yaw, radius, radius * 0.55, 2.3, base, {
+      opacity: 0.34, forward: radius * 0.42, rot0: 1.0, spin: 2.0,
+      scale0: 0.66, scale1: 1.22, dur: d, renderOrder: 11
+    });
+    /* saturated body */
+    addSlashLayer(x, y, z, yaw, radius * 0.95, radius * 0.24, 2.15, bright, {
+      opacity: 0.95, forward: radius * 0.42, rot0: 1.0, spin: 2.0,
+      scale0: 0.7, scale1: 1.2, dur: d * 0.95, renderOrder: 12
+    });
+    /* white-hot edge */
+    addSlashLayer(x, y, z, yaw, radius * 0.92, radius * 0.085, 2.05, 0xffffff, {
+      opacity: 1.0, additive: true, forward: radius * 0.42, rot0: 1.0, spin: 2.0,
+      scale0: 0.7, scale1: 1.2, dur: d * 0.8, renderOrder: 13
+    });
+    /* sparks flung off the arc so the swing has weight */
+    for (let i = 0; i < 3; i++) {
+      const mat = new THREE.SpriteMaterial({
+        map: fxGlow || (fxGlow = softDot(64)), color: bright, transparent: true,
+        opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending
+      });
+      const sp = new THREE.Sprite(mat);
+      const side = (i - 1) * 0.55;
+      sp.position.set(
+        x + Math.sin(yaw) * (radius * 0.7) + Math.cos(yaw) * side,
+        y + 1.3 + Math.random() * 0.5,
+        z + Math.cos(yaw) * (radius * 0.7) - Math.sin(yaw) * side
+      );
+      sp.scale.setScalar(0.3 + Math.random() * 0.25);
+      scene.add(sp);
+      fx.push({
+        mesh: sp, t: 0, dur: 0.26 + Math.random() * 0.12, kind: 'trail',
+        vx: Math.sin(yaw) * 2.2 + (Math.random() - 0.5), vy: 0.8 + Math.random() * 0.6,
+        vz: Math.cos(yaw) * 2.2 + (Math.random() - 0.5)
+      });
+    }
+  }
+  /* A hit that is actually readable: a bright flash, a ring, and a spray of
+     shards flying outward. `power` 1 = light hit · 2 = heavy · 3 = skill. */
+  function addHitImpact(x, y, z, color, power) {
+    const p = power || 1;
+    const flashMat = new THREE.SpriteMaterial({
+      map: fxGlow || (fxGlow = softDot(64)), color, transparent: true,
+      opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending
+    });
+    const flash = new THREE.Sprite(flashMat);
+    flash.position.set(x, y + 1.15, z);
+    flash.scale.setScalar(1.5 + p * 0.7);
+    scene.add(flash);
+    fx.push({ mesh: flash, t: 0, dur: 0.20, kind: 'impact', grow: 2.6 + p * 1.1 });
+    addFxRing(x, y, z, color, 1.5 + p * 1.0, 0.26 + p * 0.05);
+    const shards = 4 + p * 2;
+    for (let i = 0; i < shards; i++) {
+      const a = Math.random() * Math.PI * 2, up = 0.5 + Math.random() * 1.1;
+      const spMat = new THREE.SpriteMaterial({
+        map: fxGlow || (fxGlow = softDot(64)), color, transparent: true,
+        opacity: 0.95, depthWrite: false, blending: THREE.AdditiveBlending
+      });
+      const sp = new THREE.Sprite(spMat);
+      sp.position.set(x + (Math.random() - 0.5) * 0.4, y + 0.9 + Math.random() * 0.6, z + (Math.random() - 0.5) * 0.4);
+      sp.scale.setScalar(0.26 + Math.random() * 0.2);
+      scene.add(sp);
+      fx.push({
+        mesh: sp, t: 0, dur: 0.34 + Math.random() * 0.16, kind: 'trail',
+        vx: Math.cos(a) * (1.4 + p * 0.6), vy: up * (1.1 + p * 0.4), vz: Math.sin(a) * (1.4 + p * 0.6)
+      });
+    }
+  }
   function updateElementTrail(dt) {
     trailClock += dt;
     if (trailClock < 0.052 || !player) return;
@@ -3310,8 +4168,7 @@ const WORLD = (function () {
     fx.push({ mesh: sp, t: 0, dur: 0.72 + Math.random() * 0.2, kind: 'trail',
       vx: (Math.random() - 0.5) * 0.22, vy: 0.22 + Math.random() * 0.2, vz: (Math.random() - 0.5) * 0.22 });
   }
-  function addFxDust(x, y, z) {
-    const mat = new THREE.SpriteMaterial({ map: fxGlow || (fxGlow = softDot(64)), color: 0xcfc8b8, transparent: true, opacity: 0.5, depthWrite: false });
+  function addFxDust(x, y, z) {    const mat = new THREE.SpriteMaterial({ map: fxGlow || (fxGlow = softDot(64)), color: 0xcfc8b8, transparent: true, opacity: 0.5, depthWrite: false });
     const sp = new THREE.Sprite(mat);
     sp.position.set(x + (Math.random() - 0.5) * 0.5, y + 0.15, z + (Math.random() - 0.5) * 0.5);
     sp.scale.setScalar(0.55);
@@ -3338,6 +4195,50 @@ const WORLD = (function () {
       } else if (f.kind === 'spark') {
         f.mesh.position.y += dt * 1.2; f.mesh.material.opacity = 1 - k;
         f.mesh.scale.setScalar(0.55 + k * 0.4);
+      } else if (f.kind === 'impact') {
+        /* hit flash: punches out then fades fast */
+        f.mesh.scale.setScalar((1.5 + (f.grow || 3)) * (0.35 + k * 0.85));
+        f.mesh.material.opacity = 0.95 * (1 - k) * (1 - k);
+      } else if (f.kind === 'slash') {
+        /* sweep the crescent down through the swing, fading as it goes */
+        const e = 1 - Math.pow(1 - k, 2.2);
+        f.mesh.rotation.z = f.rot0 - e * f.spin;
+        const sc = f.scale0 + (f.scale1 - f.scale0) * e;
+        f.mesh.scale.set(sc, sc, 1);
+        const fadeIn = Math.min(1, k * 8);
+        f.mesh.material.opacity = (f.baseOpacity || 0.9) * fadeIn * Math.pow(1 - k, 1.6);
+      } else if (f.kind === 'arc') {
+        /* legacy crescent (kept for any older call site) */
+        const sc = 0.80 + k * 0.45;
+        f.mesh.scale.set(sc, sc, sc);
+        f.mesh.rotation.z = -0.75 + k * (f.sweep || 1.5);
+        f.mesh.material.opacity = 0.95 * (1 - k) * (1 - k * 0.4);
+      } else if (f.kind === 'spike') {
+        /* stone spike: shoots up out of the ground, then sinks back in */
+        const rise = k < 0.28 ? k / 0.28 : 1 - Math.max(0, (k - 0.55) / 0.45) * 0.9;
+        f.mesh.scale.set(1, Math.max(0.06, rise), 1);
+        f.mesh.position.y += dt * 0.55 * (k < 0.3 ? 1 : 0);
+        if (f.mesh.material.transparent !== true) { f.mesh.material.transparent = true; }
+        f.mesh.material.opacity = k < 0.75 ? 1 : Math.max(0, 1 - (k - 0.75) / 0.25);
+      } else if (f.kind === 'flame') {
+        /* ember column: balloons outward and dissolves upward */
+        const sc = 1 + k * (f.grow || 0.5);
+        f.mesh.scale.set(sc, 1 + k * 0.5, sc);
+        f.mesh.position.y += dt * 1.1;
+        f.mesh.material.opacity = 0.55 * (1 - k) * (1 - k);
+      } else if (f.kind === 'spiral') {        /* shade vortex: motes spiral inward and dissolve into the caster */
+        f.angle += dt * (f.spin || 6);
+        f.radius = Math.max(0.25, f.radius - dt * 3.4);
+        f.mesh.position.x = f.cx + Math.cos(f.angle) * f.radius;
+        f.mesh.position.z = f.cz + Math.sin(f.angle) * f.radius;
+        f.mesh.position.y = f.mesh.position.y * 0.985 + 0.35 * dt;
+        f.mesh.material.opacity = 0.85 * (1 - k);
+      } else if (f.kind === 'pillar') {
+        /* character-swap light column: flares wide then collapses upward */
+        const sc = 1 + k * 0.85;
+        f.mesh.scale.set(sc, 1 + k * 0.4, sc);
+        f.mesh.material.opacity = (f.baseOpacity || 0.55) * (1 - k) * (1 - k);
+        f.mesh.position.y += dt * 1.6;
       } else if (f.kind === 'dust') {
         f.mesh.position.y += dt * 0.5;
         f.mesh.scale.setScalar(0.55 + k * 0.9);
@@ -3368,34 +4269,255 @@ const WORLD = (function () {
     addFxRing(player.position.x, player.position.y, player.position.z, 0x9ff5d0, 1.6, 0.28);
     if (window.SFX && SFX.jump) SFX.jump(); return true;
   }
-  function performAttack(weapon, comboStep, attackMode, onImpact) {
+  function performAttack(weapon, comboStep, attackMode, onImpact, power) {
     if (!combatEnabled || attackAnim) return false;
     const type = attackMode === true ? 'burst' : (typeof attackMode === 'string' ? attackMode : 'light');
-    const style = type === 'burst' ? 'cast' : type === 'heavy' ? 'heavy' : weapon.anim;
-    const duration = type === 'burst' ? 0.55 : type === 'heavy' ? 0.82 : weapon.rate;
-    attackAnim = { t: 0, duration, style, weapon, comboStep, attackType: type, onImpact, impacted: false, blade: null };
+    const style = type === 'burst' ? 'cast'
+      : (type === 'heavy' || type === 'charged') ? 'heavy'
+      : type === 'finisher' ? (weapon.anim === 'heavy' ? 'heavy' : 'slash')
+      : weapon.anim;
+    const duration = type === 'burst' ? 0.55
+      : type === 'charged' ? 0.95
+      : type === 'heavy' ? 0.82
+      : type === 'finisher' ? weapon.rate * 1.18
+      : weapon.rate;
+    attackAnim = { t: 0, duration, style, weapon, comboStep, attackType: type, onImpact, impacted: false, blade: null, power: power == null ? 1 : power };
     return true;
   }
+  /* Each element's burst looks different, so pressing K actually feels like
+     casting a different spell depending on who you are playing. */
+  let burstFadeTex = null;
+  function burstFadeTexture() {
+    if (burstFadeTex) return burstFadeTex;
+    const cv = document.createElement('canvas');
+    cv.width = 8; cv.height = 64;
+    const g2 = cv.getContext('2d');
+    /* fades out at BOTH ends: whichever way the texture ends up mapped, the
+       column can never show a hard rim against the sky or the ground */
+    const grd = g2.createLinearGradient(0, 0, 0, 64);
+    grd.addColorStop(0.0, 'rgba(255,255,255,0)');
+    grd.addColorStop(0.16, 'rgba(255,255,255,0.5)');
+    grd.addColorStop(0.46, 'rgba(255,255,255,1)');
+    grd.addColorStop(0.74, 'rgba(255,255,255,0.34)');
+    grd.addColorStop(1.0, 'rgba(255,255,255,0)');
+    g2.fillStyle = grd;
+    g2.fillRect(0, 0, 8, 64);
+    burstFadeTex = new THREE.CanvasTexture(cv);
+    burstFadeTex.wrapS = burstFadeTex.wrapT = THREE.ClampToEdgeWrapping;
+    return burstFadeTex;
+  }
+
+  function addBurstSignature(C, EL, px, py, pz, w, power) {
+    const key = C ? C.element : null;
+    const col = EL ? EL.color : (w.glow || 0xff8a3c);
+    /* charge scales the spectacle, but never below 0.4 so a half-charged cast
+       still looks like a cast */
+    const pw = Math.max(0.4, Math.min(1, power == null ? 1 : power));
+    /* universal burst baseline: ground shockwave + bright column so every
+       element reads as a big skill, not just a recoloured swing */
+    addFxRing(px, py, pz, col, 2.6 + pw * 2.6, 0.55);
+    addFxRing(px, py, pz, 0xffffff, 1.3 + pw * 1.5, 0.34);
+    /* A vertical fade keeps the column readable as a rush of energy at the
+       caster's feet instead of a solid slab that hides the character. */
+    const colH = 3.6 + pw * 2.0;
+    const colGeo = new THREE.ConeGeometry(0.86 + pw * 0.5, colH, 16, 5, true);
+    const colMat = new THREE.MeshBasicMaterial({
+      color: col, map: burstFadeTexture(), transparent: true, opacity: 0.26 + pw * 0.2,
+      depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false
+    });
+    const beam = new THREE.Mesh(colGeo, colMat);
+    beam.position.set(px, py + colH * 0.5, pz);
+    beam.rotation.y = 0.3;
+    beam.renderOrder = 10;
+    scene.add(beam);
+    fx.push({ mesh: beam, t: 0, dur: 0.42 + pw * 0.16, kind: 'pillar' });
+    if (key === 'ember') {
+      /* Ember: a flame column erupts at the caster, plus embers raining out.
+         Sprites alone were too faint over bright sand — a solid flame cone and a
+         bright core make the cast unmistakable. */
+      const flameMat = new THREE.MeshBasicMaterial({
+        color: 0xff6a1e, transparent: true, opacity: 0.38, depthWrite: false,
+        blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide
+      });
+      for (let i = 0; i < 3; i++) {
+        const coneGeo = new THREE.ConeGeometry((0.95 - i * 0.22) * (0.75 + pw * 0.55), (2.6 + i * 1.1) * (0.65 + pw * 0.7), 9, 1, true);
+        const cone = new THREE.Mesh(coneGeo, flameMat.clone());
+        cone.position.set(px, py + 1.1 + i * 0.4, pz);
+        cone.rotation.y = i * 0.7;
+        cone.renderOrder = 11;
+        scene.add(cone);
+        fx.push({ mesh: cone, t: 0, dur: 0.55 + i * 0.08, kind: 'flame', grow: 0.55 });
+      }
+      const coreMat = new THREE.SpriteMaterial({
+        map: fxGlow || (fxGlow = softDot(64)), color: 0xffd9a0, transparent: true,
+        opacity: 0.7, depthWrite: false, blending: THREE.AdditiveBlending
+      });
+      const core = new THREE.Sprite(coreMat);
+      core.position.set(px, py + 1.35, pz);
+      core.scale.setScalar(2.4 + pw * 1.6);
+      scene.add(core);
+      fx.push({ mesh: core, t: 0, dur: 0.34, kind: 'impact', grow: 3.4 });
+      for (let i = 0; i < 5; i++) {
+        const mat = new THREE.SpriteMaterial({
+          map: fxGlow || (fxGlow = softDot(64)), color: i % 2 ? 0xffb066 : col,
+          transparent: true, opacity: 0.9, depthWrite: false, blending: THREE.AdditiveBlending
+        });
+        const sp = new THREE.Sprite(mat);
+        const a = (i / 5) * Math.PI * 2;
+        sp.position.set(px + Math.cos(a) * 0.9, py + 0.5, pz + Math.sin(a) * 0.9);
+        sp.scale.setScalar(1.5);
+        scene.add(sp);
+        fx.push({ mesh: sp, t: 0, dur: 0.62, kind: 'trail', vx: Math.cos(a) * 0.5, vy: 3.4, vz: Math.sin(a) * 0.5 });
+      }
+      addFxRing(px, py, pz, 0xff8a3c, 3.4 + pw * 2.2, 0.5);
+    } else if (key === 'tide') {
+      /* Tide: three expanding water rings at different heights, plus a solid
+         water disc so the cast is visible against pale sand. */
+      for (let i = 0; i < 3; i++) addFxRing(px, py + i * 0.62, pz, i % 2 ? 0x6fe4ff : col, (3.0 + i * 1.6) * (0.7 + pw * 0.45), 0.6 + i * 0.14);
+      const discGeo = new THREE.RingGeometry(0.55, 1.85, 44);
+      const discMat = new THREE.MeshBasicMaterial({
+        color: 0x1f8fc9, transparent: true, opacity: 0.55, side: THREE.DoubleSide,
+        depthWrite: false, blending: THREE.NormalBlending, toneMapped: false
+      });
+      const disc = new THREE.Mesh(discGeo, discMat);
+      disc.rotation.x = -Math.PI / 2;
+      disc.position.set(px, py + 0.12, pz);
+      scene.add(disc);
+      /* ring-kind scaling multiplies by (1 + maxR), so keep maxR small: a big
+         value turned the puddle into a plate covering half the field of view. */
+      fx.push({ mesh: disc, t: 0, dur: 0.52, kind: 'ring', maxR: 0.85 });
+    } else if (key === 'terra') {
+      /* Terra: stone spikes punch up out of the ground around the player. */
+      const spikeMat = plMat(0x8a7150, plRamps().G3, { rimStrength: 0.3 });
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * Math.PI * 2 + Math.random() * 0.3;
+        const r = 1.4 + Math.random() * 1.5;
+        const sx = px + Math.cos(a) * r, sz = pz + Math.sin(a) * r;
+        const hS = (2.1 + Math.random() * 1.3) * (0.85 + pw * 0.5);
+        const geoS = new THREE.ConeGeometry((0.26 + Math.random() * 0.13) * (0.9 + pw * 0.4), hS, 5);
+        /* clone so fading/disposal never touches the shared rock material */
+        const ownMat = spikeMat.clone();
+        ownMat.transparent = true;
+        const meshS = new THREE.Mesh(geoS, ownMat);
+        meshS.position.set(sx, heightAt(sx, sz) + hS * 0.42, sz);
+        meshS.rotation.set((Math.random() - 0.5) * 0.3, Math.random() * Math.PI, (Math.random() - 0.5) * 0.3);
+        meshS.castShadow = true;
+        scene.add(meshS);
+        fx.push({ mesh: meshS, t: 0, dur: 0.75, kind: 'spike' });
+      }
+      addFxRing(px, py, pz, col, 3.4, 0.42);
+    } else if (key === 'volt') {
+      /* Volt: forked lightning strikes down around the player.
+         Drawn as tapered tubes, not Line primitives: WebGL ignores linewidth, so
+         1px lines were invisible behind the grass at normal play distance. */
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const r = 1.2 + Math.random() * 2.0;
+        const tx = px + Math.cos(a) * r, tz = pz + Math.sin(a) * r;
+        const gy = heightAt(tx, tz);
+        const pts = [];
+        const segs = 6;
+        for (let s = 0; s <= segs; s++) {
+          const k = s / segs;
+          const jitter = s === 0 || s === segs ? 0 : 0.55;
+          pts.push(new THREE.Vector3(
+            tx + (Math.random() - 0.5) * jitter,
+            gy + 5.4 * (1 - k) + 0.06,
+            tz + (Math.random() - 0.5) * jitter
+          ));
+        }
+        const curve = new THREE.CatmullRomCurve3(pts);
+        const tubeGeo = new THREE.TubeGeometry(curve, 14, 0.042 + Math.random() * 0.022, 5, false);
+        const tubeMat = new THREE.MeshBasicMaterial({
+          color: i % 2 ? 0xffffff : 0xfff2b0, transparent: true, opacity: 0.95,
+          depthWrite: false, toneMapped: false
+        });
+        const bolt = new THREE.Mesh(tubeGeo, tubeMat);
+        scene.add(bolt);
+        fx.push({ mesh: bolt, t: 0, dur: 0.42, kind: 'bolt' });
+        /* glow sheath so the strike reads as light, not as a grey stick */
+        const glowGeo = new THREE.TubeGeometry(curve, 14, 0.105, 5, false);
+        const glowMat = new THREE.MeshBasicMaterial({
+          color: col, transparent: true, opacity: 0.22, depthWrite: false,
+          blending: THREE.AdditiveBlending, toneMapped: false
+        });
+        const glowSheath = new THREE.Mesh(glowGeo, glowMat);
+        scene.add(glowSheath);
+        fx.push({ mesh: glowSheath, t: 0, dur: 0.42, kind: 'bolt' });
+        addFxRing(tx, gy, tz, col, 1.5, 0.34);
+        addFxRing(tx, gy, tz, 0xffffff, 0.9, 0.20);
+      }
+    } else if (key === 'shade') {
+      /* Shade: a dark vortex spirals in and drains toward the player. */
+      for (let i = 0; i < 10; i++) {
+        const mat = new THREE.SpriteMaterial({
+          map: fxGlow || (fxGlow = softDot(64)), color: i % 3 ? col : 0x2a1030,
+          transparent: true, opacity: 0.85, depthWrite: false, blending: THREE.AdditiveBlending
+        });
+        const sp = new THREE.Sprite(mat);
+        const a = (i / 10) * Math.PI * 2;
+        sp.position.set(px + Math.cos(a) * 2.6, py + 0.6 + Math.random() * 1.4, pz + Math.sin(a) * 2.6);
+        sp.scale.setScalar(0.9);
+        scene.add(sp);
+        fx.push({
+          mesh: sp, t: 0, dur: 0.6, kind: 'spiral',
+          cx: px, cz: pz, angle: a, radius: 2.6, spin: 7
+        });
+      }
+      addFxRing(px, py, pz, 0x2a1030, 3.6, 0.5);
+    }
+  }
+
   function resolveAttack(attack) {
     const w = attack.weapon; const comboStep = attack.comboStep || 0;
     const attackType = attack.attackType || (attack.isSkill ? 'burst' : 'light');
-    const isBurst = attackType === 'burst', isHeavy = attackType === 'heavy', isFinisher = attackType === 'light' && comboStep === 2;
+    const isBurst = attackType === 'burst', isHeavy = attackType === 'heavy';
+    const isCharged = attackType === 'charged';
+    const isFinisher = attackType === 'finisher' || (attackType === 'light' && comboStep === 2);
     const C = (typeof CHARACTERS !== 'undefined') && CHARACTERS.find(c => c.id === charId);
     /* Elemental burst: per-character element modifies dmg / radius / adds effects. */
     const EL = (typeof ELEMENTS !== 'undefined' && C && ELEMENTS[C.element]) ? ELEMENTS[C.element] : null;
-    const reach = w.reach * (isBurst ? (EL ? EL.radius : 2.0) : isHeavy ? 1.34 : isFinisher ? 1.12 : 1);
+    /* power < 1 = a skill cast before the meter is full (still useful, just weaker) */
+    const power = attack.power == null ? 1 : attack.power;
+    const reach = w.reach * (isBurst ? (EL ? EL.radius : 2.0)
+      : isCharged ? 1.62 : isHeavy ? 1.34 : isFinisher ? 1.22 : 1);
     const comboMul = 1 + Math.min(COMBAT_RULES.comboCap, comboStep || 0) * COMBAT_RULES.comboBonus;
-    const dmg = Math.round((w.damage + (C ? C.bonus * 20 : 0)) * comboMul * (isBurst ? (EL ? EL.dmgMul : 3.3) : isHeavy ? 1.45 : isFinisher ? 1.25 : 1));
+    const dmg = Math.round((w.damage + (C ? C.bonus * 20 : 0)) * comboMul
+      * (isBurst ? (EL ? EL.dmgMul : 3.3) : isCharged ? 1.95 : isHeavy ? 1.45 : isFinisher ? 1.42 : 1) * power);
     const px = player.position.x, py = player.position.y, pz = player.position.z;
     const fwdX = Math.sin(player.rotation.y), fwdZ = Math.cos(player.rotation.y);
-    if (isBurst || isHeavy || isFinisher) addFxRing(px, py, pz, isBurst && EL ? EL.color : w.glow, isBurst ? (EL ? 2.2 + EL.radius * 1.6 : 5.8) : isHeavy ? 3.1 : 1.8, isBurst ? 0.52 : 0.34);
+    const hitPower = isBurst ? 3 : isCharged ? 2.6 : isHeavy ? 2 : isFinisher ? 2 : 1;
+    /* Always show a swing arc in front of the player, even on a whiff — this is
+       what makes "did my attack come out?" obvious. */
+    const arcColor = isBurst && EL ? EL.color : (w.glow || 0x9ff5d0);
+    addSwingArc(px, py, pz, player.rotation.y,
+      isBurst ? 3.4 : isCharged ? 3.35 : isHeavy ? 3.0 : isFinisher ? 2.7 : 2.3,
+      arcColor, isBurst ? 0.42 : isCharged ? 0.38 : isHeavy ? 0.30 : 0.26);
+    /* Each character's skill gets its OWN signature effect, not just a recolour. */
+    if (isBurst) addBurstSignature(C, EL, px, py, pz, w, power);
+    if (isBurst || isHeavy || isFinisher || isCharged) {
+      addFxRing(px, py, pz, isBurst && EL ? EL.color : w.glow,
+        isBurst ? (EL ? 2.2 + EL.radius * 1.6 : 5.8) : isCharged ? 4.6 : isHeavy ? 3.1 : 1.9,
+        isBurst ? 0.52 : isCharged ? 0.46 : 0.34);
+    }
+    /* charged slam: a second, wider shockwave + a white snap so the extra weight reads */
+    if (isCharged) {
+      addFxRing(px, py + 0.02, pz, 0xffffff, 2.8, 0.30);
+      addFxRing(px, py + 0.01, pz, w.glow, 6.4, 0.55);
+      for (let k = 0; k < 8; k++) {
+        const a = (k / 8) * Math.PI * 2 + 0.3;
+        addFxSpark(px + Math.cos(a) * 1.1, py + 0.25, pz + Math.sin(a) * 1.1, w.glow, 1.5);
+      }
+    }
+    if (isFinisher) addFxRing(px, py + 0.04, pz, 0xffffff, 2.2, 0.28);
     let hitAny = false, killed = 0; const reactionSources = {}, reactionSeen = {};
     const burstHitList = [];   // for volt chain + shade leech
     function applyDamage(en, amount, kind, knockX, knockZ) {
       if (!en || !en.alive || amount <= 0) return false;
       en.hp -= amount; en.hitFlash = Math.max(en.hitFlash || 0, 0.22);
       if (knockX || knockZ) { en.group.position.x += knockX; en.group.position.z += knockZ; }
-      addFxSpark(en.group.position.x, en.group.position.y, en.group.position.z, en.trialColor || w.glow);
+      /* Big, readable impact on every hit (scaled by how heavy the swing was). */
+      addHitImpact(en.group.position.x, en.group.position.y, en.group.position.z, en.trialColor || arcColor, hitPower);
       if (combatHooks.onDamage) combatHooks.onDamage(en, amount, kind);
       if (en.hp <= 0) { en.alive = false; en.respawn = COMBAT_RULES.respawnDelay; en.dying = 0.45; addFxRing(en.group.position.x, en.group.position.y, en.group.position.z, en.trialColor || 0xffc85f, 2.4, 0.55); killed++; if (combatHooks.onKill) combatHooks.onKill(en); }
       return true;
@@ -3448,15 +4570,19 @@ const WORLD = (function () {
     attack.t += dt;
     const progress = Math.min(1, attack.t / attack.duration);
     const { style } = attack;
-    const blade = style === 'slash' || style === 'heavy' || style === 'flurry';
+    const blade = style === 'slash' || style === 'heavy' || style === 'flurry' || style === 'sweep';
     const windEnd = blade ? 0.32 : 0.36;
     const followEnd = blade ? 0.65 : 0.60;
     const impact = blade ? 0.49 : 0.48;
-    const wind = style === 'heavy' ? [-1.30, 0.25, 0.49, -1.17, -0.22, 0.45, -0.52]
+    const wind = style === 'thrust' ? [-1.22, 0.34, 0.16, -0.40, 0.05, 0.44, -0.58]
+      : style === 'sweep' ? [-1.06, -0.74, 0.40, -1.24, -0.16, 0.68, -0.26]
+      : style === 'heavy' ? [-1.30, 0.25, 0.49, -1.17, -0.22, 0.45, -0.52]
       : blade ? [-0.48, 0.36, 0.55, -0.98, -0.20, 0.38, -0.35]
       : style === 'shoot' ? [-1.38, -0.22, 0.14, -0.88, 0, 0.24, -1.12]
       : [-0.85, 0.19, 0.42, -0.95, -0.1, 0.20, -0.62];
-    const follow = blade ? [-1.05, -0.92, -0.25, -0.38, 0.18, -0.46, -0.26]
+    const follow = style === 'thrust' ? [-1.56, 0.04, -0.06, -0.10, 0, -0.14, -0.96]
+      : style === 'sweep' ? [-1.00, 1.04, -0.30, -0.50, 0.22, -0.60, -0.20]
+      : blade ? [-1.05, -0.92, -0.25, -0.38, 0.18, -0.46, -0.26]
       : style === 'shoot' ? [-1.48, -0.24, 0.18, -0.28, 0, 0.22, -1.28]
       : [-1.52, -0.15, 0.34, -0.40, 0.1, -0.12, -0.92];
     const [left, right] = limbs.arms;
@@ -3488,7 +4614,6 @@ const WORLD = (function () {
   function updateCombat(dt) {
     if (dashIFrames > 0) dashIFrames = Math.max(0, dashIFrames - dt);
     if (!combatEnabled || locked) return;
-    updateFx(dt);
     const px = player.position.x, pz = player.position.z;
     function ensureTelegraphRing(g) { if (g.userData.telegraphRing) return g.userData.telegraphRing; const mat = new THREE.MeshBasicMaterial({ color: 0xff5b45, transparent: true, opacity: 0.75, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }); const ring = new THREE.Mesh(new THREE.RingGeometry(0.92, 1.12, 32), mat); ring.rotation.x = -Math.PI / 2; ring.position.y = 0.07; ring.visible = false; g.add(ring); g.userData.telegraphRing = ring; return ring; }
     enemies.forEach(en => {
@@ -4072,8 +5197,12 @@ const WORLD = (function () {
     if (scene.userData.grassWindTime) scene.userData.grassWindTime.value = totalTime;
     if (!locked) movePlayer(dt);
     updateElementTrail(dt);
+    updateCharacterAura(dt);
     updateBondTrial(dt, totalTime);
     updateCombat(dt);
+    /* effects must keep animating even when combat is switched off, otherwise a
+       half-played swing or spark freezes on screen */
+    updateFx(dt);
     updateCamera(dt);
     updateBeacon(totalTime);
     updateWaypoints(totalTime);
@@ -4101,7 +5230,7 @@ const WORLD = (function () {
     setWaypointState, teleportTo,
     /* combat API */
     setCombatEnabled, setCombatHooks, spawnEnemies, getEnemies,
-    performAttack, dashPlayer, equipWeapon, applyCharacterLook,
+    performAttack, dashPlayer, equipWeapon, applyCharacterLook, characterSwitchFlare,
     startBondTrial, stopBondTrial, setBondTrialHooks, getBondTrialState,
     setParty, spawnBoss, bossAlive, bossInfo,
     /* debug helper: drop one enemy of a given type in front of the player */
@@ -4116,6 +5245,15 @@ const WORLD = (function () {
       enemies.push({ id: 'dbg-' + typeId, type: type, group: group, hp: type.hp, maxHp: type.hp, alive: true, respawn: 0, hitFlash: 0, bob: Math.random() * 6.28, homeX: px, homeZ: pz, state: 'idle', atkCd: 0 });
       return group;
     },
+    /* shop artwork: real 3D renders, cached */
+    shopThumb: function (kind, id) {
+      try {
+        if (kind === 'gear') return weaponThumb(id);
+        if (kind === 'characters') return characterThumb(id);
+      } catch (e) { /* no thumb */ }
+      return '';
+    },
+    skinSwatch: function (id) { return skinSwatch(id); },
     get combatState() { return { weapon: weaponId, character: charId, skin: skinId, enabled: combatEnabled }; },
     get scene() { return scene; },
     get townBounds() { return { ...TOWN }; },
@@ -4125,6 +5263,10 @@ const WORLD = (function () {
     get nodes() { return nodes; },
     get zoneNow() { return zoneNow; },
     get companions() { return companions; },
+    /* debug/QA: lets a probe measure that effects actually spawned */
+    get fxCount() { return fx.length; },
+    get fxKinds() { const k = {}; fx.forEach(f => { k[f.kind] = (k[f.kind] || 0) + 1; }); return k; },
+    get objectCount() { let n = 0; scene.traverse(o => { if (o.isMesh) n++; }); return n; },
     get yaw() { return yaw; },
     set onZoneChange(fn) { onZoneChange = fn; },
     get keys() { return keys; }

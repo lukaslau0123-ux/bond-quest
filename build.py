@@ -19,20 +19,22 @@ def main():
         'MODELS': read('_src/models-preview.js'),
         'VARIANTS': read('_src/models-variants.js'),
         'AMBIENT': read('_src/ambient.js'),
+        'ANIME': read('_vendor/anime.min.js'),
+        'MOTION': read('_src/motion.js'),
         'GAME': read('_src/game.js'),
     }
-    for k in ('THREE', 'DATA', 'STORY', 'CLOUD', 'MODELS', 'VARIANTS', 'AMBIENT', 'WORLD', 'GAME'):
+    for k in ('THREE', 'DATA', 'STORY', 'CLOUD', 'MODELS', 'VARIANTS', 'AMBIENT', 'ANIME', 'WORLD', 'MOTION', 'GAME'):
         if '</script' in parts[k].lower():
             sys.exit('ERROR: %s contains </script>' % k)
 
     def repl(m):
         return parts[m.group(1)]
 
-    out = re.sub(r'/\*__(CSS|THREE|DATA|STORY|CLOUD|MODELS|VARIANTS|AMBIENT|WORLD|GAME)__\*/', repl, tpl)
+    out = re.sub(r'/\*__(CSS|THREE|DATA|STORY|CLOUD|MODELS|VARIANTS|AMBIENT|ANIME|WORLD|MOTION|GAME)__\*/', repl, tpl)
 
     # 建置戳記：查看原始碼即可確認線上版本與建置時間
     stamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    digest = hashlib.sha256(''.join(parts[k] for k in ('CSS', 'DATA', 'WORLD', 'GAME')).encode('utf-8')).hexdigest()[:12]
+    digest = hashlib.sha256(''.join(parts[k] for k in ('CSS', 'DATA', 'WORLD', 'MOTION', 'GAME')).encode('utf-8')).hexdigest()[:12]
     out = out.replace('<head>', '<head>\n<!-- build: %s | src: %s -->' % (stamp, digest), 1)
 
     path = os.path.join(BASE, 'index.html')
