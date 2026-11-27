@@ -342,7 +342,9 @@ const SKINS = [
 const ENEMY_TYPES = [
   { id:'boar',    name:'Rift Boar',     hp:40,  speed:3.2, damage:8,  score:10, gold:12, color:0x9b6b4a, scale:1.00 },
   { id:'slime',   name:'Gelatinoid',    hp:26,  speed:2.2, damage:5,  score:8,  gold:9,  color:0x6fd8c0, scale:0.80 },
-  { id:'crab',    name:'Crystal Crab',  hp:64,  speed:1.8, damage:13, score:18, gold:20, color:0x8b7fd0, scale:1.20 }
+  { id:'crab',    name:'Crystal Crab',  hp:64,  speed:1.8, damage:13, score:18, gold:20, color:0x8b7fd0, scale:1.20 },
+  { id:'wisp',    name:'Ember Wisp',    hp:34,  speed:2.6, damage:7,  score:12, gold:11, color:0xd07a48, scale:0.95 },
+  { id:'golem',   name:'Slate Golem',   hp:92,  speed:1.4, damage:16, score:24, gold:26, color:0x7d8794, scale:1.32 }
 ];
 
 /* The Rift Tyrant — world boss at the Deep Altar (wp6, zone D).

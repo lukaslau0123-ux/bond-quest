@@ -889,6 +889,53 @@
     $(id).classList.remove('show');
     syncPaused();
   }
+
+  /* ---------------- keyboard Enter = press the on-screen main button ----------------
+     Everything in this game is clickable, but a keyboard-only player should never be
+     forced to reach for the mouse. Enter presses the primary button of whichever
+     panel is open (start screen, any modal, gacha, coach card). */
+  function buttonUsable(b) {
+    if (!b || b.disabled) return false;
+    if (b.getClientRects().length === 0) return false;
+    const cs = getComputedStyle(b);
+    return cs.visibility !== 'hidden' && cs.display !== 'none' && cs.pointerEvents !== 'none';
+  }
+  function pickButton(root, selectors) {
+    if (!root) return null;
+    for (let i = 0; i < selectors.length; i++) {
+      const list = root.querySelectorAll(selectors[i]);
+      for (let j = 0; j < list.length; j++) if (buttonUsable(list[j])) return list[j];
+    }
+    return null;
+  }
+  const ENTER_BUTTON_PICKS = ['.modalFoot .primary', 'button.primary', '.modalFoot button:last-of-type'];
+  function enterPressesPrimary() {
+    const ae = document.activeElement;
+    /* A focused button already reacts to Enter natively — do not double-fire it. */
+    if (ae && ae.tagName === 'BUTTON' && ae.getClientRects().length) return false;
+    if (gachaOpen) {
+      const card = $('gachaCard');
+      if (gachaCurrent && !gachaRevealed && card) { card.click(); return true; }
+      const gb = pickButton($('gachaModal'), ['.gachaActions .primary', '.gachaActions button:last-of-type']);
+      if (gb) { gb.click(); return true; }
+      return false;
+    }
+    if (coachOn) {
+      const nb = $('coachNext');
+      if (buttonUsable(nb)) { nb.click(); return true; }
+    }
+    const start = $('startScreen');
+    if (start && start.classList.contains('show')) {
+      const sb = pickButton(start, ['#startBtn', 'button.primary']);
+      if (sb) { sb.click(); return true; }
+    }
+    const open = Array.prototype.slice.call(document.querySelectorAll('.modal.show'));
+    for (let i = open.length - 1; i >= 0; i--) {
+      const b = pickButton(open[i], ENTER_BUTTON_PICKS);
+      if (b) { b.click(); return true; }
+    }
+    return false;
+  }
   function setState(s) {
     state = s;
     WORLD.setLocked(s !== STATE.WORLD);
@@ -3628,6 +3675,11 @@
         if (tg !== 'INPUT' && tg !== 'TEXTAREA') { finishIntroTrial(); e.preventDefault(); return; }
       }
       if (handleDialogEnter() || handleDotCrossEnter()) { e.preventDefault(); return; }
+      /* Any other panel: Enter clicks its main button, so no mouse is needed. */
+      const tg = e.target && e.target.tagName;
+      if (tg !== 'INPUT' && tg !== 'TEXTAREA' && tg !== 'SELECT' && enterPressesPrimary()) {
+        e.preventDefault(); return;
+      }
     }
     if (k === 'e' && state === STATE.WORLD && !helpOpen && !mapOpen) { interact(); }
     if (k === 'h' && state === STATE.WORLD && !mapOpen) { helpOpen ? closeHelp() : openHelp(); }

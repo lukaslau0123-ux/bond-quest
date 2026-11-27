@@ -1192,6 +1192,242 @@ const WORLD = (function () {
     return g;
   }
 
+  /* ============================================================
+     NPC 人形建模 — 每個 NPC 一個專屬造型（同 Forge Keeper 修女同級）
+     · 全程序化幾何，零外部資源；比例對齊玩家（總高約 3.24）
+     · 唔加 PointLight，避免 draw call 爆；發光靠 emissive 材質
+     ============================================================ */
+  const NPC_LOOK = {
+    /* ---- 主線 ---- */
+    n1:  { robe: 0x2f5680, robe2: 0x1e3a5c, trim: 0xdfeaf6, hair: 0x33404f, helm: 'hood',   prop: 'crystal', aura: 0x6fb8e8, eye: 0xa8ecff, cape: true },
+    n3:  { robe: 0x3c7f74, robe2: 0x24564f, trim: 0xcdf3e6, hair: 0x9fd8c8, helm: 'none',   prop: 'orb',     aura: 0x5fe0c0, eye: 0xc8fff2, cape: true, veil: true },
+    n5:  { robe: 0x2b7a92, robe2: 0x1a5165, trim: 0xd6f4ff, hair: 0x64c8e0, helm: 'none',   prop: 'orb',     aura: 0x59d3ff, eye: 0xdff8ff, cape: true, hairLong: true },
+    n7:  { robe: 0x6d7a63, robe2: 0x4a5443, trim: 0xe6e9d8, hair: 0x8d9a84, helm: 'hood',   prop: 'staff',   aura: 0xbfe0a0, eye: 0xe8ffcc, cape: true },
+    n9:  { robe: 0x4b3f7a, robe2: 0x322a54, trim: 0xe4dcff, hair: 0x2a2440, helm: 'hood',   prop: 'book',    aura: 0x9d8cff, eye: 0xd8ccff, cape: true },
+    /* ---- 副線 ---- */
+    s1:  { robe: 0x7a5238, robe2: 0x543523, trim: 0xd8c8a8, hair: 0x4a3324, helm: 'hood',   prop: 'lantern', aura: 0xd9a066, eye: 0xffcf9a, cape: true },
+    s2:  { robe: 0x5f6d7a, robe2: 0x3d4854, trim: 0xdfe6ee, hair: 0x3a3026, helm: 'helm',   prop: 'pick',    aura: 0xa8c4dd, eye: 0xffd98a, trousers: true, metal: 0x8fa0b0 },
+    s4:  { robe: 0x4e8a4a, robe2: 0x2f5c2d, trim: 0xd8f0c8, hair: 0x8fd07a, helm: 'none',   prop: 'none',    aura: 0x7ee05a, eye: 0xe0ffc8, cape: true, veil: true },
+    s6:  { robe: 0xa9603a, robe2: 0x7a3f22, trim: 0xe8cfa8, hair: 0x3a2418, helm: 'none',   prop: 'hammer',  aura: 0xff9a5a, eye: 0xffd0a0, trousers: true, metal: 0xc07848 },
+    s7:  { robe: 0x9aa8b6, robe2: 0x6d7c8c, trim: 0xf2f7fb, hair: 0xc8d4e0, helm: 'helm',   prop: 'none',    aura: 0xd8f0ff, eye: 0xffffff, metal: 0xd8e4ee },
+    s9:  { robe: 0x2a2b36, robe2: 0x171820, trim: 0x6a6f85, hair: 0x111218, helm: 'hood',   prop: 'orb',     aura: 0x7f6fd8, eye: 0xb0a8ff, cape: true },
+    s10: { robe: 0x3f7fa8, robe2: 0x27586f, trim: 0xd8f0ff, hair: 0x7fc0e0, helm: 'none',   prop: 'orb',     aura: 0x6fd8ff, eye: 0xe8faff, cape: true, veil: true },
+    s11: { robe: 0x6a8f9c, robe2: 0x445f6b, trim: 0xe0f2f6, hair: 0x8fb8c4, helm: 'none',   prop: 'staff',   aura: 0x8fe0f0, eye: 0xf0ffff, cape: true, spiky: true },
+    s12: { robe: 0xb9c2cc, robe2: 0x8a96a4, trim: 0xffffff, hair: 0xdfe8f2, helm: 'crown',  prop: 'crystal', aura: 0xc8e8ff, eye: 0xffffff, metal: 0xdfe8f2 },
+    s13: { robe: 0x5a4a70, robe2: 0x3b2f4d, trim: 0xcbbce0, hair: 0x2e2440, helm: 'hood',   prop: 'cage',    aura: 0xa88fe0, eye: 0xd8c8ff, cape: true }
+  };
+
+  function npcFigure(s) {
+    const g = new THREE.Group();
+    /* 用角色專用材質（plMat）：線性色域 + rim light，令 NPC 同玩家同一質感，
+       唔會喺強環境光下變灰白 */
+    const R3 = plRamps().G3, R4 = plRamps().G4, R2 = plRamps().G2;
+    const robe  = plMat(s.robe  != null ? s.robe  : 0x2e8e7a, R3, { rimStrength: 0.42 });
+    const robe2 = plMat(s.robe2 != null ? s.robe2 : 0x1f6455, R3, { rimStrength: 0.38 });
+    const trim  = plMat(s.trim  != null ? s.trim  : 0xf0e8d9, R2, { rimStrength: 0.30 });
+    const skin  = plMat(0xE9BC98, R4);
+    const hairM = plMat(s.hair  != null ? s.hair  : 0x3a2a1e, R4);
+    const metal = plMat(s.metal != null ? s.metal : 0xb9c2cc, R2, { rimStrength: 0.55 });
+    const dark  = plMat(0x241f1b, R2);
+    const glow  = function (hex, i) {
+      return new THREE.MeshBasicMaterial({ color: hex, transparent: true, opacity: i != null ? i : 1 });
+    };
+    const M = function (geo, mat, x, y, z, cast) {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z);
+      if (cast !== false) m.castShadow = true;
+      g.add(m); return m;
+    };
+    const gown = s.trousers !== true;
+
+    /* ---------- 下身 ---------- */
+    if (gown) {
+      const skirt = M(new THREE.CylinderGeometry(0.52, 0.84, 1.40, 14), robe, 0, 0.82, 0);
+      skirt.receiveShadow = true;
+      M(new THREE.CylinderGeometry(0.60, 0.90, 0.34, 14), robe2, 0, 0.24, 0);
+      M(new THREE.TorusGeometry(0.545, 0.040, 8, 20), trim, 0, 0.72, 0).rotation.x = Math.PI / 2;
+      M(new THREE.BoxGeometry(0.20, 0.09, 0.30), dark, -0.17, 0.05, 0.10, false);
+      M(new THREE.BoxGeometry(0.20, 0.09, 0.30), dark, 0.17, 0.05, 0.10, false);
+    } else {
+      [-1, 1].forEach(function (sd) {
+        M(new THREE.CylinderGeometry(0.175, 0.145, 1.06, 9), robe2, sd * 0.20, 0.62, 0);
+        M(new THREE.BoxGeometry(0.27, 0.18, 0.44), dark, sd * 0.20, 0.10, 0.08);
+      });
+    }
+
+    /* ---------- 上身 ---------- */
+    M(new THREE.CylinderGeometry(0.42, 0.60, 1.04, 12), robe, 0, 1.98, 0);
+    M(new THREE.CylinderGeometry(0.47, 0.55, 0.44, 12), robe2, 0, 2.44, 0);   /* shoulder mantle */
+    M(new THREE.CylinderGeometry(0.185, 0.24, 0.20, 10), trim, 0, 2.61, 0);   /* collar */
+    M(new THREE.TorusGeometry(0.505, 0.042, 8, 18), trim, 0, 1.61, 0).rotation.x = Math.PI / 2;
+    /* chest emblem — 化合物色提示 */
+    M(new THREE.OctahedronGeometry(0.085, 0), glow(s.aura != null ? s.aura : 0x9fe8d0, 0.9), 0, 2.10, 0.44, false);
+
+    /* ---------- 手臂 + 手 ---------- */
+    let handPos = null;
+    [-1, 1].forEach(function (sd) {
+      /* 肩關節先兜住外套外緣，再向外傾，否則手臂會埋入軀幹 */
+      const arm = M(new THREE.CylinderGeometry(0.125, 0.098, 0.76, 9), robe, sd * 0.545, 2.02, 0);
+      arm.rotation.z = sd * 0.20;
+      const fore = M(new THREE.CylinderGeometry(0.098, 0.082, 0.34, 9), robe2, sd * 0.645, 1.52, 0.03);
+      fore.rotation.z = sd * 0.10;
+      const h = M(new THREE.SphereGeometry(0.092, 10, 8), skin, sd * 0.672, 1.335, 0.06);
+      if (sd > 0) handPos = h.position.clone();
+    });
+
+    /* ---------- 頭 ---------- */
+    const head = M(new THREE.SphereGeometry(0.30, 16, 14), skin, 0, 2.92, 0.02);
+    head.scale.set(0.92, 1.0, 0.94);
+    M(new THREE.SphereGeometry(0.06, 8, 6), skin, 0, 2.86, 0.30, false);            /* nose */
+    /* 眼睛（發光） */
+    const eyeMat = glow(s.eye != null ? s.eye : 0xe8f4ff, 1);
+    [-1, 1].forEach(function (sd) {
+      const e = M(new THREE.SphereGeometry(0.045, 8, 6), eyeMat, sd * 0.105, 2.955, 0.275, false);
+      e.scale.set(1, 1.15, 0.6);
+    });
+
+    /* ---------- 髮 / 頭飾 ---------- */
+    const helm = s.helm || 'none';
+    if (helm === 'hood') {
+      const hood = M(new THREE.SphereGeometry(0.345, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.62), robe2, 0, 2.94, -0.02);
+      hood.scale.set(1, 1.08, 1);
+      /* 兜帽後垂 */
+      const drape = M(new THREE.CylinderGeometry(0.22, 0.46, 1.15, 12, 1, true), robe2, 0, 2.30, -0.20);
+      drape.material.side = THREE.DoubleSide;
+      /* 兜帽前緣 */
+      M(new THREE.TorusGeometry(0.29, 0.055, 8, 20), trim, 0, 3.00, 0.06, false).rotation.x = Math.PI / 2.3;
+    } else if (helm === 'helm') {
+      const cap = M(new THREE.SphereGeometry(0.325, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), metal, 0, 2.96, 0.01);
+      cap.scale.set(1, 0.95, 1);
+      M(new THREE.TorusGeometry(0.30, 0.05, 8, 20), metal, 0, 2.90, 0.02, false).rotation.x = Math.PI / 2;
+      /* 頭燈 */
+      M(new THREE.BoxGeometry(0.13, 0.11, 0.09), metal, 0, 3.03, 0.30, false);
+      M(new THREE.SphereGeometry(0.045, 8, 6), glow(0xffd98a, 1), 0, 3.03, 0.35, false);
+      /* 側護片 */
+      [-1, 1].forEach(function (sd) {
+        M(new THREE.BoxGeometry(0.07, 0.22, 0.20), metal, sd * 0.29, 2.80, 0.02, false);
+      });
+    } else if (helm === 'crown') {
+      const cap = M(new THREE.SphereGeometry(0.315, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.5), hairM, 0, 2.95, 0.02);
+      cap.scale.set(1, 0.95, 1);
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const sh = M(new THREE.OctahedronGeometry(0.075, 0), glow(0xdff2ff, 0.95),
+          Math.cos(a) * 0.26, 3.16 + (i % 2) * 0.05, Math.sin(a) * 0.26 + 0.02, false);
+        sh.rotation.y = a;
+      }
+    } else {
+      /* 普通髮型 */
+      const cap = M(new THREE.SphereGeometry(0.315, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.55), hairM, 0, 2.94, 0.02);
+      cap.scale.set(1, 1.0, 1);
+      /* 瀏海 */
+      [-0.18, -0.06, 0.06, 0.18].forEach(function (bx, i) {
+        M(new THREE.BoxGeometry(0.11, 0.20, 0.06), hairM, bx, 2.86 - (i % 2) * 0.03, 0.275, false).rotation.z = bx * 0.6;
+      });
+    }
+    /* 長髮 / 面紗 */
+    if (s.hairLong) {
+      [-1, 1].forEach(function (sd) {
+        M(new THREE.CylinderGeometry(0.10, 0.07, 1.10, 8), hairM, sd * 0.27, 2.34, -0.16);
+      });
+    }
+    if (s.veil) {
+      const veil = M(new THREE.CylinderGeometry(0.26, 0.62, 1.30, 12, 1, true), trim, 0, 2.16, -0.22);
+      veil.material = new THREE.MeshBasicMaterial({ color: s.trim != null ? s.trim : 0xdff2f0, transparent: true, opacity: 0.30, side: THREE.DoubleSide, depthWrite: false });
+      veil.castShadow = false;
+    }
+
+    /* ---------- 披風 ---------- */
+    if (s.cape) {
+      const cape = M(new THREE.CylinderGeometry(0.46, 0.86, 1.50, 12, 1, true), robe2, 0, 1.86, -0.20);
+      cape.material.side = THREE.DoubleSide;
+      cape.rotation.x = -0.06;
+    }
+
+    /* ---------- 尖刺點綴 ---------- */
+    if (s.spiky) {
+      [-1, 1].forEach(function (sd) {
+        M(new THREE.ConeGeometry(0.075, 0.42, 6), metal, sd * 0.44, 2.58, -0.10).rotation.z = sd * 0.5;
+      });
+      M(new THREE.ConeGeometry(0.06, 0.34, 6), metal, 0, 3.24, -0.04);
+    }
+
+    /* ---------- 道具（右手） ---------- */
+    const hx = handPos ? handPos.x : 0.62, hy = handPos ? handPos.y : 1.39, hz = handPos ? handPos.z : 0.05;
+    switch (s.prop) {
+      case 'crystal': {
+        const c = M(new THREE.OctahedronGeometry(0.16, 0), glow(s.aura, 0.95), hx + 0.04, hy + 0.22, hz + 0.06, false);
+        c.scale.set(0.8, 1.5, 0.8);
+        g.userData.spin = c;
+        break;
+      }
+      case 'orb': {
+        const o = M(new THREE.SphereGeometry(0.135, 12, 10), glow(s.aura, 0.9), hx + 0.05, hy + 0.26, hz + 0.08, false);
+        const ring = M(new THREE.TorusGeometry(0.20, 0.016, 6, 18), glow(s.aura, 0.55), hx + 0.05, hy + 0.26, hz + 0.08, false);
+        ring.rotation.x = 1.1;
+        g.userData.spin = o;
+        break;
+      }
+      case 'staff': {
+        M(new THREE.CylinderGeometry(0.045, 0.055, 2.30, 8), toonMat(0x6b4a30), hx + 0.04, hy + 0.72, hz + 0.04);
+        M(new THREE.TorusGeometry(0.135, 0.032, 6, 16), metal, hx + 0.04, hy + 1.90, hz + 0.04, false);
+        M(new THREE.OctahedronGeometry(0.10, 0), glow(s.aura, 0.95), hx + 0.04, hy + 2.02, hz + 0.04, false);
+        break;
+      }
+      case 'hammer': {
+        M(new THREE.CylinderGeometry(0.048, 0.055, 1.05, 8), toonMat(0x6b4a30), hx + 0.04, hy + 0.42, hz + 0.04);
+        const hd = M(new THREE.BoxGeometry(0.44, 0.26, 0.24), metal, hx + 0.04, hy + 0.95, hz + 0.04);
+        hd.rotation.z = 0.06;
+        break;
+      }
+      case 'pick': {
+        M(new THREE.CylinderGeometry(0.045, 0.05, 1.15, 8), toonMat(0x6b4a30), hx + 0.04, hy + 0.46, hz + 0.04);
+        const blade = M(new THREE.BoxGeometry(0.62, 0.10, 0.12), metal, hx + 0.04, hy + 1.02, hz + 0.04);
+        blade.rotation.z = 0.0;
+        M(new THREE.ConeGeometry(0.07, 0.22, 6), metal, hx - 0.28, hy + 1.02, hz + 0.04).rotation.z = Math.PI / 2;
+        M(new THREE.ConeGeometry(0.07, 0.22, 6), metal, hx + 0.36, hy + 1.02, hz + 0.04).rotation.z = -Math.PI / 2;
+        break;
+      }
+      case 'lantern': {
+        M(new THREE.TorusGeometry(0.075, 0.014, 6, 12), metal, hx + 0.02, hy + 0.20, hz + 0.10, false).rotation.x = Math.PI / 2;
+        M(new THREE.CylinderGeometry(0.075, 0.085, 0.20, 8), metal, hx + 0.02, hy + 0.03, hz + 0.10, false);
+        M(new THREE.SphereGeometry(0.062, 8, 6), glow(0xffb84d, 1), hx + 0.02, hy + 0.03, hz + 0.10, false);
+        M(new THREE.ConeGeometry(0.09, 0.09, 8), metal, hx + 0.02, hy - 0.10, hz + 0.10, false).rotation.x = Math.PI;
+        break;
+      }
+      case 'book': {
+        const bk = M(new THREE.BoxGeometry(0.30, 0.40, 0.09), toonMat(0x8a4a3a), hx + 0.02, hy + 0.16, hz + 0.10);
+        bk.rotation.x = -0.35;
+        M(new THREE.BoxGeometry(0.26, 0.34, 0.02), toonMat(0xf4ecd8), hx + 0.02, hy + 0.16, hz + 0.15, false).rotation.x = -0.35;
+        break;
+      }
+      case 'cage': {
+        const cr = M(new THREE.TorusGeometry(0.155, 0.022, 6, 18), metal, hx + 0.04, hy + 0.26, hz + 0.08, false);
+        cr.rotation.y = 0.6;
+        const cr2 = M(new THREE.TorusGeometry(0.155, 0.022, 6, 18), metal, hx + 0.04, hy + 0.26, hz + 0.08, false);
+        cr2.rotation.set(0, 0.6, Math.PI / 2);
+        const cr3 = M(new THREE.TorusGeometry(0.155, 0.022, 6, 18), metal, hx + 0.04, hy + 0.26, hz + 0.08, false);
+        cr3.rotation.set(Math.PI / 2, 0.6, 0);
+        M(new THREE.SphereGeometry(0.075, 10, 8), glow(s.aura, 0.95), hx + 0.04, hy + 0.26, hz + 0.08, false);
+        g.userData.spin = cr;
+        break;
+      }
+      default: break;
+    }
+
+    /* ---------- 腳下光環（化合物色） ---------- */
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(0.86, 0.032, 6, 32),
+      new THREE.MeshBasicMaterial({ color: s.aura != null ? s.aura : 0x9fe8d0, transparent: true, opacity: 0.55, depthWrite: false })
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.07;
+    g.add(ring);
+    g.userData.auraRing = ring;
+
+    return g;
+  }
+
   function buildNodeMeshes() {    nodes.forEach(n => {
       const g = new THREE.Group();
       const y = heightAt(n.x, n.z);
@@ -1204,18 +1440,16 @@ const WORLD = (function () {
 
       if (n.type === 'npc') {
         if (n.id === 'n4') { g.add(buildNunKeeper()); }
-        else {
-          const body = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.9, 1.15, 2.6, 10),
-            toonMat(0x2e8e7a)
-          );
-          body.position.y = 1.5; body.castShadow = true; g.add(body);
-          const head = new THREE.Mesh(
-            new THREE.SphereGeometry(1.0, 14, 12),
-            toonMat(0x9fe8d0, 0x145043)
-          );
-          head.position.y = 3.4; g.add(head);
-        }
+        else { g.add(npcFigure(NPC_LOOK[n.id] || NPC_LOOK.n1)); }
+        /* 每位 NPC 腳下加一個柔光地貼，令佢喺場景中更突出 */
+        const pad = new THREE.Mesh(
+          new THREE.CircleGeometry(1.05, 24),
+          new THREE.MeshBasicMaterial({
+            color: (NPC_LOOK[n.id] || NPC_LOOK.n1).aura, transparent: true,
+            opacity: 0.10, depthWrite: false, side: THREE.DoubleSide
+          })
+        );
+        pad.rotation.x = -Math.PI / 2; pad.position.y = 0.045; g.add(pad);
       } else if (n.type === 'chest') {
         const base = new THREE.Mesh(
           new THREE.BoxGeometry(2.4, 1.5, 1.7),
@@ -2614,6 +2848,15 @@ const WORLD = (function () {
     nodeMeshes.forEach((o, id) => {
       o.marker.rotation.y = t * 1.4;
       o.marker.position.y = (o.marker.userData.baseY || (o.marker.userData.baseY = o.marker.position.y)) + Math.sin(t * 2 + id.length) * 0.28;
+      /* NPC 手上道具旋轉 + 腳下光環呼吸（npcFigure 會設 userData.spin / auraRing） */
+      o.group.children.forEach(c => {
+        if (c.userData.spin) c.userData.spin.rotation.y = t * 1.9;
+        if (c.userData.auraRing) {
+          const p = 0.42 + Math.sin(t * 1.6) * 0.14;
+          c.userData.auraRing.material.opacity = p;
+          c.userData.auraRing.scale.setScalar(1 + Math.sin(t * 1.6) * 0.05);
+        }
+      });
     });
   }
 
@@ -2805,6 +3048,53 @@ const WORLD = (function () {
       add(new THREE.SphereGeometry(0.09, 8, 6), glow, -0.18, 0.52, 0.40);
       add(new THREE.SphereGeometry(0.09, 8, 6), glow, 0.18, 0.52, 0.40);
       g.userData.height = 0.9;
+    } else if (typeId === 'wisp') {
+      /* Floating cinder spirit: no legs, a bright core, a flame crown and
+         orbiting embers. `parts.body` squashes so it "breathes" while idle. */
+      const coreMat = new THREE.MeshBasicMaterial({ color: 0xffb066, toneMapped: false });
+      const emberMat = new THREE.MeshBasicMaterial({ color: 0xff7a3c, toneMapped: false });
+      parts.body = add(new THREE.SphereGeometry(0.34, 14, 12), bodyMat, 0, 0.72, 0, 1, 1.18, 1);
+      add(new THREE.SphereGeometry(0.19, 12, 10), coreMat, 0, 0.74, 0.16);
+      add(new THREE.ConeGeometry(0.24, 0.62, 8), emberMat, 0, 1.24, 0, 1, 1, 1);
+      add(new THREE.ConeGeometry(0.15, 0.40, 7), emberMat, -0.16, 1.14, -0.06, 1, 1, 1).rotation.z = 0.28;
+      add(new THREE.ConeGeometry(0.15, 0.40, 7), emberMat, 0.16, 1.14, -0.06, 1, 1, 1).rotation.z = -0.28;
+      for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * Math.PI * 2;
+        const ember = add(new THREE.OctahedronGeometry(0.075, 0),
+          i % 2 ? coreMat : emberMat, Math.cos(a) * 0.52, 0.55 + (i % 3) * 0.16, Math.sin(a) * 0.52);
+        ember.userData.orbitRing = a;
+      }
+      /* Orbiting embers spin as one ring so they never look like flailing legs. */
+      g.userData.orbit = g.children.filter(m => m.userData.orbitRing !== undefined);
+      add(new THREE.SphereGeometry(0.055, 8, 6), coreMat, -0.11, 0.80, 0.30);
+      add(new THREE.SphereGeometry(0.055, 8, 6), coreMat, 0.11, 0.80, 0.30);
+      g.userData.hover = 0.34;                 // it floats, so it never touches the ground
+      g.userData.height = 1.35;
+    } else if (typeId === 'golem') {
+      /* Slate Golem: heavy stone brute. Wide slab torso, boulder shoulders,
+         stubby braced legs and a glowing crack running down the chest. */
+      const rock = plMat(0x6d7682, plRamps().G3, { rimStrength: 0.35 });
+      const rock2 = plMat(0x4a525c, plRamps().G2);
+      const seam = new THREE.MeshBasicMaterial({ color: 0x8ff0e6, toneMapped: false });
+      parts.body = add(new THREE.CylinderGeometry(0.52, 0.62, 0.34, 10), rock2, 0, 1.10, 0);
+      add(new THREE.BoxGeometry(0.98, 0.62, 0.62), rock, 0, 1.52, 0);
+      add(new THREE.BoxGeometry(0.30, 0.26, 0.30), rock2, 0, 1.86, 0.10);
+      add(new THREE.BoxGeometry(0.36, 0.20, 0.26), rock, 0, 1.94, 0.28);       // brow slab
+      add(new THREE.BoxGeometry(0.055, 0.42, 0.05), seam, -0.10, 1.52, 0.33);  // chest crack
+      add(new THREE.BoxGeometry(0.16, 0.055, 0.05), seam, 0.02, 1.40, 0.33);
+      add(new THREE.BoxGeometry(0.10, 0.045, 0.06), seam, -0.09, 1.90, 0.40);
+      add(new THREE.BoxGeometry(0.10, 0.045, 0.06), seam, 0.09, 1.90, 0.40);
+      [-1, 1].forEach(sd => {
+        const sh = add(new THREE.SphereGeometry(0.28, 10, 8), rock, sd * 0.60, 1.72, 0, 1.1, 0.85, 1.0);
+        sh.rotation.z = -sd * 0.18;
+        add(new THREE.BoxGeometry(0.22, 0.30, 0.30), rock2, sd * 0.52, 1.38, 0).rotation.z = sd * 0.12;  // upper arm
+        add(new THREE.BoxGeometry(0.20, 0.34, 0.26), rock, sd * 0.56, 1.02, 0.02);                        // forearm
+        add(new THREE.BoxGeometry(0.26, 0.24, 0.30), rock2, sd * 0.58, 0.80, 0.06);                       // fist
+        const leg = add(new THREE.BoxGeometry(0.28, 0.52, 0.30), rock2, sd * 0.28, 0.52, 0);
+        legs.push(leg);
+        add(new THREE.BoxGeometry(0.32, 0.16, 0.42), rock2, sd * 0.29, 0.12, 0.06);
+      });
+      g.userData.height = 1.95;
     } else { // crab
       parts.body = add(new THREE.SphereGeometry(0.52, 14, 10), bodyMat, 0, 0.52, 0, 1.3, 0.65, 1);
       [-1, 1].forEach(sd => {
@@ -2839,7 +3129,15 @@ const WORLD = (function () {
       x = Math.max(-185, Math.min(185, x)); z = Math.max(-185, Math.min(185, z));
       if (townDistance(x, z) < 3) continue;
       const roll = Math.random();
-      const type = ENEMY_TYPES[roll < 0.55 ? 0 : roll < 0.82 ? 1 : 2];
+      /* Weighted roster: common beasts everywhere, ember wisps cluster in the
+         volcanic zone, slate golems in the crystal/highland zone. */
+      let type;
+      if (roll < 0.40) type = ENEMY_TYPES.find(t => t.id === 'boar');
+      else if (roll < 0.62) type = ENEMY_TYPES.find(t => t.id === 'slime');
+      else if (roll < 0.80) type = ENEMY_TYPES.find(t => t.id === 'crab');
+      else if (roll < 0.90) type = ENEMY_TYPES.find(t => t.id === 'wisp');
+      else type = ENEMY_TYPES.find(t => t.id === 'golem');
+      if (!type) type = ENEMY_TYPES[0];
       const group = buildEnemy(type.id);
       group.position.set(x, heightAt(x, z), z);
       scene.add(group);
@@ -3203,15 +3501,22 @@ const WORLD = (function () {
       const g = en.group; if (en.bindTimer > 0) en.bindTimer = Math.max(0, en.bindTimer - dt);
       const dx = px - g.position.x, dz = pz - g.position.z; const dist = Math.hypot(dx, dz);
       if (townDistance(px, pz) === 0 && !en.trial) en.state = 'idle';
-      else if (dist < COMBAT_RULES.aggroRange && dist > COMBAT_RULES.attackRange) { const slow = en.bindTimer > 0 ? 0.32 : 1; const sp = en.type.speed * slow * dt; const chaseX = g.position.x + (dx / dist) * sp, chaseZ = g.position.z + (dz / dist) * sp; if (en.trial || townDistance(chaseX, chaseZ) > 1) g.position.set(chaseX, g.position.y, chaseZ); g.rotation.y = Math.atan2(-dx, -dz); en.state = 'chase'; }
+      else if (dist < COMBAT_RULES.aggroRange && dist > COMBAT_RULES.attackRange) { const slow = en.bindTimer > 0 ? 0.32 : 1; const sp = en.type.speed * slow * dt; const chaseX = g.position.x + (dx / dist) * sp, chaseZ = g.position.z + (dz / dist) * sp; if (en.trial || townDistance(chaseX, chaseZ) > 1) g.position.set(chaseX, g.position.y, chaseZ); /* models face local +Z; atan2(dx,dz) turns the front toward the player (same convention as the player & companions). */ g.rotation.y = Math.atan2(dx, dz); en.state = 'chase'; }
       else if (dist <= COMBAT_RULES.attackRange) {
         en.state = 'attack';
         if (en.telegraph > 0) { en.telegraph = Math.max(0, en.telegraph - dt); const tr = ensureTelegraphRing(g); tr.visible = true; tr.material.opacity = 0.45 + Math.abs(Math.sin(elapsed * 28)) * 0.45; tr.scale.setScalar(1 + (1 - en.telegraph / 0.55) * 0.55); if (en.telegraph <= 0) { tr.visible = false; en.atkCd = 1.45; if (dist <= COMBAT_RULES.attackRange + 0.6 && dashIFrames <= 0 && combatHooks.onHurt) combatHooks.onHurt(en); } }
         else { en.atkCd -= dt; if (en.atkCd <= 0) { en.atkCd = 1.7; en.telegraph = 0.55; ensureTelegraphRing(g).visible = true; addFxRing(g.position.x, g.position.y, g.position.z, 0xff5b45, 1.4, 0.32); } }
       } else { en.state = 'idle'; const tr = g.userData.telegraphRing; if (tr) tr.visible = false; }
-      g.position.y = heightAt(g.position.x, g.position.z) + Math.abs(Math.sin(elapsed * 3 + en.bob)) * 0.07;
+      const hover = g.userData.hover || 0;
+      g.position.y = heightAt(g.position.x, g.position.z) + hover + Math.abs(Math.sin(elapsed * 3 + en.bob)) * (hover ? 0.14 : 0.07);
       const parts = g.userData.parts;
       if (parts) { const moveK = en.state === 'chase' ? (en.bindTimer > 0 ? 0.28 : 1) : en.state === 'attack' ? 0.55 : 0.18; if (parts.legs && parts.legs.length) parts.legs.forEach(function (lg, i) { lg.rotation.x = Math.sin(elapsed * 9 + i * Math.PI * 0.72) * 0.55 * moveK; lg.rotation.z = Math.cos(elapsed * 9 + i * 1.7) * 0.14 * moveK; }); if (parts.body && parts.body.userData.bs) { const bs = parts.body.userData.bs; const sq = Math.sin(elapsed * 4.5 + en.bob); parts.body.scale.set(bs[0] * (1 - sq * 0.05), bs[1] * (1 + sq * 0.12), bs[2] * (1 - sq * 0.05)); } }
+      /* Ember Wisp: the ember ring orbits, and each mote bobs on its own phase. */
+      if (g.userData.orbit) g.userData.orbit.forEach(function (m, i) {
+        const a = m.userData.orbitRing + elapsed * 1.5;
+        const r = 0.52 + Math.sin(elapsed * 2.2 + i) * 0.06;
+        m.position.set(Math.cos(a) * r, 0.55 + (i % 3) * 0.16 + Math.sin(elapsed * 3.1 + i * 1.3) * 0.06, Math.sin(a) * r);
+      });
       if (en.hitFlash > 0) { en.hitFlash -= dt; g.scale.setScalar(en.type.scale * (1 + en.hitFlash * 0.8)); } else g.scale.setScalar(en.type.scale * (en.telegraph > 0 ? 1.04 : 1));
     });
     updateCompanions(dt);
@@ -3234,44 +3539,163 @@ const WORLD = (function () {
       companions.push({ id: id, def: C, group: g, atkCd: 0, slot: i });
     });
   }
+  /* 隊友模型：同玩家/NPC 同一套 plMat 材質與比例語言（唔再係火柴人）。
+     每位隊友有自己嘅配色、髮型、披肩同招牌武器。腿仍然 tag userData.leg
+     俾 updateCompanions 做行路擺腿動畫。 */
   function buildCompanionModel(C) {
     const g = new THREE.Group();
-    const coat = plMat(C.color, plRamps().G3, { double: true });
-    const dark = plMat(C.gender === 'male' ? C.color : C.color, plRamps().G3);
-    const skin = plMat(0xE9BC98, plRamps().G4);
-    const hairM = plMat(C.hair, plRamps().G4);
-    const M = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; g.add(m); return m; };
-    /* legs */
+    const R2 = plRamps().G2, R3 = plRamps().G3, R4 = plRamps().G4;
+    const male = C.gender === 'male';
+    const coat   = plMat(C.color, R3, { rimStrength: 0.40 });
+    const coat2  = plMat(new THREE.Color(C.color).multiplyScalar(0.66).getHex(), R3, { rimStrength: 0.34 });
+    const skin   = plMat(0xE9BC98, R4);
+    const hairM  = plMat(C.hair, R4);
+    const cloth  = plMat(C.gender === 'male' ? 0x2b2a30 : 0x3a3540, R3);
+    const leather = plMat(0x5b3d2a, R3);
+    const gold   = plMat(0xc28a36, R2, { rimStrength: 0.55 });
+    const dark   = plMat(0x1d1a18, R2);
+    const M = (geo, mat, x, y, z, cast) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z);
+      if (cast !== false) m.castShadow = true;
+      g.add(m); return m;
+    };
+
+    /* ---------- 腿 / 靴（用 pivot group 令擺腿自然，pivot 標 tag userData.leg） ---------- */
     [-1, 1].forEach(sd => {
-      const leg = M(new THREE.CylinderGeometry(0.09, 0.08, 0.95, 8), dark, sd * 0.14, 0.52, 0);
-      leg.userData.leg = true;
+      const pivot = new THREE.Group();
+      pivot.position.set(sd * 0.155, 1.30, 0);
+      pivot.userData.leg = true;
+      g.add(pivot);
+      const add = (geo, mat, y, z) => {
+        const m = new THREE.Mesh(geo, mat);
+        m.position.set(0, y, z || 0);
+        m.castShadow = true;
+        pivot.add(m); return m;
+      };
+      add(new THREE.CylinderGeometry(0.115, 0.098, 0.62, 9), cloth, -0.32, 0);
+      add(new THREE.CylinderGeometry(0.098, 0.086, 0.52, 9), cloth, -0.87, 0.005);
+      add(new THREE.CylinderGeometry(0.128, 0.112, 0.40, 9), leather, -1.06, 0.01);
+      add(new THREE.BoxGeometry(0.20, 0.11, 0.34), dark, -1.245, 0.07);
     });
-    /* torso */
-    M(new THREE.CylinderGeometry(0.24, 0.30, 0.85, 10), coat, 0, 1.42, 0);
-    /* skirt for female, trousers tint for male */
-    if (C.gender !== 'male') M(new THREE.ConeGeometry(0.52, 0.85, 12), coat, 0, 0.88, 0);
-    /* arms */
+
+    /* ---------- 下身：男裝褲／女裝裙 ---------- */
+    if (male) {
+      M(new THREE.CylinderGeometry(0.30, 0.34, 0.36, 12), coat2, 0, 1.30, 0);
+      /* 前後開衩長擺 */
+      M(new THREE.BoxGeometry(0.26, 0.52, 0.10), coat, -0.16, 1.06, 0.15);
+      M(new THREE.BoxGeometry(0.26, 0.52, 0.10), coat, 0.16, 1.06, 0.15);
+    } else {
+      const skirt = M(new THREE.CylinderGeometry(0.40, 0.66, 0.86, 14), coat, 0, 1.06, 0);
+      skirt.receiveShadow = true;
+      M(new THREE.CylinderGeometry(0.46, 0.70, 0.22, 14), coat2, 0, 0.72, 0);
+      M(new THREE.TorusGeometry(0.415, 0.030, 8, 18), gold, 0, 0.94, 0).rotation.x = Math.PI / 2;
+    }
+    /* 腰帶 */
+    M(new THREE.CylinderGeometry(0.315, 0.325, 0.13, 12), leather, 0, 1.40, 0);
+    M(new THREE.BoxGeometry(0.11, 0.11, 0.06), gold, 0, 1.40, 0.31, false);
+
+    /* ---------- 軀幹 ---------- */
+    M(new THREE.CylinderGeometry(0.285, 0.335, 0.72, 12), coat, 0, 1.86, 0);
+    /* 胸口交叉皮革 + 元素寶石位 */
+    M(new THREE.BoxGeometry(0.52, 0.075, 0.06), leather, 0, 2.02, 0.28).rotation.z = 0.42;
+    /* 披肩 mantle */
+    const mantle = M(new THREE.CylinderGeometry(0.335, 0.40, 0.30, 12), coat2, 0, 2.26, 0);
+    mantle.receiveShadow = true;
+    /* 立領 */
+    M(new THREE.CylinderGeometry(0.165, 0.215, 0.20, 10), coat2, 0, 2.44, -0.01);
+
+    /* ---------- 手臂 + 手 ---------- */
+    let handR = null;
     [-1, 1].forEach(sd => {
-      M(new THREE.CylinderGeometry(0.07, 0.06, 0.62, 8), coat, sd * 0.34, 1.45, 0).rotation.z = sd * 0.12;
+      const up = M(new THREE.CylinderGeometry(0.098, 0.082, 0.56, 9), coat, sd * 0.375, 2.10, 0);
+      up.rotation.z = sd * 0.16;
+      const lo = M(new THREE.CylinderGeometry(0.082, 0.070, 0.46, 9), coat2, sd * 0.435, 1.62, 0.02);
+      lo.rotation.z = sd * 0.07;
+      M(new THREE.CylinderGeometry(0.086, 0.086, 0.10, 9), leather, sd * 0.465, 1.40, 0.03);
+      const hand = M(new THREE.SphereGeometry(0.082, 10, 8), skin, sd * 0.475, 1.31, 0.05);
+      if (sd > 0) handR = hand.position.clone();
     });
-    /* head + hair */
-    const head = M(new THREE.SphereGeometry(0.21, 12, 10), skin, 0, 2.10, 0);
-    head.scale.set(0.92, 1, 0.94);
-    M(new THREE.SphereGeometry(0.225, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), hairM, 0, 2.12, 0);
-    /* simple weapon (their signature silhouette) */
-    const wg = buildWeapon(C.id === 'dorian' ? 'bows' : C.id === 'vex' ? 'daggers' : C.id === 'mira' ? 'staff' : C.id === 'kael' ? 'great' : 'sword');
-    wg.scale.setScalar(0.9);
-    wg.position.set(0.40, 1.30, 0.08);
-    wg.rotation.z = -0.3;
+
+    /* ---------- 頭 ---------- */
+    M(new THREE.CylinderGeometry(0.115, 0.135, 0.12, 8), skin, 0, 2.55, 0);
+    const head = M(new THREE.SphereGeometry(0.235, 16, 14), skin, 0, 2.78, 0.01);
+    head.scale.set(0.93, 1.0, 0.95);
+    M(new THREE.SphereGeometry(0.048, 8, 6), skin, 0, 2.74, 0.235, false);
+    /* 眼 */
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x2a2431 });
+    [-1, 1].forEach(sd => {
+      const e = M(new THREE.SphereGeometry(0.036, 8, 6), eyeMat, sd * 0.082, 2.80, 0.212, false);
+      e.scale.set(1, 1.2, 0.55);
+    });
+
+    /* ---------- 髮型（每人不同） ---------- */
+    const capHair = () => M(new THREE.SphereGeometry(0.248, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.58), hairM, 0, 2.80, 0.005);
+    if (C.id === 'kael') {
+      /* 短刺髮 + 後頸硬毛 */
+      capHair();
+      [-0.14, -0.05, 0.05, 0.14].forEach((bx, i) => {
+        M(new THREE.ConeGeometry(0.075, 0.30, 6), hairM, bx, 3.02 - (i % 2) * 0.03, 0.02).rotation.z = bx * 1.6;
+      });
+      M(new THREE.BoxGeometry(0.34, 0.14, 0.12), hairM, 0, 2.62, -0.20, false);
+    } else if (C.id === 'mira') {
+      /* 長直髮 + 后冠髮帶 */
+      capHair();
+      [-1, 1].forEach(sd => {
+        const side = M(new THREE.CylinderGeometry(0.085, 0.055, 1.05, 8), hairM, sd * 0.235, 2.28, -0.09);
+        side.rotation.z = sd * 0.06;
+      });
+      M(new THREE.CylinderGeometry(0.115, 0.075, 0.95, 8), hairM, 0, 2.26, -0.235);
+      M(new THREE.TorusGeometry(0.225, 0.028, 8, 18), gold, 0, 2.94, 0.01, false).rotation.x = Math.PI / 2.05;
+    } else if (C.id === 'dorian') {
+      /* 兜帽 + 羽毛 */
+      const hood = M(new THREE.SphereGeometry(0.275, 14, 12, 0, Math.PI * 2, 0, Math.PI * 0.62), coat2, 0, 2.80, -0.02);
+      hood.scale.set(1, 1.10, 1);
+      M(new THREE.CylinderGeometry(0.30, 0.40, 0.34, 12, 1, true), coat2, 0, 2.62, -0.13).material.side = THREE.DoubleSide;
+      M(new THREE.ConeGeometry(0.065, 0.46, 6), gold, 0.24, 3.02, -0.10, false).rotation.z = -0.55;
+      M(new THREE.ConeGeometry(0.05, 0.34, 6), gold, 0.34, 2.94, -0.10, false).rotation.z = -0.85;
+    } else if (C.id === 'vex') {
+      /* 高馬尾 + 面罩 */
+      capHair();
+      M(new THREE.SphereGeometry(0.135, 10, 8), hairM, 0, 3.00, -0.20);
+      const tail = M(new THREE.CylinderGeometry(0.085, 0.030, 1.15, 8), hairM, 0, 2.44, -0.30);
+      tail.rotation.x = -0.20;
+      M(new THREE.BoxGeometry(0.30, 0.115, 0.05), cloth, 0, 2.685, 0.205, false);
+    } else {
+      capHair();
+      M(new THREE.SphereGeometry(0.235, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), hairM, 0, 2.80, 0);
+    }
+
+    /* ---------- 招牌武器（掛右手） ---------- */
+    const WID = C.id === 'dorian' ? 'bows' : C.id === 'vex' ? 'daggers' : C.id === 'mira' ? 'staff' : C.id === 'kael' ? 'great' : 'sword';
+    const wg = buildWeapon(WID);
+    wg.scale.setScalar(0.95);
+    if (handR) wg.position.set(handR.x + 0.02, handR.y + 0.02, handR.z + 0.02);
+    else wg.position.set(0.40, 1.30, 0.08);
+    wg.rotation.z = -0.28;
+    wg.rotation.x = 0.10;
     g.add(wg);
-    /* element ember glow on chest */
+
+    /* ---------- 元素寶石（胸前，會轉） ---------- */
     const EL = (typeof ELEMENTS !== 'undefined') && ELEMENTS[C.element];
     if (EL) {
-      const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.075, 0), new THREE.MeshBasicMaterial({ color: EL.color }));
-      gem.position.set(0, 1.62, 0.26);
+      const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.085, 0), new THREE.MeshBasicMaterial({ color: EL.color }));
+      gem.position.set(0, 1.98, 0.30);
       g.add(gem);
       g.userData.gem = gem;
     }
+
+    /* ---------- 地面指示環 ---------- */
+    if (EL) {
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(0.55, 0.020, 6, 26),
+        new THREE.MeshBasicMaterial({ color: EL.color, transparent: true, opacity: 0.34, depthWrite: false })
+      );
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = 0.06;
+      g.add(ring);
+    }
+
     g.userData.parts = { legs: g.children.filter(m => m.userData.leg) };
     return g;
   }
@@ -3323,22 +3747,135 @@ const WORLD = (function () {
   }
 
   /* ---------- the Rift Tyrant (world boss) ---------- */
+  /* Bespoke boss model: an obsidian plated colossus — four arms, horned helm,
+     glowing rift seams down the chest, orbiting shard crown. Built at ~2.6 units
+     and scaled by BOSS.scale so it towers over the 3.26-unit player.
+     Keeps the parts.legs / parts.body contract so hit-flash, death topple and
+     leg swing all keep working. */
+  function buildRiftTyrant() {
+    const g = new THREE.Group();
+    const R2 = plRamps().G2, R3 = plRamps().G3, R4 = plRamps().G4;
+    const plate  = plMat(0x2b2433, R3, { rimStrength: 0.55, rimColor: 0xff8a70 });
+    const plate2 = plMat(0x191520, R2, { rimStrength: 0.42, rimColor: 0xff8a70 });
+    const bone   = plMat(0xd8c9b2, R4,  { rimStrength: 0.30 });
+    const rift   = new THREE.MeshBasicMaterial({ color: 0xff5b45 });
+    const rift2  = new THREE.MeshBasicMaterial({ color: 0xffa07a });
+    const legs = [], parts = { legs: legs, body: null };
+    const M = (geo, mat, x, y, z, cast) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z);
+      if (cast !== false) m.castShadow = true;
+      g.add(m); return m;
+    };
+
+    /* ---- digitigrade legs (pivot groups so the walk swing stays attached) ---- */
+    [-1, 1].forEach(sd => {
+      const pivot = new THREE.Group();
+      pivot.position.set(sd * 0.30, 1.04, 0);
+      pivot.userData.leg = true;
+      g.add(pivot);
+      legs.push(pivot);
+      const add = (geo, mat, y, z) => {
+        const m = new THREE.Mesh(geo, mat);
+        m.position.set(0, y, z || 0);
+        m.castShadow = true;
+        pivot.add(m); return m;
+      };
+      add(new THREE.CylinderGeometry(0.205, 0.165, 0.56, 9), plate, -0.28, 0);
+      add(new THREE.ConeGeometry(0.10, 0.24, 6), bone, -0.55, 0.17).rotation.x = Math.PI * 0.5;
+      add(new THREE.CylinderGeometry(0.165, 0.130, 0.52, 9), plate2, -0.82, 0.005);
+      add(new THREE.CylinderGeometry(0.175, 0.155, 0.16, 9), rift2, -0.60, 0.01);   // glowing knee seam
+      add(new THREE.BoxGeometry(0.34, 0.15, 0.54), plate2, -1.03, 0.14);
+      [-0.10, 0.10].forEach(tx => add(new THREE.ConeGeometry(0.055, 0.20, 5), bone, -1.05, 0.42 + 0, tx)
+        .rotation.x = Math.PI * 0.5);
+    });
+
+    /* ---- hips + torso ---- */
+    M(new THREE.CylinderGeometry(0.365, 0.425, 0.30, 12), plate2, 0, 0.98, 0);
+    const belly = M(new THREE.CylinderGeometry(0.345, 0.455, 0.56, 12), plate, 0, 1.34, 0);
+    belly.receiveShadow = true;
+    const chest = M(new THREE.CylinderGeometry(0.475, 0.365, 0.60, 12), plate, 0, 1.78, 0);
+    chest.receiveShadow = true;
+    parts.body = chest;
+    /* chest plate + rift seams */
+    M(new THREE.BoxGeometry(0.66, 0.50, 0.16), plate2, 0, 1.84, 0.36);
+    M(new THREE.BoxGeometry(0.10, 0.44, 0.06), rift, 0, 1.62, 0.44, false);
+    M(new THREE.BoxGeometry(0.30, 0.055, 0.06), rift, 0, 1.88, 0.45, false);
+    M(new THREE.BoxGeometry(0.055, 0.30, 0.06), rift2, -0.16, 1.30, 0.40, false);
+    M(new THREE.BoxGeometry(0.055, 0.22, 0.06), rift2, 0.16, 1.30, 0.40, false);
+
+    /* ---- pauldrons ---- */
+    [-1, 1].forEach(sd => {
+      const p = M(new THREE.SphereGeometry(0.30, 12, 10), plate2, sd * 0.50, 1.98, 0);
+      p.scale.set(1.05, 0.80, 1.05);
+      M(new THREE.ConeGeometry(0.095, 0.36, 6), bone, sd * 0.58, 2.20, -0.06).rotation.z = -sd * 0.42;
+      M(new THREE.ConeGeometry(0.070, 0.26, 6), bone, sd * 0.40, 2.14, 0.10).rotation.z = -sd * 0.18;
+    });
+
+    /* ---- four arms: upper pair heavy, lower pair smaller ---- */
+    [-1, 1].forEach(sd => {
+      const up = M(new THREE.CylinderGeometry(0.120, 0.098, 0.50, 9), plate, sd * 0.60, 1.74, 0);
+      up.rotation.z = sd * 0.18;
+      const fo = M(new THREE.CylinderGeometry(0.102, 0.086, 0.48, 9), plate2, sd * 0.70, 1.33, 0.02);
+      fo.rotation.z = sd * 0.06;
+      M(new THREE.SphereGeometry(0.125, 10, 8), plate2, sd * 0.735, 1.06, 0.03);
+      [-0.075, 0, 0.075].forEach((cz, i) => {
+        M(new THREE.ConeGeometry(0.032, 0.20, 5), bone, sd * 0.735 + i * 0.0, 0.98, cz + 0.10)
+          .rotation.x = Math.PI * 0.55;
+      });
+      /* lower arm pair */
+      const u2 = M(new THREE.CylinderGeometry(0.082, 0.068, 0.36, 8), plate, sd * 0.42, 1.32, 0.06);
+      u2.rotation.z = sd * 0.40;
+      const f2 = M(new THREE.CylinderGeometry(0.072, 0.058, 0.34, 8), plate2, sd * 0.53, 1.04, 0.10);
+      f2.rotation.z = sd * 0.12;
+      M(new THREE.SphereGeometry(0.088, 9, 7), plate2, sd * 0.565, 0.87, 0.12);
+    });
+
+    /* ---- neck + horned helm ---- */
+    M(new THREE.CylinderGeometry(0.145, 0.185, 0.13, 9), plate2, 0, 2.12, 0);
+    const head = M(new THREE.SphereGeometry(0.245, 14, 12), plate, 0, 2.30, 0.01);
+    head.scale.set(0.95, 1.0, 0.96);
+    M(new THREE.BoxGeometry(0.30, 0.14, 0.20), plate2, 0, 2.17, 0.14);          // jaw guard
+    [-1, 1].forEach(sd => {
+      const horn = M(new THREE.ConeGeometry(0.080, 0.46, 6), bone, sd * 0.19, 2.52, -0.02);
+      horn.rotation.z = -sd * 0.42;
+      const horn2 = M(new THREE.ConeGeometry(0.048, 0.26, 5), bone, sd * 0.27, 2.34, -0.10);
+      horn2.rotation.z = -sd * 0.85;
+      M(new THREE.BoxGeometry(0.115, 0.040, 0.05), rift, sd * 0.105, 2.32, 0.225, false);
+    });
+    M(new THREE.ConeGeometry(0.062, 0.34, 6), bone, 0, 2.62, -0.04);
+
+    /* ---- orbiting shard crown (spun from updateBoss) ---- */
+    const shards = new THREE.Group();
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const s = new THREE.Mesh(new THREE.OctahedronGeometry(0.105, 0), i % 2 ? rift : rift2);
+      s.position.set(Math.cos(a) * 0.84, 1.60 + (i % 3) * 0.34, Math.sin(a) * 0.84);
+      shards.add(s);
+    }
+    g.add(shards);
+    g.userData.shards = shards;
+
+    /* ---- ground rift ring ---- */
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0xff5b45, transparent: true, opacity: 0.55, side: THREE.DoubleSide, depthWrite: false, toneMapped: false });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.78, 0.035, 6, 32), ringMat);
+    ring.rotation.x = Math.PI / 2; ring.position.y = 0.04;
+    g.add(ring);
+    g.userData.ring = ring;
+
+    g.userData.height = 2.70;
+    g.userData.parts = parts;
+    return g;
+  }
+
   function spawnBoss() {
     if (bossEnemy) return;
     const B = (typeof BOSS !== 'undefined') && BOSS;
     if (!B) return;
-    const group = buildEnemy('crab');
+    const group = buildRiftTyrant();
     group.scale.setScalar(B.scale);
     const x = B.x, z = B.z;
     group.position.set(x, heightAt(x, z), z);
-    /* crown of glow shards to read as a boss */
-    const crownMat = new THREE.MeshBasicMaterial({ color: 0xff5b45 });
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2;
-      const shard = new THREE.Mesh(new THREE.OctahedronGeometry(0.30, 0), crownMat);
-      shard.position.set(Math.cos(a) * 0.7, 2.9, Math.sin(a) * 0.7);
-      group.add(shard);
-    }
     scene.add(group);
     bossEnemy = {
       id: 'boss', boss: true, trialFamily: 'metallic', trialColor: 0xff5b45,
@@ -3358,7 +3895,7 @@ const WORLD = (function () {
       const sp = en.type.speed * dt;
       const nx = g.position.x + (dx / dist) * sp, nz = g.position.z + (dz / dist) * sp;
       if (townDistance(nx, nz) > 1) { g.position.x = nx; g.position.z = nz; }
-      g.rotation.y = Math.atan2(-dx, -dz); en.state = 'chase';
+      g.rotation.y = Math.atan2(dx, dz); en.state = 'chase';
     } else if (dist <= COMBAT_RULES.attackRange + 0.8) {
       en.state = 'attack';
       en.atkCd -= dt;
@@ -3369,6 +3906,14 @@ const WORLD = (function () {
       }
     } else en.state = 'idle';
     g.position.y = heightAt(g.position.x, g.position.z);
+    /* shard crown orbits, ground rift ring breathes */
+    if (g.userData.shards) { g.userData.shards.rotation.y += dt * 0.9; g.userData.shards.position.y = Math.sin(elapsed * 1.6) * 0.10; }
+    if (g.userData.ring) { g.userData.ring.material.opacity = 0.38 + Math.sin(elapsed * 2.6) * 0.18; g.userData.ring.scale.setScalar(1 + Math.sin(elapsed * 2.6) * 0.05); }
+    /* heavy walk swing on the leg pivots */
+    const moving = en.state === 'chase';
+    (g.userData.parts && g.userData.parts.legs || []).forEach((lg, i) => {
+      lg.rotation.x = moving ? Math.sin(elapsed * 6.4 + i * Math.PI) * 0.42 : lg.rotation.x * 0.88;
+    });
     if (en.hitFlash > 0) { en.hitFlash -= dt; g.scale.setScalar(en.type.scale * (1 + en.hitFlash * 0.5)); } else g.scale.setScalar(en.type.scale);
   }
   function bossInfo() {
@@ -3559,6 +4104,18 @@ const WORLD = (function () {
     performAttack, dashPlayer, equipWeapon, applyCharacterLook,
     startBondTrial, stopBondTrial, setBondTrialHooks, getBondTrialState,
     setParty, spawnBoss, bossAlive, bossInfo,
+    /* debug helper: drop one enemy of a given type in front of the player */
+    spawnEnemyOfType: function (typeId, x, z) {
+      const type = (typeof ENEMY_TYPES !== 'undefined') && ENEMY_TYPES.find(t => t.id === typeId);
+      if (!type) return null;
+      const group = buildEnemy(typeId);
+      const px = Number.isFinite(x) ? x : player.position.x;
+      const pz = Number.isFinite(z) ? z : player.position.z - 6;
+      group.position.set(px, heightAt(px, pz), pz);
+      scene.add(group);
+      enemies.push({ id: 'dbg-' + typeId, type: type, group: group, hp: type.hp, maxHp: type.hp, alive: true, respawn: 0, hitFlash: 0, bob: Math.random() * 6.28, homeX: px, homeZ: pz, state: 'idle', atkCd: 0 });
+      return group;
+    },
     get combatState() { return { weapon: weaponId, character: charId, skin: skinId, enabled: combatEnabled }; },
     get scene() { return scene; },
     get townBounds() { return { ...TOWN }; },
@@ -3567,6 +4124,7 @@ const WORLD = (function () {
     get player() { return player; },
     get nodes() { return nodes; },
     get zoneNow() { return zoneNow; },
+    get companions() { return companions; },
     get yaw() { return yaw; },
     set onZoneChange(fn) { onZoneChange = fn; },
     get keys() { return keys; }
