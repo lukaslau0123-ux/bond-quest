@@ -292,22 +292,33 @@ const MAIN_TOTAL = NODES.filter(n => n.main).length;
    damage = per-hit; reach = attack radius; rate = min seconds between hits;
    anim = attack animation style consumed by world.js. */
 const WEAPONS = [
-  { id:'sword',   name:'Bond Blade',      type:'sword',  damage:12, reach:3.4, rate:0.36, anim:'slash',   color:0xdfeaf2, glow:0x8ff0c8, gold:0,   scoreReq:0,   desc:'A balanced one-handed blade. Fast, reliable, easy to combo.' },
-  { id:'great',   name:'Ion Cleaver',     type:'great',  damage:26, reach:4.0, rate:0.72, anim:'heavy',   color:0xc9d6e4, glow:0xffc85f, gold:120, scoreReq:40,  desc:'Heavy two-handed edge. Slow but hits hard with a wide arc.' },
-  { id:'staff',   name:'Orb Staff',       type:'staff',  damage:16, reach:6.2, rate:0.52, anim:'cast',    color:0xb9a7f0, glow:0x7fd8ff, gold:180, scoreReq:80,  desc:'Channels orbital energy. Long range and a radiant burst.' },
-  { id:'bows',    name:'Electron Bow',    type:'bow',    damage:10, reach:9.0, rate:0.30, anim:'shoot',   color:0xe8d9a8, glow:0xffe08a, gold:220, scoreReq:120, desc:'Fires electron bolts from afar. Rapid and precise.' },
-  { id:'daggers', name:'Twin Sigils',     type:'daggers',damage:8,  reach:2.8, rate:0.20, anim:'flurry',  color:0xf0c8d8, glow:0xff8fc8, gold:260, scoreReq:180, desc:'Paired blades for a blur of rapid strikes.' }
+  { id:'sword',   name:'Bond Blade',      type:'sword',  damage:12, reach:3.4, rate:0.36, anim:'slash',   color:0xdfeaf2, glow:0x8ff0c8, gold:0,   scoreReq:0,   quest:null,  desc:'A balanced one-handed blade. Fast, reliable, easy to combo.' },
+  { id:'great',   name:'Ion Cleaver',     type:'great',  damage:26, reach:4.0, rate:0.72, anim:'heavy',   color:0xc9d6e4, glow:0xffc85f, gold:120, scoreReq:40,  quest:'n4',  desc:'Heavy two-handed edge. Slow but hits hard with a wide arc. Forged only after the Forge Keeper\'s metal remembers.' },
+  { id:'staff',   name:'Orb Staff',       type:'staff',  damage:16, reach:6.2, rate:0.52, anim:'cast',    color:0xb9a7f0, glow:0x7fd8ff, gold:180, scoreReq:80,  quest:'n4',  desc:'Channels orbital energy. Long range and a radiant burst. Unlocked by the Forge Keeper\'s gratitude.' },
+  { id:'bows',    name:'Electron Bow',    type:'bow',    damage:10, reach:9.0, rate:0.30, anim:'shoot',   color:0xe8d9a8, glow:0xffe08a, gold:220, scoreReq:120, quest:null,  desc:'Fires electron bolts from afar. Rapid and precise.' },
+  { id:'daggers', name:'Twin Sigils',     type:'daggers',damage:8,  reach:2.8, rate:0.20, anim:'flurry',  color:0xf0c8d8, glow:0xff8fc8, gold:260, scoreReq:180, quest:null,  desc:'Paired blades for a blur of rapid strikes.' }
 ];
 
 /* Playable characters. role affects stats; scoreReq gates shop unlock;
    skin variants are cosmetic outfits purchasable with gold. */
 const CHARACTERS = [
-  { id:'lyra',   name:'Elara',      gender:'female', role:'Adventurer',    color:0x343a4d, hair:0x5a3828, speed:1.00, bonus:0,    scoreReq:0,   rarity:4, desc:'A seasoned road-worn adventurer with balanced speed and power.' },
-  { id:'kael',   name:'Kael',       gender:'male',   role:'Vanguard',      color:0x6f9fd8, hair:0x2e2a2c, speed:0.92, bonus:0.15, scoreReq:0,   rarity:3, desc:'Burly shield-bearer. Slower, but hits harder.' },
-  { id:'mira',   name:'Mira',       gender:'female', role:'Arcane Caster', color:0xb9a7f0, hair:0x8a5a9a, speed:1.05, bonus:-0.05,scoreReq:60,  rarity:5, desc:'Ranged orbital mage. Quick and nimble.' },
-  { id:'dorian', name:'Dorian',     gender:'male',   role:'Ranger',        color:0x8fd8b0, hair:0x7a5230, speed:1.08, bonus:0.05, scoreReq:140, rarity:4, desc:'Keen-eyed archer. Fast footwork.' },
-  { id:'vex',    name:'Vex',        gender:'female', role:'Shadow Dancer', color:0xe08fb8, hair:0x3a2a44, speed:1.12, bonus:0.10, scoreReq:240, rarity:5, desc:'Twin-blade whirlwind. Dangerous up close.' }
+  { id:'lyra',   name:'Elara',      gender:'female', role:'Adventurer',    color:0x343a4d, hair:0x5a3828, speed:1.00, bonus:0,    scoreReq:0,   rarity:4, element:'ember', desc:'A seasoned road-worn adventurer with balanced speed and power.' },
+  { id:'kael',   name:'Kael',       gender:'male',   role:'Vanguard',      color:0x6f9fd8, hair:0x2e2a2c, speed:0.92, bonus:0.15, scoreReq:0,   rarity:3, element:'terra', desc:'Burly shield-bearer. Slower, but hits harder.' },
+  { id:'mira',   name:'Mira',       gender:'female', role:'Arcane Caster', color:0xb9a7f0, hair:0x8a5a9a, speed:1.05, bonus:-0.05,scoreReq:60,  rarity:5, element:'tide',  desc:'Ranged orbital mage. Quick and nimble.' },
+  { id:'dorian', name:'Dorian',     gender:'male',   role:'Ranger',        color:0x8fd8b0, hair:0x7a5230, speed:1.08, bonus:0.05, scoreReq:140, rarity:4, element:'volt',  desc:'Keen-eyed archer. Fast footwork.' },
+  { id:'vex',    name:'Vex',        gender:'female', role:'Shadow Dancer', color:0xe08fb8, hair:0x3a2a44, speed:1.12, bonus:0.10, scoreReq:240, rarity:5, element:'shade', desc:'Twin-blade whirlwind. Dangerous up close.' }
 ];
+
+/* Elemental skills — one per character, bound to the burst (K) button.
+   dmgMul scales the burst damage; radius scales the AoE reach multiplier;
+   fx names the world.js burst effect (ring colour + bolt pattern). */
+const ELEMENTS = {
+  ember: { name:'Ember Burst',  en:'Fire burst · burns a wide arc',      zh:'火系爆發 · 燃燒寬弧',    color:0xff8a3c, dmgMul:3.8, radius:2.2 },
+  tide:  { name:'Tide Burst',   en:'Water burst · slows everything hit', zh:'水系爆發 · 凍緩命中敵人', color:0x5fd8ff, dmgMul:3.3, radius:2.6, slow:2.5 },
+  terra: { name:'Terra Burst',  en:'Earth burst · heavy knockback',      zh:'土系爆發 · 重擊退',      color:0xc8a05a, dmgMul:3.5, radius:1.9, knock:2.2 },
+  volt:  { name:'Volt Burst',   en:'Lightning burst · chains to 2 foes', zh:'雷系爆發 · 連鎖 2 敵',   color:0xffe08a, dmgMul:3.0, radius:2.0, chain:2 },
+  shade: { name:'Shade Burst',  en:'Shadow burst · drains and heals',    zh:'影系爆發 · 吸血回復',    color:0xc07fe8, dmgMul:3.4, radius:2.1, leech:0.30 }
+};
 
 /* Gacha and learning reward tuning. */
 const GACHA_RULES = { pityMax:10, challengesPerDraw:2, weights:{ 3:68, 4:27, 5:5 } };
@@ -333,6 +344,22 @@ const ENEMY_TYPES = [
   { id:'slime',   name:'Gelatinoid',    hp:26,  speed:2.2, damage:5,  score:8,  gold:9,  color:0x6fd8c0, scale:0.80 },
   { id:'crab',    name:'Crystal Crab',  hp:64,  speed:1.8, damage:13, score:18, gold:20, color:0x8b7fd0, scale:1.20 }
 ];
+
+/* The Rift Tyrant — world boss at the Deep Altar (wp6, zone D).
+   Spawns only after every main objective (n1–n9) is complete. */
+const BOSS = {
+  id:'tyrant', name:'Rift Tyrant', en:'Rift Tyrant', zh:'裂隙暴君',
+  hp:420, speed:2.4, damage:22, score:400, gold:300,
+  scale:2.6, radius:3.2, x:84, z:70,
+  desc:'The broken covenant given form. It waits where the realm\'s bonds frayed first.'
+};
+
+/* Party rules — collected companions follow the active character;
+   keys 1-5 switch control between owned party members. */
+const PARTY_RULES = {
+  maxActive: 5, followDist: 2.6, catchUpDist: 7.0,
+  aiAttackRange: 3.2, aiDamageMul: 0.55, switchCooldown: 0.8
+};
 
 /* Reward tuning. */
 const COMBAT_RULES = {

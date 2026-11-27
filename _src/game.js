@@ -268,6 +268,10 @@
         addScore(enemy.type.score); addGold(enemy.type.gold);
         toast('⚔ ' + enemy.type.name + ' defeated! <b>+' + enemy.type.score + ' XP</b> · <b>+' + enemy.type.gold + ' gold</b>', 1800);
         floatReward('+' + enemy.type.score + '  +' + enemy.type.gold + 'g', enemy.group.position, true);
+        if (enemy.boss) {
+          showBanner('REALM SAVED', bi('The Rift Tyrant is undone — every bond it frayed now holds. Champion of Windvale!', '裂隙暴君已被擊敗——所有被撕裂嘅化學鍵重新鞏固。風谷英雄！'));
+          try { localStorage.setItem('bq_boss_down_v1', '1'); } catch (e) { }
+        }
         if (enemy.trial && introTrial && !introTrial.firstKill) {
           introTrial.firstKill = true;
           let claimed = false; try { claimed = localStorage.getItem('bq_trial_first_kill_v1') === '1'; } catch (e) { }
@@ -291,6 +295,7 @@
     });
     WORLD.equipWeapon(COMBAT.weapon);
     WORLD.applyCharacterLook(COMBAT.character, COMBAT.skin);
+    syncParty();
     let enabled = false;
     try { enabled = localStorage.getItem('bq_combat_enabled') === '1'; } catch (e) { }
     setCombatMode(enabled);
@@ -469,7 +474,13 @@
     if (!data) return; const el = document.createElement('div'); el.className = 'bondReaction ' + family; el.innerHTML = (isZh() ? data.zh : data.title) + '<small>' + (isZh() ? data.subZh : data.sub) + '</small>'; document.body.appendChild(el); if (window.SFX) SFX.correct(); setTimeout(function () { el.remove(); }, 950);
   }
   function syncBurstMeter() {
-    const charge = Math.max(0, Math.min(3, COMBAT.burstCharge || 0)); const fill = $('skillFill'); if (fill) fill.style.width = (charge / 3 * 100) + '%'; const label = document.querySelector('.skillLabel'); if (label) label.textContent = bi('BURST (K) ' + charge + '/3', '爆發 BURST (K) ' + charge + '/3');
+    const charge = Math.max(0, Math.min(3, COMBAT.burstCharge || 0)); const fill = $('skillFill'); if (fill) fill.style.width = (charge / 3 * 100) + '%'; const label = document.querySelector('.skillLabel');
+    if (label) {
+      const C = CHR[COMBAT.character];
+      const EL = (typeof ELEMENTS !== 'undefined') && C && ELEMENTS[C.element];
+      const nm = EL ? EL.name.split(' ')[0].toUpperCase() : 'BURST';
+      label.textContent = bi(nm + ' (K) ' + charge + '/3', (EL ? EL.name : '爆發') + ' (K) ' + charge + '/3');
+    }
   }
 
   /* Perform a player attack. combo advances within a short window. */
@@ -488,7 +499,12 @@
     if (!WORLD.performAttack(w, comboStep, attackType, updateAttackCombo)) return;
     if (attackType === 'light') { COMBAT.lightStep = (comboStep + 1) % 3; SFX.swing(); }
     else if (attackType === 'heavy') { SFX.hit(); toast(bi('Charged heavy — brace impact', '蓄力重擊 — 準備命中'), 700); }
-    else { COMBAT.burstCharge = 0; COMBAT.skillCd = 1.2; syncBurstMeter(); SFX.skill(); showBanner('BURST BOND', bi('3-hit charge released', '3 次命中充能已釋放')); }
+    else {
+      const C = CHR[COMBAT.character];
+      const EL = (typeof ELEMENTS !== 'undefined') && C && ELEMENTS[C.element];
+      COMBAT.burstCharge = 0; COMBAT.skillCd = 1.2; syncBurstMeter(); SFX.skill();
+      showBanner((EL ? EL.name : 'BURST BOND').toUpperCase(), bi(EL ? C.name + ' releases ' + EL.en : '3-hit charge released', EL ? C.name + ' 施放' + EL.zh : '3 次命中充能已釋放'));
+    }
     COMBAT.lastHit = now;
   }
   function updateAttackCombo(res) {
@@ -597,6 +613,10 @@
     updateHUD();
     renderQuestPanel();
     applyWaypoints();
+    /* returning save with all main objectives already done → boss is present */
+    const mains = NODES.filter(n => n.main);
+    if (mains.length && mains.every(n => done.has(n.id)) && typeof BOSS !== 'undefined' && WORLD.spawnBoss) WORLD.spawnBoss();
+    syncParty();
   }
 
   /* ---------------- quest tracking ---------------- */
@@ -909,6 +929,7 @@
   function startSession(openLab, introLevel) {
     $('startScreen').classList.remove('show');
     started = true;
+    syncParty();
     WORLD.setLocked(false);
     lastFrame = performance.now();
     SESSION.startTime = Date.now();
@@ -2102,6 +2123,11 @@
   function checkAllMainDone() {
     const mains = NODES.filter(n => n.main);
     if (mains.every(n => done.has(n.id)) && !SESSION.summary) {
+      /* The realm's bonds are rewoven — the Rift Tyrant now manifests at the Deep Altar. */
+      if (WORLD.bossAlive && !WORLD.bossAlive() && typeof BOSS !== 'undefined') {
+        WORLD.spawnBoss();
+        showBanner('THE RIFT TYRANT', bi(BOSS.desc + ' It has manifested at the Deep Altar (zone D).', BOSS.zh + '：' + BOSS.desc + '（D 區深晶祭壇）'));
+      }
       setTimeout(() => { if (state === STATE.WORLD && !paused && !CLOUD.isOpen() && !SESSION.summary) showSummary(); }, 550);
     }
   }
@@ -2933,15 +2959,18 @@
       WEAPONS.forEach(w => {
         const owned = COMBAT.weapons.indexOf(w.id) >= 0;
         const equipped = COMBAT.weapon === w.id;
-        const gateOk = COMBAT.score >= w.scoreReq;
+        /* story gate: weapons with quest:'n4' only appear after the Forge Keeper quest is done */
+        const questOk = !w.quest || done.has(w.quest);
+        const gateOk = questOk && COMBAT.score >= w.scoreReq;
         const afford = COMBAT.gold >= w.gold;
         let label, dis = '';
         if (equipped) { label = 'Equipped'; dis = ' disabled'; }
         else if (owned) { label = 'Equip'; }
+        else if (!questOk) { label = '🔒 Clear the Forge quest'; dis = ' disabled'; }
         else if (!gateOk) { label = '🔒 ' + w.scoreReq + ' XP'; dis = ' disabled'; }
         else if (!afford) { label = w.gold + ' gold'; dis = ' disabled'; }
         else { label = 'Buy · ' + w.gold + ' gold'; }
-        html += shopCard(w.id, w.name, w.desc, '⚔ ' + w.damage + ' dmg · ' + w.type.toUpperCase(),
+        html += shopCard(w.id, w.name, questOk ? w.desc : 'The Forge Keeper has not yet released this bond-forged arm. Complete their request first.', '⚔ ' + w.damage + ' dmg · ' + w.type.toUpperCase(),
           w.gold, w.scoreReq, owned, equipped, gateOk, label, dis, 'gear');
       });
     } else if (shopTab === 'skins') {
@@ -3005,6 +3034,7 @@
     if (act === 'pass') { buyPass(); return; }
     if (act === 'gear') {
       const w = WPN[id]; if (!w) return;
+      if (w.quest && !done.has(w.quest)) { toast('Complete the Forge Keeper\'s quest to release this weapon'); return; }
       if (COMBAT.weapons.indexOf(id) < 0) {
         if (COMBAT.score < w.scoreReq) { toast('Need ' + w.scoreReq + ' unlock XP to buy this'); return; }
         if (COMBAT.gold < w.gold) { toast('Not enough gold'); return; }
@@ -3031,9 +3061,11 @@
       if (COMBAT.characters.indexOf(id) < 0) {
         if (COMBAT.score < c.scoreReq) { toast('Need ' + c.scoreReq + ' unlock XP to unlock ' + c.name); return; }
         COMBAT.characters.push(id);
-        SFX.unlock(); toast('☻ Unlocked <b>' + c.name + '</b> — ' + c.role + '!');
+        SFX.unlock(); toast('☻ Unlocked <b>' + c.name + '</b> — ' + c.role + '! They join your party.');
+        syncParty();
       }
       COMBAT.character = id; WORLD.applyCharacterLook(COMBAT.character, COMBAT.skin);
+      syncParty();
       saveCombat(); renderShop(); updateCombatHUD(); renderCharList(); return;
     }
   }
@@ -3200,6 +3232,7 @@
     }
     recruitClaims++;
     COMBAT.characters.push(character.id);
+    syncParty();
     const rarity = rarityOf(character);
     COMBAT.pity = rarity >= 5 ? 0 : Math.min(GACHA_RULES.pityMax, COMBAT.pity + 1);
     saveCombat();
@@ -3303,10 +3336,20 @@
     if (owned.length < 2) { toast('Unlock more characters at the shop or companion draw'); return; }
     const i = owned.indexOf(COMBAT.character);
     const next = owned[(i + 1) % owned.length];
-    COMBAT.character = next;
+    switchToCharacter(next);
+  }
+  function switchToCharacter(id) {
+    const c = CHR[id]; if (!c || COMBAT.characters.indexOf(id) < 0) return;
+    COMBAT.character = id;
     WORLD.applyCharacterLook(COMBAT.character, COMBAT.skin);
+    syncParty();
     saveCombat(); updateCombatHUD();
-    toast('☻ Now playing as <b>' + CHR[next].name + '</b> — ' + CHR[next].role);
+    const EL = (typeof ELEMENTS !== 'undefined') && ELEMENTS[c.element];
+    toast('☻ Now playing as <b>' + c.name + '</b> — ' + c.role + (EL ? ' · ' + EL.name : ''));
+  }
+  function syncParty() {
+    /* companions = every owned character except the active one */
+    if (WORLD.setParty && started) WORLD.setParty(COMBAT.characters.filter(id => id !== COMBAT.character));
   }
   function cycleWeapon() {
     const owned = COMBAT.weapons;
@@ -3579,6 +3622,11 @@
       if (moveDCFocus(e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : -1)) { e.preventDefault(); return; }
     }
     if (e.key === 'Enter') {
+      /* Bond Trial complete: Enter = "Enter Chem Lab" button (#trialContinueBtn) */
+      if (introTrial && introTrial.done) {
+        const tg = e.target && e.target.tagName;
+        if (tg !== 'INPUT' && tg !== 'TEXTAREA') { finishIntroTrial(); e.preventDefault(); return; }
+      }
       if (handleDialogEnter() || handleDotCrossEnter()) { e.preventDefault(); return; }
     }
     if (k === 'e' && state === STATE.WORLD && !helpOpen && !mapOpen) { interact(); }
@@ -3602,9 +3650,13 @@
     if (k === 'q') { cycleWeapon(); return; }
     if (k === 'b') { openShop(); return; }
     if (k >= '1' && k <= '5') {
-      const id = WEAPONS[Number(k) - 1] && WEAPONS[Number(k) - 1].id;
-      if (id && COMBAT.weapons.indexOf(id) >= 0) shopAction(id, 'gear');
-      else toast('Weapon slot ' + k + ' is locked — buy it at the shop (B)');
+      /* party slot: switch control to the Nth owned character */
+      const idx = Number(k) - 1;
+      const roster = COMBAT.characters;
+      const c = roster[idx];
+      if (c && c !== COMBAT.character) switchToCharacter(c);
+      else if (c) toast('Already playing as <b>' + CHR[c].name + '</b>');
+      else toast('Party slot ' + k + ' is empty — unlock more companions to fill it');
     }
   });
 

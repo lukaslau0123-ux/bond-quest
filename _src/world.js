@@ -55,6 +55,8 @@ const WORLD = (function () {
   let fxGlow = null;
   let charMats = null;                // character material set for live re-skinning
   let skirtGrpRef = null;             // skirt group — hidden for male characters
+  let companions = [];                // AI party followers [{ id, group, weaponId, atkCd, homeOffset }]
+  let bossEnemy = null;               // the Rift Tyrant world boss
 
   function toonGradient(steps) {
     const data = new Uint8Array(steps * 4);
@@ -1118,8 +1120,79 @@ const WORLD = (function () {
     });
   }
 
-  function buildNodeMeshes() {
-    nodes.forEach(n => {
+  /* ---------- Forge Keeper as the Sister (nun) — per approved concept sheet ----------
+     Brown layered gown + grey veil over white coif, rope cincture with tassels,
+     wooden cross + rosary at the hip, black shoes. Original procedural geometry. */
+  function buildNunKeeper() {
+    const g = new THREE.Group();
+    const brown = toonMat(0x5a4636);
+    const brownDark = toonMat(0x3e3128);
+    const brownMid = toonMat(0x6e5a48);
+    const grey = toonMat(0x9a9aa2);
+    const white = toonMat(0xf0ede4);
+    const skin = toonMat(0xe9bc98);
+    const hairM = toonMat(0x6a452c);
+    const wood = toonMat(0x8a5a34);
+    const M = (geo, mat, x, y, z, cast) => {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x, y, z);
+      if (cast !== false) m.castShadow = true;
+      g.add(m); return m;
+    };
+    /* gown — outer skirt (brown, flared) */
+    M(new THREE.CylinderGeometry(0.62, 1.05, 1.55, 14), brown, 0, 0.82, 0);
+    /* hem under-layer (lighter brown) */
+    M(new THREE.CylinderGeometry(0.70, 1.12, 0.42, 14), brownMid, 0, 0.22, 0);
+    /* upper scapular (darker brown, torso) */
+    M(new THREE.CylinderGeometry(0.44, 0.62, 1.05, 12), brownDark, 0, 2.02, 0);
+    /* shoulder cape */
+    M(new THREE.CylinderGeometry(0.50, 0.56, 0.45, 12), brownDark, 0, 2.48, 0);
+    /* white collar (neck band) */
+    M(new THREE.CylinderGeometry(0.20, 0.26, 0.22, 10), white, 0, 2.62, 0);
+    /* rope cincture (white waist cord) */
+    M(new THREE.TorusGeometry(0.52, 0.035, 8, 20), white, 0, 1.62, 0).rotation.x = Math.PI / 2;
+    /* cincture tassels hanging front-left */
+    M(new THREE.CylinderGeometry(0.02, 0.03, 0.62, 6), white, -0.30, 1.28, 0.42, false);
+    M(new THREE.SphereGeometry(0.055, 8, 6), white, -0.30, 0.94, 0.42, false);
+    M(new THREE.CylinderGeometry(0.02, 0.03, 0.50, 6), white, -0.24, 1.32, 0.40, false);
+    M(new THREE.SphereGeometry(0.05, 8, 6), white, -0.24, 1.04, 0.40, false);
+    /* wooden cross at the hip */
+    M(new THREE.BoxGeometry(0.09, 0.46, 0.045), wood, 0.34, 1.28, 0.46);
+    M(new THREE.BoxGeometry(0.26, 0.09, 0.045), wood, 0.34, 1.36, 0.46);
+    /* rosary — loop of small beads down the right side */
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 1.35 + 0.5;
+      const bx = 0.40 + Math.cos(a) * 0.16, by = 1.60 - Math.abs(Math.sin(a)) * 0.55 - 0.05, bz = 0.44 + Math.sin(a * 0.6) * 0.05;
+      M(new THREE.SphereGeometry(0.035, 6, 5), wood, bx, Math.max(1.05, by), bz, false);
+    }
+    /* head + face */
+    const head = M(new THREE.SphereGeometry(0.30, 16, 14), skin, 0, 2.92, 0.02);
+    head.scale.set(0.92, 1.0, 0.94);
+    /* brown hair fringe peeking under the coif */
+    M(new THREE.SphereGeometry(0.315, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.42), hairM, 0, 2.93, 0.02);
+    /* white coif band across the forehead */
+    M(new THREE.TorusGeometry(0.27, 0.055, 8, 20), white, 0, 2.99, 0.02, false).rotation.x = Math.PI / 2.25;
+    /* grey veil — back drape (long, down to mid-back) */
+    const veilBack = M(new THREE.CylinderGeometry(0.24, 0.52, 1.55, 12, 1, true), grey, 0, 2.10, -0.16);
+    veilBack.material.side = THREE.DoubleSide;
+    /* veil side falls */
+    [-1, 1].forEach(sd => {
+      const fall = M(new THREE.CylinderGeometry(0.13, 0.20, 1.05, 8, 1, true), grey, sd * 0.30, 2.30, 0.02);
+      fall.material.side = THREE.DoubleSide;
+      fall.rotation.z = sd * 0.10;
+    });
+    /* veil crown over the top of the head */
+    M(new THREE.SphereGeometry(0.335, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.52), grey, 0, 2.93, -0.02);
+    /* hands folded in prayer */
+    M(new THREE.SphereGeometry(0.075, 8, 6), skin, -0.10, 1.95, 0.42);
+    M(new THREE.SphereGeometry(0.075, 8, 6), skin, 0.02, 1.93, 0.44);
+    /* black shoes peeking at the hem */
+    M(new THREE.BoxGeometry(0.20, 0.10, 0.30), toonMat(0x1d1a18), -0.18, 0.05, 0.10);
+    M(new THREE.BoxGeometry(0.20, 0.10, 0.30), toonMat(0x1d1a18), 0.18, 0.05, 0.10);
+    return g;
+  }
+
+  function buildNodeMeshes() {    nodes.forEach(n => {
       const g = new THREE.Group();
       const y = heightAt(n.x, n.z);
       let color;
@@ -1130,16 +1203,19 @@ const WORLD = (function () {
       else color = 0xa99ff0;
 
       if (n.type === 'npc') {
-        const body = new THREE.Mesh(
-          new THREE.CylinderGeometry(0.9, 1.15, 2.6, 10),
-          toonMat(0x2e8e7a)
-        );
-        body.position.y = 1.5; body.castShadow = true; g.add(body);
-        const head = new THREE.Mesh(
-          new THREE.SphereGeometry(1.0, 14, 12),
-          toonMat(0x9fe8d0, 0x145043)
-        );
-        head.position.y = 3.4; g.add(head);
+        if (n.id === 'n4') { g.add(buildNunKeeper()); }
+        else {
+          const body = new THREE.Mesh(
+            new THREE.CylinderGeometry(0.9, 1.15, 2.6, 10),
+            toonMat(0x2e8e7a)
+          );
+          body.position.y = 1.5; body.castShadow = true; g.add(body);
+          const head = new THREE.Mesh(
+            new THREE.SphereGeometry(1.0, 14, 12),
+            toonMat(0x9fe8d0, 0x145043)
+          );
+          head.position.y = 3.4; g.add(head);
+        }
       } else if (n.type === 'chest') {
         const base = new THREE.Mesh(
           new THREE.BoxGeometry(2.4, 1.5, 1.7),
@@ -3007,13 +3083,16 @@ const WORLD = (function () {
     const attackType = attack.attackType || (attack.isSkill ? 'burst' : 'light');
     const isBurst = attackType === 'burst', isHeavy = attackType === 'heavy', isFinisher = attackType === 'light' && comboStep === 2;
     const C = (typeof CHARACTERS !== 'undefined') && CHARACTERS.find(c => c.id === charId);
-    const reach = w.reach * (isBurst ? 2.0 : isHeavy ? 1.34 : isFinisher ? 1.12 : 1);
+    /* Elemental burst: per-character element modifies dmg / radius / adds effects. */
+    const EL = (typeof ELEMENTS !== 'undefined' && C && ELEMENTS[C.element]) ? ELEMENTS[C.element] : null;
+    const reach = w.reach * (isBurst ? (EL ? EL.radius : 2.0) : isHeavy ? 1.34 : isFinisher ? 1.12 : 1);
     const comboMul = 1 + Math.min(COMBAT_RULES.comboCap, comboStep || 0) * COMBAT_RULES.comboBonus;
-    const dmg = Math.round((w.damage + (C ? C.bonus * 20 : 0)) * comboMul * (isBurst ? 3.3 : isHeavy ? 1.45 : isFinisher ? 1.25 : 1));
+    const dmg = Math.round((w.damage + (C ? C.bonus * 20 : 0)) * comboMul * (isBurst ? (EL ? EL.dmgMul : 3.3) : isHeavy ? 1.45 : isFinisher ? 1.25 : 1));
     const px = player.position.x, py = player.position.y, pz = player.position.z;
     const fwdX = Math.sin(player.rotation.y), fwdZ = Math.cos(player.rotation.y);
-    if (isBurst || isHeavy || isFinisher) addFxRing(px, py, pz, w.glow, isBurst ? 5.8 : isHeavy ? 3.1 : 1.8, isBurst ? 0.52 : 0.34);
+    if (isBurst || isHeavy || isFinisher) addFxRing(px, py, pz, isBurst && EL ? EL.color : w.glow, isBurst ? (EL ? 2.2 + EL.radius * 1.6 : 5.8) : isHeavy ? 3.1 : 1.8, isBurst ? 0.52 : 0.34);
     let hitAny = false, killed = 0; const reactionSources = {}, reactionSeen = {};
+    const burstHitList = [];   // for volt chain + shade leech
     function applyDamage(en, amount, kind, knockX, knockZ) {
       if (!en || !en.alive || amount <= 0) return false;
       en.hp -= amount; en.hitFlash = Math.max(en.hitFlash || 0, 0.22);
@@ -3030,8 +3109,11 @@ const WORLD = (function () {
       const dot = (dx * fwdX + dz * fwdZ) / (dist || 1);
       if (!isBurst && dist > 0.65 && dot < (attack.style === 'shoot' ? 0.55 : 0.06)) return;
       hitAny = true; const family = en.trialFamily;
+      burstHitList.push(en);
       const knock = family === 'ionic' ? 1.45 : family === 'metallic' ? 0.62 : 0.2;
-      applyDamage(en, dmg, attackType, fwdX * (knock + (isHeavy ? 0.8 : 0)), fwdZ * (knock + (isHeavy ? 0.8 : 0)));
+      const elKnock = (isBurst && EL && EL.knock) ? EL.knock : 0;
+      applyDamage(en, dmg, attackType, fwdX * (knock + elKnock + (isHeavy ? 0.8 : 0)), fwdZ * (knock + elKnock + (isHeavy ? 0.8 : 0)));
+      if (isBurst && EL && EL.slow) en.bindTimer = Math.max(en.bindTimer || 0, EL.slow);   // tide: chill slow
       if (combatHooks.onHit) combatHooks.onHit(en, dmg, comboStep, isBurst, attackType);
       if (!family) return;
       reactionSeen[family] = true; reactionSources[family] = en;
@@ -3041,6 +3123,22 @@ const WORLD = (function () {
       else if (family === 'metallic') { addFxRing(en.group.position.x, en.group.position.y, en.group.position.z, 0xffc85f, 4.4, 0.55); enemies.forEach(other => { if (other === en || !other.alive) return; const adx = other.group.position.x - en.group.position.x, adz = other.group.position.z - en.group.position.z; if (adx * adx + adz * adz > 4.2 * 4.2) return; applyDamage(other, Math.max(1, Math.round(dmg * 0.35)), 'shockwave', adx * 0.12, adz * 0.12); }); }
     });
     Object.keys(reactionSeen).forEach(function (family) { if (combatHooks.onReaction) combatHooks.onReaction({ family: family, enemy: reactionSources[family] }); });
+    /* volt: chain lightning to extra nearby foes; shade: leech heal per kill/hit */
+    if (isBurst && EL && EL.chain && burstHitList.length) {
+      const chained = new Set(burstHitList);
+      burstHitList.slice(0, 1).forEach(src => {
+        let links = 0;
+        enemies.forEach(other => {
+          if (links >= EL.chain || !other.alive || chained.has(other)) return;
+          const cdx = other.group.position.x - src.group.position.x, cdz = other.group.position.z - src.group.position.z;
+          if (cdx * cdx + cdz * cdz > 9 * 9) return;
+          chained.add(other); links++;
+          addFxBolt(src.group.position.x, src.group.position.y, src.group.position.z, other.group.position.x, other.group.position.y, other.group.position.z, EL.color);
+          applyDamage(other, Math.max(1, Math.round(dmg * 0.55)), 'chain', 0, 0);
+        });
+      });
+    }
+    if (isBurst && EL && EL.leech && hitAny && combatHooks.onLeech) combatHooks.onLeech(Math.round(dmg * EL.leech * Math.min(3, burstHitList.length)));
     if (hitAny) { hitStopT = Math.max(hitStopT, isBurst ? 0.09 : isHeavy ? 0.07 : 0.045); triggerShake(isBurst ? 0.24 : isHeavy ? 0.18 : isFinisher ? 0.11 : 0.07, isBurst ? 0.24 : 0.14); }
     if (attack.onImpact) attack.onImpact({ hit: hitAny, killed, damage: dmg });
   }
@@ -3098,7 +3196,7 @@ const WORLD = (function () {
     enemies.forEach(en => {
       if (!en.alive) {
         if (en.dying > 0) { en.dying -= dt; const k = Math.max(0, en.dying / 0.45); en.group.rotation.x = -(1 - k) * 1.45; en.group.scale.setScalar(en.type.scale * Math.max(0.05, k)); if (en.dying <= 0) { en.group.visible = false; en.group.rotation.x = 0; } }
-        if (en.trial) return;
+        if (en.trial || en.boss) return;
         en.respawn -= dt; if (en.respawn <= 0) { en.alive = true; en.hp = en.maxHp; en.group.visible = true; en.group.rotation.x = 0; en.group.scale.setScalar(en.type.scale); en.group.position.set(en.homeX, heightAt(en.homeX, en.homeZ), en.homeZ); }
         return;
       }
@@ -3116,7 +3214,166 @@ const WORLD = (function () {
       if (parts) { const moveK = en.state === 'chase' ? (en.bindTimer > 0 ? 0.28 : 1) : en.state === 'attack' ? 0.55 : 0.18; if (parts.legs && parts.legs.length) parts.legs.forEach(function (lg, i) { lg.rotation.x = Math.sin(elapsed * 9 + i * Math.PI * 0.72) * 0.55 * moveK; lg.rotation.z = Math.cos(elapsed * 9 + i * 1.7) * 0.14 * moveK; }); if (parts.body && parts.body.userData.bs) { const bs = parts.body.userData.bs; const sq = Math.sin(elapsed * 4.5 + en.bob); parts.body.scale.set(bs[0] * (1 - sq * 0.05), bs[1] * (1 + sq * 0.12), bs[2] * (1 - sq * 0.05)); } }
       if (en.hitFlash > 0) { en.hitFlash -= dt; g.scale.setScalar(en.type.scale * (1 + en.hitFlash * 0.8)); } else g.scale.setScalar(en.type.scale * (en.telegraph > 0 ? 1.04 : 1));
     });
+    updateCompanions(dt);
+    updateBoss(dt);
     applyAttackPose(dt);
+  }
+
+  /* ---------- party companions (collected characters follow & fight) ---------- */
+  function setParty(roster) {
+    /* roster: owned character ids, EXCLUDING the active one. */
+    companions.forEach(c => { if (c.group.parent) scene.remove(c.group); });
+    companions.length = 0;
+    if (!Array.isArray(roster)) return;
+    roster.forEach((id, i) => {
+      const C = (typeof CHARACTERS !== 'undefined') && CHARACTERS.find(c => c.id === id);
+      if (!C) return;
+      const g = buildCompanionModel(C);
+      g.position.set(player.position.x - 1.6 * (i + 1), 0, player.position.z + 1.2);
+      scene.add(g);
+      companions.push({ id: id, def: C, group: g, atkCd: 0, slot: i });
+    });
+  }
+  function buildCompanionModel(C) {
+    const g = new THREE.Group();
+    const coat = plMat(C.color, plRamps().G3, { double: true });
+    const dark = plMat(C.gender === 'male' ? C.color : C.color, plRamps().G3);
+    const skin = plMat(0xE9BC98, plRamps().G4);
+    const hairM = plMat(C.hair, plRamps().G4);
+    const M = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; g.add(m); return m; };
+    /* legs */
+    [-1, 1].forEach(sd => {
+      const leg = M(new THREE.CylinderGeometry(0.09, 0.08, 0.95, 8), dark, sd * 0.14, 0.52, 0);
+      leg.userData.leg = true;
+    });
+    /* torso */
+    M(new THREE.CylinderGeometry(0.24, 0.30, 0.85, 10), coat, 0, 1.42, 0);
+    /* skirt for female, trousers tint for male */
+    if (C.gender !== 'male') M(new THREE.ConeGeometry(0.52, 0.85, 12), coat, 0, 0.88, 0);
+    /* arms */
+    [-1, 1].forEach(sd => {
+      M(new THREE.CylinderGeometry(0.07, 0.06, 0.62, 8), coat, sd * 0.34, 1.45, 0).rotation.z = sd * 0.12;
+    });
+    /* head + hair */
+    const head = M(new THREE.SphereGeometry(0.21, 12, 10), skin, 0, 2.10, 0);
+    head.scale.set(0.92, 1, 0.94);
+    M(new THREE.SphereGeometry(0.225, 10, 8, 0, Math.PI * 2, 0, Math.PI * 0.5), hairM, 0, 2.12, 0);
+    /* simple weapon (their signature silhouette) */
+    const wg = buildWeapon(C.id === 'dorian' ? 'bows' : C.id === 'vex' ? 'daggers' : C.id === 'mira' ? 'staff' : C.id === 'kael' ? 'great' : 'sword');
+    wg.scale.setScalar(0.9);
+    wg.position.set(0.40, 1.30, 0.08);
+    wg.rotation.z = -0.3;
+    g.add(wg);
+    /* element ember glow on chest */
+    const EL = (typeof ELEMENTS !== 'undefined') && ELEMENTS[C.element];
+    if (EL) {
+      const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.075, 0), new THREE.MeshBasicMaterial({ color: EL.color }));
+      gem.position.set(0, 1.62, 0.26);
+      g.add(gem);
+      g.userData.gem = gem;
+    }
+    g.userData.parts = { legs: g.children.filter(m => m.userData.leg) };
+    return g;
+  }
+  function updateCompanions(dt) {
+    if (!companions.length) return;
+    const R = (typeof PARTY_RULES !== 'undefined') ? PARTY_RULES : { followDist: 2.6, catchUpDist: 7, aiAttackRange: 3.2, aiDamageMul: 0.55 };
+    companions.forEach((c, i) => {
+      const g = c.group;
+      /* follow formation: staggered trail behind-left of the player */
+      const offAng = player.rotation.y + Math.PI + (i - (companions.length - 1) / 2) * 0.55;
+      const tx = player.position.x + Math.sin(offAng) * R.followDist;
+      const tz = player.position.z + Math.cos(offAng) * R.followDist;
+      const dx = tx - g.position.x, dz = tz - g.position.z;
+      const dist = Math.hypot(dx, dz);
+      const catchUp = Math.hypot(player.position.x - g.position.x, player.position.z - g.position.z) > R.catchUpDist;
+      const sp = (catchUp ? c.def.speed * 1.9 : c.def.speed * 1.1) * dt;
+      if (dist > 0.35) {
+        g.position.x += (dx / dist) * Math.min(sp, dist);
+        g.position.z += (dz / dist) * Math.min(sp, dist);
+        g.rotation.y = Math.atan2(dx, dz);
+        /* leg swing while moving */
+        const t = elapsed * 9;
+        g.children.forEach(m => { if (m.userData.leg) m.rotation.x = Math.sin(t + (m.position.x > 0 ? 0 : Math.PI)) * 0.5; });
+      } else {
+        g.children.forEach(m => { if (m.userData.leg) m.rotation.x *= 0.8; });
+        g.rotation.y = player.rotation.y;
+      }
+      g.position.y = heightAt(g.position.x, g.position.z);
+      if (g.userData.gem) g.userData.gem.rotation.y += dt * 2.4;
+      /* AI: attack nearest alive enemy in range on cooldown */
+      c.atkCd -= dt;
+      if (c.atkCd <= 0 && combatEnabled) {
+        let best = null, bd = R.aiAttackRange;
+        enemies.forEach(en => {
+          if (!en.alive) return;
+          const d = Math.hypot(en.group.position.x - g.position.x, en.group.position.z - g.position.z);
+          if (d < bd) { bd = d; best = en; }
+        });
+        if (best) {
+          c.atkCd = 1.5 + Math.random() * 0.7;
+          const dmg = Math.max(1, Math.round((c.def.bonus + 0.6) * 10 * R.aiDamageMul));
+          best.hp -= dmg; best.hitFlash = Math.max(best.hitFlash || 0, 0.22);
+          addFxSpark(best.group.position.x, best.group.position.y, best.group.position.z, (ELEMENTS[c.def.element] || {}).color || 0x8ff0c8);
+          if (combatHooks.onDamage) combatHooks.onDamage(best, dmg, 'companion');
+          if (best.hp <= 0) { best.alive = false; best.respawn = COMBAT_RULES.respawnDelay; best.dying = 0.45; if (combatHooks.onKill) combatHooks.onKill(best); }
+        }
+      }
+    });
+  }
+
+  /* ---------- the Rift Tyrant (world boss) ---------- */
+  function spawnBoss() {
+    if (bossEnemy) return;
+    const B = (typeof BOSS !== 'undefined') && BOSS;
+    if (!B) return;
+    const group = buildEnemy('crab');
+    group.scale.setScalar(B.scale);
+    const x = B.x, z = B.z;
+    group.position.set(x, heightAt(x, z), z);
+    /* crown of glow shards to read as a boss */
+    const crownMat = new THREE.MeshBasicMaterial({ color: 0xff5b45 });
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      const shard = new THREE.Mesh(new THREE.OctahedronGeometry(0.30, 0), crownMat);
+      shard.position.set(Math.cos(a) * 0.7, 2.9, Math.sin(a) * 0.7);
+      group.add(shard);
+    }
+    scene.add(group);
+    bossEnemy = {
+      id: 'boss', boss: true, trialFamily: 'metallic', trialColor: 0xff5b45,
+      type: { id: B.id, name: B.name, hp: B.hp, speed: B.speed, damage: B.damage, score: B.score, gold: B.gold, scale: B.scale },
+      group: group, hp: B.hp, maxHp: B.hp, alive: true, respawn: 0, hitFlash: 0,
+      bob: 0, homeX: x, homeZ: z, state: 'idle', atkCd: 1.2, telegraph: 0, bindTimer: 0
+    };
+    enemies.push(bossEnemy);
+  }
+  function bossAlive() { return !!(bossEnemy && bossEnemy.alive); }
+  function updateBoss(dt) {
+    if (!bossEnemy || !bossEnemy.alive) return;
+    const en = bossEnemy, g = en.group;
+    const px = player.position.x, pz = player.position.z;
+    const dx = px - g.position.x, dz = pz - g.position.z, dist = Math.hypot(dx, dz);
+    if (dist < 26 && dist > COMBAT_RULES.attackRange + 0.8) {
+      const sp = en.type.speed * dt;
+      const nx = g.position.x + (dx / dist) * sp, nz = g.position.z + (dz / dist) * sp;
+      if (townDistance(nx, nz) > 1) { g.position.x = nx; g.position.z = nz; }
+      g.rotation.y = Math.atan2(-dx, -dz); en.state = 'chase';
+    } else if (dist <= COMBAT_RULES.attackRange + 0.8) {
+      en.state = 'attack';
+      en.atkCd -= dt;
+      if (en.atkCd <= 0) {
+        en.atkCd = 1.6;
+        addFxRing(g.position.x, g.position.y, g.position.z, 0xff5b45, 3.4, 0.42);
+        if (dashIFrames <= 0 && combatHooks.onHurt) combatHooks.onHurt(en);
+      }
+    } else en.state = 'idle';
+    g.position.y = heightAt(g.position.x, g.position.z);
+    if (en.hitFlash > 0) { en.hitFlash -= dt; g.scale.setScalar(en.type.scale * (1 + en.hitFlash * 0.5)); } else g.scale.setScalar(en.type.scale);
+  }
+  function bossInfo() {
+    if (!bossEnemy) return null;
+    return { name: bossEnemy.type.name, hp: Math.max(0, bossEnemy.hp), maxHp: bossEnemy.maxHp, alive: bossEnemy.alive, x: bossEnemy.group.position.x, z: bossEnemy.group.position.z };
   }
 
 
@@ -3301,6 +3558,7 @@ const WORLD = (function () {
     setCombatEnabled, setCombatHooks, spawnEnemies, getEnemies,
     performAttack, dashPlayer, equipWeapon, applyCharacterLook,
     startBondTrial, stopBondTrial, setBondTrialHooks, getBondTrialState,
+    setParty, spawnBoss, bossAlive, bossInfo,
     get combatState() { return { weapon: weaponId, character: charId, skin: skinId, enabled: combatEnabled }; },
     get scene() { return scene; },
     get townBounds() { return { ...TOWN }; },
