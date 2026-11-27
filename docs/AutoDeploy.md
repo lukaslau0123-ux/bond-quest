@@ -1,7 +1,11 @@
 # 自動更新（CI/CD）方案 — 鍵界 Bond Quest
 
 > 目標：改完 `_src/` 存檔 → 自動建置 → 自動驗證 → 自動上傳 → 線上網站 1–2 分鐘內更新。
-> 現況：專案已接入 `git`，建置／驗證／發佈腳本與 GitHub Actions workflow 已就緒，**只差把 repo 推上 GitHub 並開啟 Pages**（見 §4）。
+> 現況（2026-11-27）：**已全自動打通** — repo 已推上 GitHub（`lukaslau0123-ux/bond-quest`），Pages 已啟用，`git push` 即自動建置並發佈。
+> - GitHub Pages（永遠最新）：`https://lukaslau0123-ux.github.io/bond-quest/`
+> - WorkBuddy 固定連結（保留給已收到連結的人）：`https://bond-quest.app.workbuddy.host/?sharecode=UXRUYBRT6X`
+>
+> ⚠️ 兩條鏈接**內容一致但更新機制不同**：Pages 靠 CI 自動；WorkBuddy 連結要每次手動重新發佈 `site/` 才會更新（見 §6）。
 
 ---
 
@@ -98,7 +102,10 @@
 
 ---
 
-## 4. 一次性設定（約 10 分鐘）
+## 4. 一次性設定（約 10 分鐘）— ✅ 已完成（2026-11-21）
+
+> 以下步驟**已全部做過**，留作日後重建 repo 時的參考。
+> 現況：`origin` = `https://github.com/lukaslau0123-ux/bond-quest.git`（public）、分支 `main`、Pages 已啟用且 CI 綠燈。
 
 ### 4.1 建立遠端 repo
 
@@ -250,6 +257,15 @@ CI 的日誌在 GitHub → Actions → 對應 run → 展開 `建置` / `守門�
 https://bond-quest.app.workbuddy.host/?sharecode=UXRUYBRT6X
 ```
 
+**兩條線上鏈接對照（2026-11-27 起內容逐位元組一致）**
+
+| 鏈接 | 更新機制 | 適用 |
+|---|---|---|
+| `https://bond-quest.app.workbuddy.host/?sharecode=UXRUYBRT6X` | 手動重新發佈 `site/`（appId `wbapp_TgQ6cTAiyoqwbKTyZMQz4R`） | 已分享出去的固定連結 |
+| `https://lukaslau0123-ux.github.io/bond-quest/` | `git push` → CI 自動建置發佈 | 永遠最新版本、公開分享 |
+
+> 兩者差異只有 build 戳記的時區字串，內容雜湊（去除戳記後）完全相同。
+
 ### 9.1 為甚麼連結不會變
 
 發佈是綁在一個 **appId**（`wbapp_TgQ6cTAiyoqwbKTyZMQz4R`）上的。重新發佈時：
@@ -268,6 +284,7 @@ https://bond-quest.app.workbuddy.host/?sharecode=UXRUYBRT6X
 | 修改 → `npm run upload` → 重新發佈 | 828,198 | `3db7bd05…` | 22:27:39 |
 | 加入手機虛擬搖桿後重新發佈 | 838,391 | `7955209e…` | 23:00:46 |
 | 用**同一條連結**重新抓取 | 828,198 | `3db7bd05…` | 22:27:39 |
+| 2026-11-27 · 隊伍／元素／Boss 全線更新 | 1,155,877 | `dd4b0fad…` | 09:41:32 |
 
 連結完全相同，內容已被替換，且線上檔案的 SHA-256 與本地 `dist/index.html` **逐位元組一致**。
 
@@ -352,13 +369,14 @@ npx wrangler pages deploy site --project-name bond-quest
 ## 13. 驗收清單
 
 - [x] `git` repo 已建立，產物與日誌已排除
-- [x] `python build.py` 產出 809 KB、`site/` 同步
-- [x] `node scripts/verify.mjs` 8/8 通過
+- [x] `python build.py` 產出 1129 KB、`site/` 同步
+- [x] `node scripts/verify.mjs` 9/9 通過
 - [x] `npm run watch` 存檔後 1.1 秒完成重建（已實測）
 - [x] 故意寫壞 `data.js` → 驗證失敗、阻止部署、自動回滾（已實測）
 - [x] `node scripts/ship.mjs` 建置→驗證→提交 全鏈路通過（已實測）
 - [x] `npm run upload` 產出 `dist/`（版本戳 + 快取標頭）
 - [x] WorkBuddy 站點已發佈，連結 `?sharecode=UXRUYBRT6X`
 - [x] 重新發佈後同一連結內容更新（線上 SHA-256 = 本地，已實測）
-- [ ] 推到 GitHub（待你執行 §4.1，可選：做到全自動）
-- [ ] Settings → Pages → Source 選 GitHub Actions（待你執行 §4.2）
+- [x] 推到 GitHub：`origin` = `lukaslau0123-ux/bond-quest`（public，已推送）
+- [x] Settings → Pages → Source 選 GitHub Actions（Pages 已啟用，CI 綠燈）
+- [x] 兩條線上鏈接內容一致（去 build 戳記後 SHA-256 相同，2026-11-27 實測）

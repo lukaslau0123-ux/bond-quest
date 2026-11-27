@@ -2,7 +2,20 @@
 
 An open-world **chemistry learning game** (ionic / covalent / metallic bonding,
 dot-and-cross diagrams) with a Genshin-style action combat & reward loop.
-Everything is **English UI**. Main link: `https://bond-quest.app.workbuddy.host/?sharecode=UXRUYBRT6X`
+Everything is **English UI**.
+
+## Live links (both point to the same build)
+
+| Channel | URL |
+|---|---|
+| WorkBuddy 固定連結（主） | `https://bond-quest.app.workbuddy.host/?sharecode=UXRUYBRT6X` |
+| GitHub Pages（CI 自動） | `https://lukaslau0123-ux.github.io/bond-quest/` |
+| Repo | `https://github.com/lukaslau0123-ux/bond-quest` |
+
+雲端帳號 endpoint（登入／進度同步）：`https://bond-quest.app.workbuddy.host`
+→ 雲端認證**只可在已發佈網域運作**（Origin 必須一致），file:// 開啟會提示。
+
+版本查詢：`npm run status`（Pages／CI／線上戳記 vs 本地版本）。
 
 ## Golden rules
 
