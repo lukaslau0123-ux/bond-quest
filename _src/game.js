@@ -1427,18 +1427,60 @@
     return kinds;
   }
 
-  function chemistryDiagram(c, kind) {
+  
+/* What the LOOK step must actually show. One entry per compound:
+   [element symbol, element class]. Single-element substances get exactly one
+   card, because there is no second atom to add. */
+const ELEMENT_PARTS = {
+  nacl: [['Na', 'METAL'], ['Cl', 'NON-METAL']],
+  na2o: [['Na', 'METAL'], ['O', 'NON-METAL']],
+  mgcl2: [['Mg', 'METAL'], ['Cl', 'NON-METAL']],
+  cao: [['Ca', 'METAL'], ['O', 'NON-METAL']],
+  mg3n2: [['Mg', 'METAL'], ['N', 'NON-METAL']],
+  nh4cl: [['N', 'NON-METAL'], ['H', 'NON-METAL'], ['Cl', 'NON-METAL']],
+  h2o: [['O', 'NON-METAL'], ['H', 'NON-METAL']],
+  co2: [['C', 'NON-METAL'], ['O', 'NON-METAL']],
+  ch4: [['C', 'NON-METAL'], ['H', 'NON-METAL']],
+  hcl: [['H', 'NON-METAL'], ['Cl', 'NON-METAL']],
+  nh3: [['N', 'NON-METAL'], ['H', 'NON-METAL']],
+  bf3: [['B', 'NON-METAL'], ['F', 'NON-METAL']],
+  bcl3: [['B', 'NON-METAL'], ['Cl', 'NON-METAL']],
+  so2: [['S', 'NON-METAL'], ['O', 'NON-METAL']],
+  ph3: [['P', 'NON-METAL'], ['H', 'NON-METAL']],
+  al: [['Al', 'METAL']], fe: [['Fe', 'METAL']], na: [['Na', 'METAL']],
+  cu: [['Cu', 'METAL']], zn: [['Zn', 'METAL']], au: [['Au', 'METAL']],
+  h2: [['H', 'NON-METAL']], o2: [['O', 'NON-METAL']], cl2: [['Cl', 'NON-METAL']],
+  diamond: [['C', 'NON-METAL']], graphite: [['C', 'NON-METAL']], c60: [['C', 'NON-METAL']]
+};
+
+function chemistryDiagram(c, kind) {
     const f = c.f;
     const formula = '<div class="chemFormula">' + f + '</div>';
     let art = '', caption = '';
     if (kind === 'comp') {
-      const labels = c.comp === 1 ? ['METAL', 'NON-METAL'] : c.comp === 2 ? ['NON-METAL', 'NON-METAL'] : ['METAL IONS', 'METAL IONS'];
-      const syms = c.id === 'nacl' ? ['Na', 'Cl'] : c.id === 'h2o' ? ['O', 'H'] : c.id === 'co2' ? ['C', 'O'] : c.id === 'ch4' ? ['C', 'H'] : c.id === 'nh3' ? ['N', 'H'] : c.id === 'bf3' || c.id === 'bcl3' ? ['B', c.id === 'bf3' ? 'F' : 'Cl'] : c.id === 'o2' ? ['O', 'O'] : c.id === 'h2' ? ['H', 'H'] : [f, f];
-      art = '<div class="elementCards"><div><b>' + syms[0] + '</b><span>' + labels[0] + '</span></div><i>+</i><div><b>' + syms[1] + '</b><span>' + labels[1] + '</span></div></div>';
-      caption = bi('Identify the particles before choosing a bond.', '先認清粒子，再判斷化學鍵。');
+      /* The cards must show the particles that are actually in the formula.
+         The old fallback was [f, f], so a single-element metal rendered as
+         "Al + Al" - two aluminium atoms of the same element, which is not a
+         compound at all and teaches the wrong picture (rubric R1). Elements
+         now get ONE card; compounds list their real constituent elements. */
+      const parts = ELEMENT_PARTS[c.id] || [[f, c.comp === 3 ? 'METAL' : c.comp === 2 ? 'NON-METAL' : 'METAL']];
+      art = '<div class="elementCards p' + parts.length + '">';
+      parts.forEach((q, i) => {
+        if (i) art += '<i>+</i>';
+        art += '<div><b>' + q[0] + '</b><span>' + q[1] + '</span></div>';
+      });
+      art += '</div>';
+      caption = parts.length === 1
+        ? bi('One element only: every particle is the same kind of atom.', '只有一種元素：每粒粒子都是同一種原子。')
+        : bi('Identify the particles before choosing a bond.', '先認清粒子，再判斷化學鍵。');
     } else if (kind === 'pairs') {
       const p = c.pairs || { sym: '?', lone: 0, bond: 0 };
-      const links = { h2: ['H', 'H', 1], o2: ['O', 'O', 2], h2o: ['O', 'H', 2], co2: ['C', 'O', 2], ch4: ['C', 'H', 4], cl2: ['Cl', 'Cl', 1], hcl: ['Cl', 'H', 1], nh3: ['N', 'H', 3], bf3: ['B', 'F', 3], bcl3: ['B', 'Cl', 3], ph3: ['P', 'H', 3] }[c.id] || [p.sym, 'X', Math.min(4, p.bond)];
+      /* third field = how many atoms hang off the centre, NOT the bond order.
+         O2 has ONE neighbour and TWO bond pairs; the old ['O','O',2] drew a
+         central O bonded to two separate O atoms. */
+      const links = { h2: ['H', 'H', 1], o2: ['O', 'O', 1], h2o: ['O', 'H', 2], co2: ['C', 'O', 2], ch4: ['C', 'H', 4], cl2: ['Cl', 'Cl', 1], hcl: ['Cl', 'H', 1], nh3: ['N', 'H', 3], bf3: ['B', 'F', 3], bcl3: ['B', 'Cl', 3], ph3: ['P', 'H', 3] }[c.id] || [p.sym, 'X', Math.min(4, p.bond)];
+      /* bond pairs per link, so a double bond is drawn as two pairs */
+      const perBond = Math.max(1, Math.round((p.bond || 1) / Math.max(1, links[2])));
       const around = [];
       for (let i = 0; i < links[2]; i++) { const a = i * Math.PI * 2 / links[2] - Math.PI / 2; around.push([50 + Math.cos(a) * 31, 51 + Math.sin(a) * 29]); }
       art = '<svg class="moleculeSvg" viewBox="0 0 420 180" role="img" aria-label="Electron pair scaffold"><rect width="420" height="180" rx="16" fill="#0c2026"/>';
@@ -1447,7 +1489,13 @@
         art += '<line x1="185" y1="82" x2="' + x + '" y2="' + y + '" stroke="#70d8c0" stroke-width="5"/>';
         art += '<circle cx="' + x + '" cy="' + y + '" r="20" fill="#243c54" stroke="#8bded1" stroke-width="2"/><text x="' + x + '" y="' + (y + 6) + '" text-anchor="middle" fill="#efffff" font-size="18">' + links[1] + '</text>';
         const mx = (185 + x) / 2, my = (82 + y) / 2;
-        art += '<circle cx="' + (mx - 4) + '" cy="' + my + '" r="3.5" fill="#ffd86a"/><circle cx="' + (mx + 4) + '" cy="' + my + '" r="3.5" fill="#77cfff"/>';
+        const dx = x - 185, dy = y - 82, len = Math.hypot(dx, dy) || 1;
+        const ux = dx / len, uy = dy / len, px = -uy, py = ux;
+        for (let k = 0; k < perBond; k++) {
+          const off = (k - (perBond - 1) / 2) * 9;
+          art += '<circle cx="' + (mx + ux * 3.2 + px * off) + '" cy="' + (my + uy * 3.2 + py * off) + '" r="3.5" fill="#ffd86a"/>';
+          art += '<circle cx="' + (mx - ux * 3.2 + px * off) + '" cy="' + (my - uy * 3.2 + py * off) + '" r="3.5" fill="#77cfff"/>';
+        }
       });
       art += '<circle cx="185" cy="82" r="29" fill="#245849" stroke="#a5f5d5" stroke-width="3"/><text x="185" y="89" text-anchor="middle" fill="white" font-weight="700" font-size="24">' + links[0] + '</text>';
       art += '<text x="276" y="48" fill="#ffd86a" font-size="17">● lone pair = 2</text><text x="276" y="82" fill="#a9d9ff" font-size="17">● ● bond pair</text><text x="276" y="119" fill="#a9c9bf" font-size="14">shared between atoms</text><text x="276" y="144" fill="#a9c9bf" font-size="14">double bond = 2 pairs</text></svg>';
