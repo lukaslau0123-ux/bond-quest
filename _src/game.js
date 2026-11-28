@@ -4037,14 +4037,28 @@ function chemistryDiagram(c, kind) {
       cp.classList.add('mo-pop');
     }
   }
+  /* ---- companion render gate ---------------------------------------------
+     Requirement: a character body may only be on screen while the player is
+     actively controlling it. Anything else must never be rendered, and that
+     has to hold on first load, page refresh, save / cloud-state restoration
+     and every background update (shop or gacha unlock, boss respawn, zone
+     change).
+
+     WORLD.setParty() is the ONLY thing that puts a non-active character into
+     the three.js scene (world.js: setParty -> buildCompanionModel -> scene.add),
+     so gating here covers every one of those paths at a single point.
+
+     PARTY_FOLLOW = false is the strict reading of the brief: the world renders
+     exactly one body, the one the player switched to. Setting it back to true
+     restores the older "the character you left behind follows you" behaviour;
+     metRoster still records who has been taken control of, so that switch is a
+     one-line change. */
+  const PARTY_FOLLOW = false;
+
   function syncParty() {
-    /* A companion is a character you have taken control of and then left
-       behind. Roster members you never switched to stay off the field, so a
-       fresh save walks the world alone instead of towing an unexplained
-       second character through the tutorial. */
-    if (WORLD.setParty && started) {
-      WORLD.setParty(COMBAT.characters.filter(id => id !== COMBAT.character && COMBAT.metRoster.indexOf(id) >= 0));
-    }
+    if (!WORLD.setParty || !started) return;
+    if (!PARTY_FOLLOW) { WORLD.setParty([]); return; }
+    WORLD.setParty(COMBAT.characters.filter(id => id !== COMBAT.character && COMBAT.metRoster.indexOf(id) >= 0));
   }
   function cycleWeapon() {
     const owned = COMBAT.weapons;
@@ -4474,6 +4488,9 @@ function chemistryDiagram(c, kind) {
     lastFrame = performance.now();
     window.__world = WORLD;
     window.__bq = { openDialog, openDotCross, openVocab, showSummary, interact, state: () => state, DC, COMP, TERM, NODES, attempts, dialogKinds, openBigMap, openGacha, drawGacha, openDaily, toggleLanguage, startIntroTrial, completeIntroTrial, finishIntroTrial, attack: playerAttack, dash: () => WORLD.dashPlayer(), combat: () => COMBAT, updateBossHUD,
+      /* Party-render debugging: the gate in syncParty() must hold on every
+         path that can rebuild the scene, so QA can drive those paths. */
+      syncParty, applyProgress, switchToCharacter, partyFollow: () => PARTY_FOLLOW,
       tut: { show: tutShow, advance: tutAdvance, complete: tutComplete, step: () => tutStep, hide: tutHide, seen: tutSeen, tick: tickTutorial, look: () => tutLook, moved: () => tutMoved, reset: () => { try { localStorage.removeItem(TUT_KEY); } catch (e) {} } }, getState: () => ({ state, helpOpen, mapOpen, wpOpen }), wp: { list: () => [...unlockedWp], open: openWpList, tp: doTeleport, pop: showTpPop, all: WAYPOINTS, dbg: () => { const c = BM.canvas, r = c.getBoundingClientRect(), wr = $('mapWrap').getBoundingClientRect(); return { cw: c.width, ch: c.height, rw: r.width, rh: r.height, rl: r.left - wr.left, rt: r.top - wr.top, s: bmScale(), zoom: BM.zoom, cx: BM.cx, cz: BM.cz }; } } };
     requestAnimationFrame(loop);
   }
