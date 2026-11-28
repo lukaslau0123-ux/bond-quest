@@ -134,6 +134,11 @@
     gold: 0,
     weapons: ['sword'],          // owned weapon ids
     characters: ['lyra', 'kael'],  // unlocked character ids (both starters are free)
+    /* Characters the player has actually taken control of. Only these may
+       walk the world as companions: an untouched second starter used to trail
+       the player from the very first second and read as a stranger following
+       you around during the tutorial. */
+    metRoster: ['lyra'],
     skins: ['default'],          // owned skin ids
     weapon: 'sword',             // equipped
     character: 'lyra',           // active
@@ -166,6 +171,7 @@
         characters: COMBAT.characters, skins: COMBAT.skins,
         weapon: COMBAT.weapon, character: COMBAT.character, skin: COMBAT.skin, kills: COMBAT.kills,
         crystals: COMBAT.crystals, spentCrystals: COMBAT.spentCrystals,
+        met: COMBAT.metRoster.slice(),
         streak: COMBAT.streak, bestStreak: COMBAT.bestStreak, pity: COMBAT.pity,
         gachaPulls: recruitClaims, trialDraws: COMBAT.trialDraws, daily: COMBAT.daily
       };
@@ -186,6 +192,11 @@
       COMBAT.skins = Array.isArray(d.skins) ? d.skins : ['default'];
       COMBAT.weapon = WPN[d.weapon] ? d.weapon : 'sword';
       COMBAT.character = CHR[d.character] ? d.character : 'lyra';
+      /* an older save has no `met` list: assume only the character they are
+         actually playing has been taken control of, so upgrading does not
+         silently spawn a second body next to them */
+      COMBAT.metRoster = Array.isArray(d.met) ? d.met.filter(function (id) { return !!CHR[id]; }) : [COMBAT.character];
+      if (COMBAT.metRoster.indexOf(COMBAT.character) < 0) COMBAT.metRoster.push(COMBAT.character);
       COMBAT.skin = SKN[d.skin] ? d.skin : 'default';
       COMBAT.kills = d.kills || 0;
       COMBAT.crystals = Math.max(0, Number(d.crystals) || 0);
@@ -688,6 +699,7 @@
         characters: COMBAT.characters.slice(), skins: COMBAT.skins.slice(),
         weapon: COMBAT.weapon, character: COMBAT.character, skin: COMBAT.skin, kills: COMBAT.kills,
         crystals: COMBAT.crystals, spentCrystals: COMBAT.spentCrystals,
+        met: COMBAT.metRoster.slice(),
         streak: COMBAT.streak, bestStreak: COMBAT.bestStreak, pity: COMBAT.pity,
         gachaPulls: recruitClaims, trialDraws: COMBAT.trialDraws, daily: COMBAT.daily
       }
@@ -717,6 +729,8 @@
       COMBAT.skins = Array.isArray(c.skins) && c.skins.length ? c.skins : ['default'];
       COMBAT.weapon = WPN[c.weapon] ? c.weapon : 'sword';
       COMBAT.character = CHR[c.character] ? c.character : 'lyra';
+      COMBAT.metRoster = Array.isArray(c.met) ? c.met.filter(function (id) { return !!CHR[id]; }) : [COMBAT.character];
+      if (COMBAT.metRoster.indexOf(COMBAT.character) < 0) COMBAT.metRoster.push(COMBAT.character);
       COMBAT.skin = SKN[c.skin] ? c.skin : 'default';
       COMBAT.crystals = Math.max(0, Number(c.crystals) || 0);
       COMBAT.spentCrystals = Math.max(0, Number(c.spentCrystals) || 0);
@@ -3651,7 +3665,10 @@
         SFX.unlock(); toast('☻ Unlocked <b>' + c.name + '</b> — ' + c.role + '! They join your party.');
         syncParty();
       }
-      COMBAT.character = id; WORLD.applyCharacterLook(COMBAT.character, COMBAT.skin);
+      COMBAT.character = id;
+      /* taking control here counts as "met": leaving later makes them a companion */
+      if (COMBAT.metRoster.indexOf(id) < 0) COMBAT.metRoster.push(id);
+      WORLD.applyCharacterLook(COMBAT.character, COMBAT.skin);
       syncParty();
       saveCombat(); renderShop(); updateCombatHUD(); renderCharList(); return;
     }
@@ -3931,6 +3948,7 @@
     if (nowMs - (COMBAT.lastSwitchMs || 0) < 90) return;
     COMBAT.lastSwitchMs = nowMs;
     COMBAT.character = id;
+    if (COMBAT.metRoster.indexOf(id) < 0) COMBAT.metRoster.push(id);
     COMBAT.lightStep = 0;
     WORLD.applyCharacterLook(COMBAT.character, COMBAT.skin);
     syncParty();
@@ -3949,8 +3967,13 @@
     }
   }
   function syncParty() {
-    /* companions = every owned character except the active one */
-    if (WORLD.setParty && started) WORLD.setParty(COMBAT.characters.filter(id => id !== COMBAT.character));
+    /* A companion is a character you have taken control of and then left
+       behind. Roster members you never switched to stay off the field, so a
+       fresh save walks the world alone instead of towing an unexplained
+       second character through the tutorial. */
+    if (WORLD.setParty && started) {
+      WORLD.setParty(COMBAT.characters.filter(id => id !== COMBAT.character && COMBAT.metRoster.indexOf(id) >= 0));
+    }
   }
   function cycleWeapon() {
     const owned = COMBAT.weapons;
