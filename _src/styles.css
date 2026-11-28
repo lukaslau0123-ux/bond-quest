@@ -133,7 +133,9 @@ body{-webkit-user-select:none;user-select:none}
 .npcAvatar{width:46px;height:46px;flex:0 0 46px;border-radius:13px;background:linear-gradient(140deg,#2f8f76,#236d86);display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:600;color:#d8fff0}
 .chestIcon{width:46px;height:46px;flex:0 0 46px;border-radius:13px;background:linear-gradient(140deg,#8a6a2f,#5e4a20);display:flex;align-items:center;justify-content:center;font-size:20px;color:#ffe6a8}
 .npcName{font-size:15px;font-weight:500;color:#eafaf4}
+.npcChapter{font-size:10.5px;font-weight:800;letter-spacing:.13em;color:#7fd9b4;margin-top:5px}
 .npcLine{font-size:12.5px;color:#93b3a8;margin-top:3px;line-height:1.5}
+.npcLine.hasStory{font-size:13.5px;line-height:1.62;color:#a9c9bd;margin-top:6px;font-style:italic}
 .stepDots{display:flex;gap:6px;margin-bottom:14px}
 .stepDots .d{height:4px;flex:1;border-radius:2px;background:rgba(255,255,255,.1)}
 .stepDots .d.on{background:#5fd0a8}
@@ -221,13 +223,68 @@ body{-webkit-user-select:none;user-select:none}
 .pairsAsk .numberStepper input{width:100%;min-width:0;height:43px;font-size:21px;padding:0 4px}
 .electronTotal{padding:9px 12px;border-radius:8px;background:rgba(118,207,255,.07);color:#9fcbe0;font-size:12px;text-align:center;margin:7px 0 11px}
 .pairCheck{margin-top:0!important;padding:11px 18px!important}
-.challengeComplete{padding:18px;border:1px solid rgba(143,240,200,.35);border-radius:14px;background:linear-gradient(110deg,rgba(58,149,116,.16),rgba(61,116,155,.10));text-align:center}
-.challengeComplete>span{font-size:12px;font-weight:800;letter-spacing:.11em;color:#9ff0cb}.challengeComplete h2{margin:6px 0;font-size:29px;color:#f0fff8}.challengeComplete p{margin:0;color:#96b9ad;font-size:13px}
-.reasonRecap{margin:13px 0;display:grid;gap:8px}
-.recapStep{display:grid;grid-template-columns:28px 1fr;gap:10px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.035);border-left:2px solid #579d88}
-.recapStep>i{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#315e50;color:#c9f6e3;font-size:12px;font-style:normal}
-.recapStep b{font-size:14px;color:#dcf6ec}.recapStep p{margin:3px 0 0;font-size:12px;line-height:1.48;color:#9cbcb0}
-.recapProgress{text-align:center;color:#8fb2a6;font-size:12px;margin-top:11px}
+.challengeComplete{padding:15px 18px;border:1px solid rgba(143,240,200,.35);border-radius:14px;background:linear-gradient(110deg,rgba(58,149,116,.16),rgba(61,116,155,.10));text-align:center}
+.challengeComplete>span{font-size:13px;font-weight:800;letter-spacing:.11em;color:#9ff0cb}
+/* Perfect run: the card itself becomes the celebration (the old full-screen
+   PERFECT BOND banner needed top:22% and overlapped this heading). */
+.challengeComplete.perfect{border-color:rgba(255,216,106,.55);background:linear-gradient(110deg,rgba(255,216,106,.16),rgba(58,149,116,.12));box-shadow:0 0 0 1px rgba(255,216,106,.18),0 10px 34px rgba(255,180,60,.14);animation:recapPerfectIn .5s cubic-bezier(.2,.9,.3,1)}
+.challengeComplete.perfect>span{color:#ffd86a}
+.challengeComplete.perfect h2{background:linear-gradient(96deg,#fff6dc,#ffd86a 55%,#ffb45c);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:0 6px 26px rgba(255,180,60,.28)}
+@keyframes recapPerfectIn{from{opacity:0;transform:scale(.975)}to{opacity:1;transform:none}}
+/* Story beat shown inside the recap: the quest's own closing line, so the
+   narrative lands in the same card the player screenshots for revision. */
+.recapStory{margin:10px 0 0;padding:9px 14px;border-radius:12px;border-left:3px solid #7fd9b4;background:linear-gradient(110deg,rgba(127,217,180,.10),rgba(255,255,255,.02))}
+.recapStory>span{display:block;font-size:10.5px;font-weight:800;letter-spacing:.15em;color:#7fd9b4}
+.recapStory>p{margin:5px 0 0;font-size:13.5px;line-height:1.6;color:#c3ded2;font-style:italic}
+.recapStory>b{display:inline-block;margin-top:6px;font-size:12px;letter-spacing:.05em;color:#ffd86a}
+@keyframes recapStoryIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.recapStory{animation:recapStoryIn .38s cubic-bezier(.2,.9,.3,1) backwards;animation-delay:.34s}
+@media (prefers-reduced-motion:reduce){.recapStory{animation:none}}
+
+/* Chapter transition card — fired when a completed quest hands over to a
+   quest in a different chapter. Genshin-style: kicker, title, one line. */
+#chapterCard{position:fixed;left:50%;top:16%;transform:translate(-50%,-10px);z-index:62;width:min(520px,calc(100vw - 40px));padding:18px 24px 20px;text-align:center;pointer-events:none;opacity:0;visibility:hidden;transition:opacity .45s ease,transform .45s cubic-bezier(.2,.9,.3,1);background:linear-gradient(180deg,rgba(9,20,24,.95),rgba(9,20,24,.82));border:1px solid rgba(127,217,180,.35);border-radius:16px;box-shadow:0 24px 60px rgba(0,0,0,.55)}
+#chapterCard::after{content:"";position:absolute;left:50%;bottom:-1px;transform:translateX(-50%);width:64%;height:1px;background:linear-gradient(90deg,transparent,rgba(255,216,106,.8),transparent)}
+#chapterCard.show{opacity:1;visibility:visible;transform:translate(-50%,0)}
+#chapterCard>span{display:block;font-size:11px;font-weight:800;letter-spacing:.22em;text-transform:uppercase;color:#7fd9b4}
+#chapterCard>b{display:block;margin:7px 0 0;font-size:26px;letter-spacing:.06em;color:#f2fff9;line-height:1.12}
+#chapterCard>p{margin:8px 0 0;font-size:13.5px;line-height:1.55;color:#a9c9bd}
+@media (max-width:900px){#chapterCard{top:12%;padding:14px 18px 16px}#chapterCard>b{font-size:20px}#chapterCard>p{font-size:12.5px}}
+@media (prefers-reduced-motion:reduce){.challengeComplete.perfect{animation:none}}.challengeComplete h2{margin:5px 0;font-size:31px;color:#f0fff8}.challengeComplete p{margin:0;color:#a9cabe;font-size:13.5px}
+
+/* ---- recap mode: the summary page is the one screen a student screenshots ----
+   It drops the step dots, the NPC story line and the head padding so the larger
+   type can fit inside one card without a scrollbar. */
+#dialogModal .modalCard.recapMode{max-height:97vh;padding:12px 20px}
+#dialogModal .modalCard.recapMode .modalHead{margin-bottom:6px;padding-bottom:0;border-bottom:0}
+#dialogModal .modalCard.recapMode #npcChapter,#dialogModal .modalCard.recapMode #npcLine{display:none}
+#dialogModal .modalCard.recapMode #stepDots{display:none}
+#dialogModal .modalCard.recapMode .modalFoot{margin-top:6px;padding-top:6px}
+/* ---- the recap is the revision asset, so it reads as a headline, not fine print ----
+   Every line below was 12-14 px, which made the one screen a student is meant to
+   screenshot and revise from the least readable thing in the game. */
+.recapHead{margin:12px 0 9px;padding:11px 15px;border-radius:12px;border:1px solid rgba(143,240,200,.3);background:linear-gradient(110deg,rgba(58,149,116,.14),rgba(61,116,155,.06))}
+.recapHead>span{display:block;font-size:12.5px;font-weight:800;letter-spacing:.14em;color:#9ff0cb}
+.recapHead>p{margin:6px 0 0;font-size:15px;line-height:1.62;color:#d6efe6}
+.reasonRecap{margin:0 0 12px;display:grid;gap:10px}
+/* Two columns on a wide card so the whole chain — and the poster handoff
+   underneath it — fits without scrolling. */
+@media (min-width:860px){
+  .reasonRecap{grid-template-columns:1fr 1fr;gap:9px}
+  .reasonRecap>.recapStep:last-child:nth-child(odd){grid-column:1 / -1}
+}
+.recapStep{display:grid;grid-template-columns:34px 1fr;gap:12px;padding:10px 14px;border-radius:12px;background:rgba(255,255,255,.045);border-left:3px solid #579d88;animation:recapStepIn .42s cubic-bezier(.2,.9,.3,1) backwards}
+.recapStep:nth-child(1){animation-delay:.05s}.recapStep:nth-child(2){animation-delay:.13s}
+.recapStep:nth-child(3){animation-delay:.21s}.recapStep:nth-child(4){animation-delay:.29s}
+.recapStep>i{display:grid;place-items:center;width:34px;height:34px;border-radius:50%;background:linear-gradient(160deg,#3d8f74,#2b6a5c);color:#e6fff6;font-size:16px;font-style:normal;font-weight:800;box-shadow:0 0 0 1px rgba(143,240,200,.25)}
+.recapStep b{font-size:19px;line-height:1.32;color:#f0fff9;letter-spacing:.01em}
+.recapStep p{margin:6px 0 0;font-size:14.5px;line-height:1.66;color:#b3cfc4}
+.recapHandoff{margin:10px 0 0;padding:10px 15px;border-radius:12px;display:grid;gap:5px;background:linear-gradient(110deg,rgba(255,216,106,.13),rgba(255,216,106,.03));border:1px dashed rgba(255,216,106,.45)}
+.recapHandoff>b{font-size:14.5px;color:#ffd86a;letter-spacing:.02em}
+.recapHandoff>span{font-size:13.5px;line-height:1.6;color:#c8ddd3}
+.recapProgress{text-align:center;color:#8fb2a6;font-size:12.5px;margin-top:10px}
+@keyframes recapStepIn{from{opacity:0;transform:translateX(-14px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.recapStep{animation:none}}
 /* A quiet action prompt, not another blocking tutorial window. */
 #bigHint.bh{max-width:min(690px,88vw);border-width:1px;background:linear-gradient(105deg,rgba(11,28,30,.96),rgba(13,25,36,.96));box-shadow:0 12px 45px rgba(0,0,0,.34),0 0 30px rgba(95,208,168,.08)}
 #bigHint .bhText{font-size:24px;letter-spacing:.025em}#bigHint .bhSub{max-width:610px;line-height:1.5}

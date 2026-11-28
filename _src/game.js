@@ -990,8 +990,8 @@
     try { localStorage.setItem('bq_lang', LANG); } catch (e) { }
     syncLanguageUI();
     if (state === STATE.DIALOG && dlg) {
-      $('npcLine').textContent = guided
-        ? bi('Challenge · Classify ' + dlg.c.f, '挑戰 · 分類 ' + dlg.c.f)
+      $('npcLine').textContent = (dlg.story && dlg.story.intro) ? dlg.story.intro
+        : guided ? bi('Challenge · Classify ' + dlg.c.f, '挑戰 · 分類 ' + dlg.c.f)
         : bi('Classify ' + dlg.c.f + ' in three steps.', '用三個步驟分類 ' + dlg.c.f + '。');
       if (dlg.lastAnswer) renderDialogFeedback(); else renderDialogStep();
       $('dialogHintBtn').textContent = bi('Hint', '提示');
@@ -1165,6 +1165,14 @@
     /* Contextual, do-one-action teaching starts in the world. The seven long
        coach slides remain available from Help as an optional reference tour. */
     beginPending();
+    /* Open the arc: the prologue chapter card names the world's problem once,
+       right after the start screen clears. The tutorial banner is at the
+       bottom of the screen, so the two do not collide. */
+    if (window.Story && !tutSeen() && announcedChapter < 0) {
+      announcedChapter = 0;
+      lastChapterId = window.Story.chapters[0].id;
+      setTimeout(function () { showChapter(window.Story.chapters[0]); }, 1150);
+    }
     if (!storeOk) toast('Browser storage is blocked. Use Export data to keep a copy of your session.', 5000);
   }
 
@@ -1344,6 +1352,7 @@
   }
 
   function openDialog(node) {
+    hideChapter();
     releasePointerForModal();
     const c = COMP[node.compound];
     const kinds = dialogKinds(c);
@@ -1360,11 +1369,21 @@
     if (tutStep === 4) tutAdvance(5);   // training: the player actually pressed E!
     $('npcName').textContent = node.label.en + ' · ' + c.f;
     $('npcAvatar').textContent = c.f.replace(/[₀-₉]/g, '').slice(0, 2);
-    const mission = NODES.filter(n => n.main).indexOf(node) + 1;
+    /* The narrative layer was already written in story.js but never reached the
+       screen: this call site overwrote npcLine with a generic goal line and left
+       the `story` variable unused. That is why the quest panel named a chapter
+       while the conversation itself had no story in it. */
     const story = (window.Story && node.main) ? window.Story.forNode(node.id) : null;
-    $('npcLine').textContent = bi(
-      'Goal: explain why ' + c.f + ' has this bond type — not just guess its name.',
-      '目標：解釋 ' + c.f + ' 點解屬於呢種鍵，而唔只係估名。');
+    dlg.story = story;
+    $('npcChapter').textContent = story
+      ? window.Story.chapterLabel(node.id) + '  ·  ' + story.role
+      : '';
+    $('npcChapter').style.display = story ? '' : 'none';
+    $('npcLine').className = story ? 'npcLine hasStory' : 'npcLine';
+    $('npcLine').textContent = story
+      ? story.intro
+      : bi('Goal: explain why ' + c.f + ' has this bond type — not just guess its name.',
+           '目標：解釋 ' + c.f + ' 點解屬於呢種鍵，而唔只係估名。');
     setState(STATE.DIALOG);
     openModal('dialogModal');
     renderDialogStep();
@@ -1431,6 +1450,8 @@
   }
 
   function renderDialogStep() {
+    const _dc = document.querySelector('#dialogModal .modalCard');
+    if (_dc) _dc.classList.remove('recapMode');
     const c = dlg.c;
     $('dialogActions').replaceChildren();
     const sets = optionSets(c);
@@ -1810,6 +1831,49 @@
     }
   }
 
+  /* The nine main quests are chaptered in story.js but nothing ever announced
+     a chapter boundary, so the arc was invisible while playing. When a quest
+     closes and the next tracked one opens a new chapter, name it on screen. */
+  let lastChapterId = null;
+  function chapterForNode(id) {
+    if (!window.Story) return null;
+    const c = window.Story.chapterFor(id);
+    return c ? c : null;
+  }
+  let pendingChapter = null;
+  let announcedChapter = -1;   /* index of the last chapter card the player saw */
+  function chapterIndex(ch) { return ch ? window.Story.chapters.indexOf(ch) : -1; }
+  /* Announce a chapter card only when the quest tracker moves FORWARD into a
+     chapter the player has not been shown yet. Comparing against the last
+     announced index (not against the node just finished) stops a side quest
+     from replaying a card for a chapter that is already on screen. */
+  function chapterTransition() {
+    const next = trackedNode();
+    if (!next) return;
+    const now = chapterForNode(next.id);
+    if (!now) return;
+    const idx = chapterIndex(now);
+    if (idx < 0 || idx <= announcedChapter) return;
+    announcedChapter = idx;
+    lastChapterId = now.id;
+    pendingChapter = now;   /* shown by closeDialog, over the world not the recap */
+  }
+  /* A chapter card is a world-space announcement: it must never sit on top of a
+     question, a recap or the dot-and-cross board. Every modal open clears it. */
+  function hideChapter() {
+    const el = $('chapterCard');
+    if (el) el.classList.remove('show');
+  }
+  function showChapter(ch) {
+    const el = $('chapterCard'); if (!el) return;
+    if (state !== STATE.WORLD) return;
+    $('chapterKicker').textContent = ch.sub;
+    $('chapterTitle').textContent = ch.title;
+    $('chapterLine').textContent = ch.line;
+    el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
+    setTimeout(function () { el.classList.remove('show'); }, 5200);
+  }
+
   function finishDialog() {
     const c = dlg.c;
     const wasDone = done.has(dlg.node.id);
@@ -1823,7 +1887,8 @@
     if (perfect && !wasDone) {
       bonus = awardPerfectChallenge();
       SFX.perfect();
-      showPerfectBond(bi('All steps clean · bonus secured', '全部一次答對 · 完美獎勵已取得'));
+      /* No full-screen banner here: it lands at top:22% and covers the recap
+         heading (NaCl = IONIC). The card prints its own PERFECT BOND chip. */
     }
     if (tutStep === 5) tutComplete();   // training: the player finished a whole challenge
     done.add(dlg.node.id); questCelebrate();
@@ -1831,14 +1896,30 @@
     const bondName = ['', 'IONIC', 'COVALENT', 'METALLIC'][c.bond];
     const pairRecap = dlg.kinds.includes('pairs') && c.pairs ? '<div class="recapStep"><i>4</i><div><b>' + c.pairs.lone + ' lone pair(s) · ' + c.pairs.bond + ' bond pair(s)</b><p>' + textOf(pairsExplanation(c)) + '</p></div></div>' : '';
     $('dialogBody').innerHTML =
-      '<div class="challengeComplete"><span>' + (perfect ? '★ PERFECT BOND' : '✓ CHALLENGE COMPLETE') + '</span><h2>' + c.f + ' = ' + bondName + '</h2><p>' + bi('Here is your full reasoning chain:', '你已完成以下完整推理：') + '</p></div>' +
+      '<div class="challengeComplete' + (perfect ? ' perfect' : '') + '"><span>' + (perfect ? '★ PERFECT BOND' : '✓ CHALLENGE COMPLETE') + '</span><h2>' + c.f + ' = ' + bondName + '</h2><p>' + bi('Here is your full reasoning chain:', '你已完成以下完整推理：') + '</p></div>' +
+      (dlg.story && !wasDone ? '<div class="recapStory"><span>' + bi('STORY', '劇情') + ' · ' + dlg.story.client + '</span><p>' + dlg.story.done + '</p><b>✦ ' + dlg.story.reward + '</b></div>' : '') +
+      '<div class="recapHead"><span>✓ WHAT YOU LEARNED</span><p>' +
+        bi('Four steps, one chain. This is the answer you can reuse on any compound you meet — including ones you have never seen.',
+           '四個步驟一條推理鏈。以後遇到任何化合物（包括未見過的）都可以重用。') +
+        '</p></div>' +
       '<div class="reasonRecap">' +
       '<div class="recapStep"><i>1</i><div><b>' + textOf(optionSets(c)[0].find(o => o.v === c.comp)) + '</b><p>' + textOf(explain(c, 1)) + '</p></div></div>' +
       '<div class="recapStep"><i>2</i><div><b>' + textOf(optionSets(c)[1].find(o => o.v === c.ebeh)) + '</b><p>' + textOf(explain(c, 2)) + '</p></div></div>' +
       '<div class="recapStep"><i>3</i><div><b>' + bondName + ' BOND</b><p>' + textOf(explain(c, 3)) + '</p></div></div>' + pairRecap + '</div>' +
       (bonus ? '<div class="rewardChip perfect">+' + bonus.xp + ' XP · +' + bonus.gold + ' gold · +' + bonus.crystals + ' crystal</div>' : '') +
-      '<div class="recapProgress">' + bi('Main progress: ' + mainDone() + ' / ' + MAIN_TOTAL + ' · Keep this chain for revision.', '主線進度：' + mainDone() + ' / ' + MAIN_TOTAL + ' · 保留呢條推理鏈作複習。') + '</div>';
+      '<div class="recapHandoff"><b>' +
+        bi('Copy this chain onto your poster', '把這條推理鏈抄到你的海報') +
+        '</b><span>' +
+        bi('formula → element types → electron behaviour → bond type → lone / bond pairs',
+           '化學式 → 元素類型 → 電子行為 → 鍵型 → 孤對 / 鍵對') +
+        '</span></div>' +
+      '<div class="recapProgress">' + bi('Main progress: ' + mainDone() + ' / ' + MAIN_TOTAL, '主線進度：' + mainDone() + ' / ' + MAIN_TOTAL) + '</div>';
     $('dialogHintBtn').style.display = 'none';
+    /* The recap is the one screen a student photographs for revision, so it gets
+       a compact layout: the now-redundant step dots and some breathing room are
+       traded for larger type that fits without scrolling. */
+    const dialogCard = document.querySelector('#dialogModal .modalCard');
+    if (dialogCard) dialogCard.classList.add('recapMode');
     $('dialogActions').replaceChildren();
     $('dialogCloseBtn').textContent = bi('Back to world', '返回世界');
     refreshLocks();
@@ -1847,12 +1928,14 @@
     if (guided) labCompletionActions($('dialogBody'), closeDialog);
     persist();
     const epilogue = (!wasDone && dlg.node.main && window.Story) ? window.Story.forNode(dlg.node.id) : null;
+    if (epilogue) chapterTransition();
     toast(epilogue ? ('✦ ' + epilogue.done + ' <b>' + epilogue.reward + '</b>')
                    : ((dlg.node.main ? '✓ Quest complete! +1 — ' : '✓ Side quest complete — ') + c.f + ' classified'), 3200);
   }
 
   function closeDialog(next) {
     closeModal('dialogModal');
+    if (pendingChapter) { const ch = pendingChapter; pendingChapter = null; setTimeout(function () { if (state === STATE.WORLD) showChapter(ch); }, 420); }
     setState(STATE.WORLD);
     $('dialogCloseBtn').textContent = bi('Leave', '離開');
     dlg = null;
@@ -1888,6 +1971,7 @@
   }
 
   function openDotCross(node) {
+    hideChapter();
     releasePointerForModal();
     dcq = {
       node, q: DC[node.dc], marks: {}, charges: {}, bracket: false,
@@ -2400,6 +2484,7 @@
   }
 
   function closeDC(next) {
+    const closedId = dcq ? dcq.node.id : null;
     closeModal('dotcrossModal');
     setState(STATE.WORLD);
     $('dcCheckBtn').textContent = bi('Check', '檢查');
@@ -2408,6 +2493,8 @@
     guided = false;
     if (next === true) return;
     checkAllMainDone();
+    if (closedId) chapterTransition();
+    if (pendingChapter) { const ch = pendingChapter; pendingChapter = null; setTimeout(function () { if (state === STATE.WORLD) showChapter(ch); }, 420); }
     WORLD.relock();
   }
 
@@ -2479,6 +2566,7 @@
   /* ================= VOCAB ================= */
   let vocabNode = null;
   function openVocab(node) {
+    hideChapter();
     vocabNode = node;
     const t = TERM[node.term];
     $('vocabTerm').textContent = t.en;
@@ -2495,6 +2583,8 @@
     logEvent({ type: 'vocab', term: vocabNode.term });
     closeModal('vocabModal');
     setState(STATE.WORLD);
+    chapterTransition();
+    if (pendingChapter) { const ch = pendingChapter; pendingChapter = null; setTimeout(function () { if (state === STATE.WORLD) showChapter(ch); }, 420); }
     SFX.unlock();
     toast('✓ Vocabulary collected: <b>' + TERM[vocabNode.term].en + '</b> — added to your glossary');
     vocabNode = null;

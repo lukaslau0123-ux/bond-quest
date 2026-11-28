@@ -31,7 +31,7 @@
 
   const STORY = {
     n1: {
-      chapter: 0, client: 'Ion Sage', role: 'Keeper of the White Flats',
+      chapter: 1, client: 'Ion Sage', role: 'Keeper of the White Flats',
       intro: '"You came. Good." The sage lifts a hand and a grain of salt splits into two glowing halves. ' +
              '"Before you can mend the realm, tell me what binds these two. Na gives. Cl takes. What holds them together?"',
       objective: 'Ask the Ion Sage about the salt that is coming apart',
@@ -39,7 +39,7 @@
       reward: 'Bond fragment: IONIC'
     },
     n2: {
-      chapter: 0, client: 'Salt Chest', role: 'Sealed relic of the Flats',
+      chapter: 1, client: 'Salt Chest', role: 'Sealed relic of the Flats',
       intro: 'The chest will not open. Nine empty slots glow around two atoms. ' +
              '"Draw the transfer truly — one dot leaves, one cross arrives — and I will yield my fragment."',
       objective: 'Restore the salt diagram inside the Salt Chest',
@@ -47,7 +47,7 @@
       reward: 'Diagram sealed: NaCl'
     },
     n3: {
-      chapter: 1, client: 'Gas Spirit', role: 'Lost twin of the Grotto',
+      chapter: 2, client: 'Gas Spirit', role: 'Lost twin of the Grotto',
       intro: 'A small spirit bobs alone. "I had a twin," it whispers. "We shared everything. ' +
              'Two shells, one pair of electrons... do you still remember how we were bound?"',
       objective: 'Help the Gas Spirit remember its shared pair',
@@ -55,7 +55,7 @@
       reward: 'Bond fragment: COVALENT'
     },
     n4: {
-      chapter: 2, client: 'Forge Keeper', role: 'Smith of Ironwood',
+      chapter: 3, client: 'Forge Keeper', role: 'Smith of Ironwood',
       intro: 'The hammer strikes cold iron and rings hollow. "Metal used to carry a charge," the keeper grumbles. ' +
              '"Now nothing moves. Tell me what flowed through this ore."',
       objective: 'Diagnose the silent metal in the Forge',
@@ -63,7 +63,7 @@
       reward: 'Bond fragment: METALLIC'
     },
     n5: {
-      chapter: 3, client: 'Water Nymph', role: 'Guardian of the Weeping Spring',
+      chapter: 4, client: 'Water Nymph', role: 'Guardian of the Weeping Spring',
       intro: 'She cups the spring water in her hands. "My children drift apart," she says. ' +
              '"Two hydrogens, one oxygen — the angles are wrong. What do they share?"',
       objective: 'Listen to the Water Nymph and name the shared pairs',
@@ -71,7 +71,7 @@
       reward: 'Bond fragment: H₂O'
     },
     n6: {
-      chapter: 4, client: 'Acid Chest', role: 'The hungry reliquary',
+      chapter: 5, client: 'Acid Chest', role: 'The hungry reliquary',
       intro: 'A sour mist curls from the seams. Something inside is still unsatisfied — ' +
              'one electron short of a full shell. The diagram must be completed to calm it.',
       objective: 'Complete the dot-and-cross diagram of the Acid Chest',
@@ -79,7 +79,7 @@
       reward: 'Diagram sealed: HCl'
     },
     n7: {
-      chapter: 5, client: 'Air Wanderer', role: 'Voice on the High Road',
+      chapter: 6, client: 'Air Wanderer', role: 'Voice on the High Road',
       intro: 'A traveller with no footprints hails you. "I breathe, yet I cannot bind," they say. ' +
              '"Two of me, two of the sky... what would make us one molecule?"',
       objective: 'Answer the Air Wanderer on the high road',
@@ -87,7 +87,7 @@
       reward: 'Bond fragment: O₂'
     },
     n8: {
-      chapter: 6, client: 'Methane Chest', role: 'Relic of the Mire',
+      chapter: 7, client: 'Methane Chest', role: 'Relic of the Mire',
       intro: 'Four dark faces orbit a hidden centre. The chest speaks in the Herald\'s voice: ' +
              '"Four hands around one heart. Place every shared pair and I will open."',
       objective: 'Rebuild the four shared pairs in the Mire chest',
@@ -95,7 +95,7 @@
       reward: 'Diagram sealed: CH₄'
     },
     n9: {
-      chapter: 7, client: 'Crystal Scholar', role: 'Last voice of the Herald',
+      chapter: 8, client: 'Crystal Scholar', role: 'Last voice of the Herald',
       intro: 'She stands before the Academy door, holding a fractured prism. ' +
              '"The Herald said understanding is the only weapon that never breaks. ' +
              'One last question, traveller — what makes a crystal hard?"',
