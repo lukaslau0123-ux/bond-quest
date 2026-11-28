@@ -1851,8 +1851,13 @@ const WORLD = (function () {
 
       g.position.set(n.x, y, n.z);
       scene.add(g);
-      nodeMeshes.set(n.id, { group: g, marker, baseColor: color });
-      colliders.push({ x: n.x, z: n.z, r: n.colliderR || 1.9 });
+      const col = { x: n.x, z: n.z, r: n.colliderR || 1.9 };
+      colliders.push(col);
+      nodeMeshes.set(n.id, {
+        group: g, marker, baseColor: color,
+        collider: col, colliderR: n.colliderR || 1.9,
+        hidden: false, fade: null
+      });
     });
   }
 
@@ -2961,6 +2966,8 @@ const WORLD = (function () {
   function nearestNode(maxDist) {
     let best = null, bestD = Infinity;
     for (const n of nodes) {
+      const rec = nodeMeshes.get(n.id);
+      if (rec && rec.hidden) continue;          /* collected / finished: no ghost prompt */
       const d = Math.hypot(n.x - player.position.x, n.z - player.position.z);
       const r = n.ir || maxDist;
       if (d < r && d < bestD) { bestD = d; best = n; }
@@ -3155,6 +3162,20 @@ const WORLD = (function () {
 
   function animateMarkers(t) {
     nodeMeshes.forEach((o, id) => {
+      /* finished nodes (collected shard / completed conversation) dissolve away so the
+         world does not keep showing a prop the player already dealt with */
+      if (o.fade) {
+        if (o.fade.t0 === null) o.fade.t0 = t;
+        const k = Math.max(0, Math.min(1, (t - o.fade.t0) / o.fade.dur));
+        const e = 1 - Math.pow(1 - k, 2);
+        o.group.scale.setScalar(1 - 0.55 * e);
+        o.marker.material.opacity = 0.95 * (1 - k);
+        o.marker.rotation.y = t * 4.2;
+        o.marker.position.y = (o.marker.userData.baseY || (o.marker.userData.baseY = o.marker.position.y)) + e * 1.1;
+        if (k >= 1) { o.group.visible = false; o.fade = null; }
+        return;
+      }
+      if (o.hidden) { if (o.group.visible) o.group.visible = false; return; }
       o.marker.rotation.y = t * 1.4;
       o.marker.position.y = (o.marker.userData.baseY || (o.marker.userData.baseY = o.marker.position.y)) + Math.sin(t * 2 + id.length) * 0.28;
       /* NPC 手上道具旋轉 + 腳下光環呼吸（npcFigure 會設 userData.spin / auraRing） */
@@ -3173,18 +3194,42 @@ const WORLD = (function () {
     const o = nodeMeshes.get(id);
     if (!o) return;
     if (state === 'done') {
+      if (o.hidden) return;
+      o.hidden = true;
       o.marker.material.color.setHex(0x4a6a60);
       o.marker.material.emissive.setHex(0x1e3a33);
-      o.marker.material.opacity = 0.35;
-      o.group.scale.setScalar(0.82);
+      o.marker.material.opacity = 0.95;
+      /* start the dissolve and free the spot the node used to block */
+      o.fade = { t0: null, dur: 0.62 };
+      if (o.collider) o.collider.r = 0;
+      const p = o.group.position;
+      addFxRing(p.x, p.y + 1.15, p.z, o.baseColor, 2.6, 0.6);
+      for (let i = 0; i < 6; i++) {
+        addFxSpark(
+          p.x + (Math.random() - 0.5) * 1.5,
+          p.y + 1.0 + Math.random() * 1.4,
+          p.z + (Math.random() - 0.5) * 1.5,
+          o.baseColor
+        );
+      }
     } else if (state === 'locked') {
+      o.hidden = false;
+      o.fade = null;
+      o.group.visible = true;
+      o.group.scale.setScalar(1);
       o.marker.material.color.setHex(0x555a5c);
       o.marker.material.emissive.setHex(0x222426);
       o.marker.material.opacity = 0.55;
+      if (o.collider) o.collider.r = o.colliderR;
     } else {
+      o.hidden = false;
+      o.fade = null;
+      o.group.visible = true;
+      o.group.scale.setScalar(1);
       o.marker.material.color.setHex(o.baseColor);
       o.marker.material.emissive.setHex(o.baseColor);
       o.marker.material.opacity = 0.95;
+      if (o.collider) o.collider.r = o.colliderR;
     }
   }
 
