@@ -153,6 +153,7 @@
     <div class="startFoot">
       <button id="startBtn" class="primary">Start — learn by playing</button>
       <button id="exploreBtn" class="ghost">Free roam (skip tutorial)</button>
+      <p class="startGuest" id="startGuestNote">Guest mode — your progress is saved in <b>this browser only</b>. Switch to another computer and it will not follow you. Press <b>IN</b> (top right) to sign in and keep it.</p>
     </div>
   </div>
 </div>
@@ -171,6 +172,7 @@
         <p class="labIntro">Your party: you walk the world alone until you take control of someone. Press <b>1</b>–<b>7</b> to switch to that character — from then on the one you leave behind follows you and fights alongside you. <b>C</b> cycles to the next character, <b>Q</b> swaps weapons, and the <b>☻</b> button opens the party list.</p>
       </div>
     <div class="modalFoot">
+      <button class="ghost" id="helpTutBtn">Replay the tutorial</button>
       <button class="ghost" id="helpCoachBtn">Replay text guide</button>
       <button class="primary" id="helpCloseBtn">Got it, let's play</button>
     </div>
@@ -289,11 +291,13 @@
       <div class="chestIcon">◍</div>
       <div>
         <div class="npcName">Account</div>
-        <div class="npcLine">Sign in with an email code — your progress syncs to the cloud</div>
+        <div class="npcLine">Sign in with Google or an email code — your progress then syncs to the cloud</div>
       </div>
     </div>
     <div class="modalBody">
       <div id="clGuest">
+        <button type="button" class="authOauth" id="clGoogle"><b>G</b><span>Continue with Google</span></button>
+        <div class="authOr"><i></i><span>or use an email code</span><i></i></div>
         <form id="clForm" novalidate>
           <div class="authField">
             <label for="clEmail">Email</label>
@@ -329,7 +333,7 @@
       </div>
     </div>
     <div class="modalFoot authFoot">
-      <span class="authNote">Passwordless one-time code. Progress is private to your account.</span>
+      <span class="authNote">Guest progress lives in this browser only. Sign in and it follows you to any computer.</span>
       <button class="ghost" id="clClose">Close</button>
     </div>
   </div>

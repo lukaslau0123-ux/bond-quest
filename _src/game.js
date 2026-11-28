@@ -362,7 +362,7 @@
        done   — celebration, combat unlocked, bonus hint
      Progress bar fills as the player performs each real action.
      ================================================================ */
-  const TUT_KEY = 'bq_tut_v2';
+  const TUT_KEY = 'bq_tut_v3';
   let tutStep = 0;            // 0 idle · 1 move · 2 look · 3 approach · 4 pressE · 5 answer · 6 done
   let tutMoved = 0;           // metres actually walked in step 1
   let tutLastPos = null;      // last player position for move measuring
@@ -437,8 +437,11 @@
     return 'Talk to them: classify ' + c.f + ' in ' + dialogKinds(c).length + ' questions.';
   }
 
-  function tutStart() {
-    if (tutSeen() || mainDone()) return;
+  /* force = the player explicitly asked for the lesson (Start button, or
+     Help > Replay the tutorial). Without it a finished tutorial stays finished,
+     so walking into a spirit later does not replay step 1 at you. */
+  function tutStart(force) {
+    if (!force && (tutSeen() || mainDone())) return;
     setTimeout(() => {
       if (guided || state !== STATE.WORLD) return;
       tutShow(1); tutProgress(0); tutLive('');
@@ -449,7 +452,7 @@
   /* Called after the 60-second Bond Trial ends: the fight has taught the combat
      controls, so now teach the chemistry loop the same way — by doing. */
   function tutStartAfterTrial() {
-    if (tutSeen() || mainDone()) return;
+    if (tutSeen() || mainDone()) return;   /* the trial already taught it this run */
     tutStep = 0; tutMoved = 0; tutLook = 0; tutLastPos = null;
     setTimeout(() => { if (state === STATE.WORLD) tutStart(); }, 400);
   }
@@ -1174,7 +1177,15 @@
     logEvent({ type: 'start', mode: introLevel ? 'bond_trial' : openLab ? 'lab' : 'explore' });
     const beginPending = () => {
       if (openLab) openNextLab();
-      else { WORLD.requestLock(); tutStart(); }
+      else {
+        WORLD.requestLock();
+        /* "Start - learn by playing" is the guided entry point, so it teaches
+           every single time it is pressed, even for a player whose old save
+           already carries the finished-tutorial flag. Free roam says "skip
+           tutorial" on the button, so it honours that and never teaches.
+           Help > Replay the tutorial is the way back in either case. */
+        if (introLevel) tutStart(true);
+      }
     };
     /* Contextual, do-one-action teaching starts in the world. The seven long
        coach slides remain available from Help as an optional reference tour. */
@@ -1880,7 +1891,12 @@
   }
   function showChapter(ch) {
     const el = $('chapterCard'); if (!el) return;
+    /* A chapter card is an announcement over the world. If the player has a
+       question, the recap, the map or the account window open, the moment has
+       passed - showing it would just paint text on top of that dialog. */
     if (state !== STATE.WORLD) return;
+    if (helpOpen || mapOpen || wpOpen || coachOn) return;
+    if (document.querySelector('.modal.show')) return;
     $('chapterKicker').textContent = ch.sub;
     $('chapterTitle').textContent = ch.title;
     $('chapterLine').textContent = ch.line;
@@ -2858,6 +2874,13 @@
   $('helpCoachBtn').addEventListener('click', () => {
     closeHelp();
     setTimeout(() => coachShow(0), 80);
+  });
+  /* The tutorial used to be unreachable once finished: no menu entry, and the
+     banner only appeared on a brand-new save. One click brings it back. */
+  const helpTutBtn = $('helpTutBtn');
+  if (helpTutBtn) helpTutBtn.addEventListener('click', () => {
+    closeHelp();
+    setTimeout(function () { if (state === STATE.WORLD) { tutStep = 0; tutStart(true); } }, 80);
   });
 
   /* ================= TELEPORT WAYPOINTS ================= */
@@ -4383,7 +4406,9 @@
     // ---- Account system ----
     $('authBtn').addEventListener('click', () => CLOUD.open());
     // Freeze the character while the account window is open so WASD typing does not move the player
-    document.addEventListener('bq:auth-open', () => { WORLD.setLocked(true); });
+    /* The chapter card floats above the world at z-index 62, so a card that
+       happened to be on screen would sit on top of the account dialog. */
+    document.addEventListener('bq:auth-open', () => { hideChapter(); WORLD.setLocked(true); });
     document.addEventListener('bq:auth-close', () => {
       WORLD.clearKeys();
       if (state === STATE.WORLD) WORLD.setLocked(false);

@@ -283,6 +283,53 @@ const CLOUD = (function () {
     }
   }
 
+  /* Google sign-in goes through the WorkBuddy OAuth relay: the SDK hands back a
+     URL, we navigate to it, Google returns to this same page with ?code&state,
+     and init() exchanges it. Nothing about the user's Google password ever
+     touches this page. */
+  async function startGoogle() {
+    if (!onPublishedOrigin()) {
+      msg('Google sign-in only works on the published site (' + CFG.endpoint + '). Open the live link to use it.', 'err');
+      return;
+    }
+    if (!sdk) { msg('Cloud service failed to load. Check your connection and refresh.', 'err'); return; }
+    if (busy) return;
+    busy = true;
+    const btn = $('clGoogle');
+    if (btn) btn.disabled = true;
+    msg('Opening Google\u2026', 'ok');
+    try {
+      const { data, error } = await sdk.auth.signInWithOAuth({
+        provider: 'google',
+        redirectTo: location.origin + location.pathname
+      });
+      if (error || !data || !data.url) {
+        msg(errText(error, 'Google sign-in is unavailable right now. Use the email code instead.'), 'err');
+        return;
+      }
+      location.href = data.url;
+    } catch (e) {
+      msg('Google sign-in failed. Use the email code instead.', 'err');
+    } finally {
+      busy = false;
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  /* Is this page load the return leg of an OAuth round trip? */
+  function oauthReturn() {
+    try {
+      const q = new URLSearchParams(location.search);
+      return q.has('code') && q.has('state');
+    } catch (e) { return false; }
+  }
+  function clearOauthQuery() {
+    try {
+      const url = location.origin + location.pathname;
+      history.replaceState(null, '', url);
+    } catch (e) { }
+  }
+
   async function afterSignIn() {
     const guest = (function () {
       try { return JSON.parse(localStorage.getItem(GUEST_KEY) || 'null'); } catch (e) { return null; }
@@ -350,7 +397,7 @@ const CLOUD = (function () {
     document.dispatchEvent(new CustomEvent('bq:auth-open'));
 
     if (!onPublishedOrigin()) {
-      msg('Cloud sign-in only works on the published site (' + CFG.endpoint + '). Open the live link to use it.', 'err');
+      msg('Cloud sign-in only works on the published site (' + CFG.endpoint + ') because the account server only accepts requests from that address. You are playing as a guest: progress stays in this browser.', 'err');
     } else if (sdk && !session && pending) {
       // 已經寄出驗證碼：回復輸入框，唔需要玩家重新發送
       if ($('clEmail')) $('clEmail').value = pending.email;
@@ -398,6 +445,7 @@ const CLOUD = (function () {
     form.addEventListener('submit', function (e) { e.preventDefault(); });
 
     const bind = function (id, fn) { const el = $(id); if (el) el.addEventListener('click', fn); };
+    bind('clGoogle', startGoogle);
     bind('clSend', sendCode);
     bind('clVerify', submitCode);
     bind('clClose', close);
@@ -453,6 +501,36 @@ const CLOUD = (function () {
         return { user: null, payload: readGuest(), blocked: 'init' };
       }
 
+      /* Returning from Google: swap the one-time code for a session before we
+         ask the SDK who we are, otherwise we would land as a guest again. */
+      if (oauthReturn()) {
+        try {
+          const back = await sdk.auth.handleOAuthCallback();
+          if (back && back.error) {
+            clearOauthQuery();
+            return { user: null, payload: readGuest(), blocked: 'oauth' };
+          }
+          clearOauthQuery();
+          if (back && back.data) {
+            setSession(back.data.session || back.data);
+            sdk.auth.onAuthStateChange(function (event, sess) {
+              if (event === 'SIGNED_OUT') setSession(null);
+              else if (sess) setSession(sess);
+            });
+            let p2 = await loadProgress();
+            if (p2 && p2.__error) p2 = null;
+            render();
+            toast('Signed in with Google \u2014 your progress will sync to the cloud.');
+            document.dispatchEvent(new CustomEvent('bq:auth', { detail: { user: userOf(session) } }));
+            return { user: userOf(session), payload: p2 };
+          }
+        } catch (e) {
+          clearOauthQuery();
+          return { user: null, payload: readGuest(), blocked: 'oauth' };
+        }
+        clearOauthQuery();
+      }
+
       const { data, error } = await sdk.auth.getSession();
       if (error) return { user: null, payload: readGuest(), blocked: 'session' };
 
@@ -479,6 +557,7 @@ const CLOUD = (function () {
 
   return {
     init: init,
+    google: startGoogle,
     bind: function (h) { hook = h; },
     open: open,
     close: close,
