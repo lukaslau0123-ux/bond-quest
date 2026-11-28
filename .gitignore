@@ -40,3 +40,18 @@ _qa*.html
 _qa*.js
 _smoke*.js
 _smoke*.html
+
+# QA 截圖庫（293 張，數百 MB）與一次性補丁腳本
+/QA/
+__pycache__/
+*.pyc
+/Godot_v4.7.2-stable_win64.exe/
+_*.py
+_*.ps1
+guidelines_extract.py
+_probe_out.txt
+guidelines-extract.txt
+/*.png
+
+# site/ 只發佈 index.html；殘留的 QA 探針頁不應一起上線
+/site/_probe*.html

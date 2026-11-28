@@ -23,6 +23,15 @@ const WORLD = (function () {
   let zoneNow = 'A';
   let elapsed = 0;
   const colliders = [];
+  /* Boss arenas. The two field bosses sit at hand-placed coordinates, but tree
+     scattering only avoided quest nodes and waypoints — so both arenas grew a
+     forest inside them and the boss fought the player among trunks. Reserve a
+     clearing around each boss spawn before scattering. */
+  const BOSS_ARENAS = [
+    { id: 'golem', x: -76, z: 82, r: 17 },
+    { id: 'hydra', x: 74, z: -92, r: 17 },
+    { id: 'tyrant', x: 84, z: 70, r: 17 }
+  ];
   const nodeMeshes = new Map();
   let windmillRotor;
   const TOWN = { left: -29, right: 29, front: -3, back: -46, elevation: 0.6 };
@@ -56,7 +65,8 @@ const WORLD = (function () {
   let charMats = null;                // character material set for live re-skinning
   let skirtGrpRef = null;             // skirt group — hidden for male characters
   let companions = [];                // AI party followers [{ id, group, weaponId, atkCd, homeOffset }]
-  let bossEnemy = null;               // the Rift Tyrant world boss
+  let bossEnemy = null;               // active boss (kept for legacy HUD)
+  const bossEnemies = [];              // optional multi-boss encounters
 
   function toonGradient(steps) {
     const data = new Uint8Array(steps * 4);
@@ -853,7 +863,8 @@ const WORLD = (function () {
     })(20261120);
 
     const nearNode = (x, z, r) => nodes.some(n => Math.hypot(n.x - x, n.z - z) < r)
-      || WAYPOINTS.some(w => Math.hypot(w.x - x, w.z - z) < Math.max(r, 8.5));
+      || WAYPOINTS.some(w => Math.hypot(w.x - x, w.z - z) < Math.max(r, 8.5))
+      || BOSS_ARENAS.some(a => Math.hypot(a.x - x, a.z - z) < a.r + r * 0.5);
     const occupied = [];
     function reserve(x, z, radius, nodeBuffer) {
       if (townDistance(x, z) < radius + 1.0 || nearNode(x, z, radius + nodeBuffer)) return false;
@@ -2600,9 +2611,9 @@ const WORLD = (function () {
       buckle.position.set(side * 0.17, 0.075, -0.245);
       backpack.add(buckle);
     });
-    const roll = new THREE.Mesh(new THREE.CylinderGeometry(0.145, 0.145, 0.64, 12), MAT.bedroll);
+    const roll = new THREE.Mesh(new THREE.CylinderGeometry(0.125, 0.125, 0.50, 12), MAT.bedroll);
     roll.rotation.z = Math.PI / 2;
-    roll.position.set(0, 0.53, -0.035);
+    roll.position.set(0, 0.50, -0.055);
     backpack.add(roll);
     [-1, 1].forEach(function (side) {
       const strap = new THREE.Mesh(new THREE.TorusGeometry(0.145, 0.022, 6, 18), MAT.leatherDark);
@@ -2615,31 +2626,11 @@ const WORLD = (function () {
     backpack.add(packStraps);
     limbs.backpack = backpack;
 
-    const backMount = new THREE.Group();
-    backMount.position.set(0.34, 0.56, -0.19);
-    backMount.rotation.x = -0.16;
-    torsoGrp.add(backMount);
-    const scabbard = new THREE.Group();
-    scabbard.position.set(-0.04, 0.07, -0.34);
-    scabbard.rotation.z = -0.41;
-    backMount.add(scabbard);
-    put(scabbard, plMerge([
-      { g: new THREE.BoxGeometry(0.13, 1.36, 0.064), m: plM(0, -0.66, 0) },
-      { g: new THREE.CylinderGeometry(0.040, 0.037, 0.28, 10), m: plM(0, 0.16, 0) }
-    ]), MAT.leatherDark);
-    put(scabbard, plMerge([
-      { g: new THREE.BoxGeometry(0.21, 0.044, 0.070), m: plM(0, 0.01, 0) },
-      { g: new THREE.BoxGeometry(0.134, 0.038, 0.070), m: plM(0, -1.30, 0) },
-      { g: new THREE.OctahedronGeometry(0.053), m: plM(0, 0.32, 0) }
-    ]), MAT.gold);
-    const ribbonMat = MAT.red;
-    [-1, 1].forEach(function (side) {
-      const ribbon = new THREE.Mesh(new THREE.PlaneGeometry(0.06, 0.42, 1, 5), ribbonMat);
-      ribbon.position.set(side * 0.065, 0.18, -0.07);
-      ribbon.rotation.z = side * -0.24;
-      scabbard.add(ribbon);
-    });
-    limbs.backMount = backMount;
+    /* The back scabbard used to live here. The backpack occupies the whole back volume
+       (z -0.43..-0.13, y 1.66..2.30 in design space), so a second sheath plus its two
+       ribbons cut straight through the pack from behind — the visible 穿模. Every
+       character carries their weapon in hand, so the sheath was decoration only. */
+    limbs.backMount = null;
 
     const lantern = new THREE.Group();
     lantern.position.set(0.39, -0.12, -0.04);
@@ -2975,6 +2966,26 @@ const WORLD = (function () {
     return best;
   }
 
+  function moveMob(en, x, z) {
+    let nx = x, nz = z;
+    for (let pass = 0; pass < 2; pass++) {
+      for (const c of colliders) {
+        if (c.r <= 0) continue;
+        const r = en.bodyRadius || 0.65;
+        if (c.halfX !== undefined) {
+          const gx = c.halfX + r - Math.abs(nx - c.x), gz = c.halfZ + r - Math.abs(nz - c.z);
+          if (gx > 0 && gz > 0) {
+            if (gx < gz) nx = c.x + (Math.sign(nx - c.x) || 1) * (c.halfX + r);
+            else nz = c.z + (Math.sign(nz - c.z) || 1) * (c.halfZ + r);
+          }
+        } else {
+          let dx = nx - c.x, dz = nz - c.z, d = Math.hypot(dx, dz), md = c.r + r;
+          if (d < md) { if (d < 0.0001) { dx = 1; dz = 0; d = 1; } nx = c.x + dx / d * md; nz = c.z + dz / d * md; }
+        }
+      }
+    }
+    return [nx, nz];
+  }
   function movePlayer(dt) {
     const fwd = new THREE.Vector3(-Math.sin(yaw), 0, -Math.cos(yaw));
     const right = new THREE.Vector3(Math.cos(yaw), 0, -Math.sin(yaw));
@@ -3004,22 +3015,28 @@ const WORLD = (function () {
     let px = Math.max(-WALK_LIMIT, Math.min(WALK_LIMIT, nx));
     let pz = Math.max(-WALK_LIMIT, Math.min(WALK_LIMIT, nz));
 
-    for (const c of colliders) {
-      if (c.halfX !== undefined) {
-        const gapX = c.halfX + 0.75 - Math.abs(px - c.x);
-        const gapZ = c.halfZ + 0.75 - Math.abs(pz - c.z);
-        if (gapX > 0 && gapZ > 0) {
-          if (gapX < gapZ) px += (Math.sign(px - c.x) || 1) * gapX;
-          else pz += (Math.sign(pz - c.z) || 1) * gapZ;
+    for (let pass = 0; pass < 3; pass++) {
+      for (const c of colliders) {
+        if (c.r <= 0) continue;
+        if (c.halfX !== undefined) {
+          const gapX = c.halfX + 0.75 - Math.abs(px - c.x);
+          const gapZ = c.halfZ + 0.75 - Math.abs(pz - c.z);
+          if (gapX > 0 && gapZ > 0) {
+            if (gapX < gapZ) px += (Math.sign(px - c.x) || 1) * gapX;
+            else pz += (Math.sign(pz - c.z) || 1) * gapZ;
+          }
+          continue;
         }
-        continue;
-      }
-      const dx = px - c.x, dz = pz - c.z;
-      const dist = Math.hypot(dx, dz);
-      const minD = c.r + 1.0;
-      if (dist < minD && dist > 0.0001) {
-        px = c.x + dx / dist * minD;
-        pz = c.z + dz / dist * minD;
+        let dx = px - c.x, dz = pz - c.z;
+        let dist = Math.hypot(dx, dz);
+        const minD = c.r + 1.0;
+        if (dist < minD) {
+          // At the exact centre there is no normal to push along. Use a stable
+          // escape vector instead of leaving the avatar permanently embedded.
+          if (dist < 0.0001) { dx = 1; dz = 0; dist = 1; }
+          px = c.x + dx / dist * minD;
+          pz = c.z + dz / dist * minD;
+        }
       }
     }
     player.position.x = px;
@@ -3113,15 +3130,55 @@ const WORLD = (function () {
     }
   }
 
+  /* Third-person camera occlusion.
+     BUG: the arm was pinned at camDist and only floor-clamped, so any wall,
+     tree or boss between the player and the camera erased the avatar from the
+     frame ("things block each other"). March the arm against the same collider
+     list that drives movement and pull the camera to the last clear sample. */
+  const CAM_MARGIN = 0.5, CAM_STEPS = 16, CAM_MIN = 2.2;
+  let camClear = 1;
+  function cameraClearance(fromX, fromY, fromZ, toX, toY, toZ) {
+    for (let i = 1; i <= CAM_STEPS; i++) {
+      const t = i / CAM_STEPS;
+      const cx = fromX + (toX - fromX) * t;
+      const cz = fromZ + (toZ - fromZ) * t;
+      for (let k = 0; k < colliders.length; k++) {
+        const c = colliders[k];
+        if (c.halfX !== undefined) {
+          if (Math.abs(cx - c.x) < c.halfX + CAM_MARGIN &&
+              Math.abs(cz - c.z) < c.halfZ + CAM_MARGIN) return (i - 1) / CAM_STEPS;
+        } else if ((c.r || 0) >= 0.45 &&
+          (cx - c.x) * (cx - c.x) + (cz - c.z) * (cz - c.z) < (c.r + CAM_MARGIN) * (c.r + CAM_MARGIN)) {
+          return (i - 1) / CAM_STEPS;
+        }
+      }
+    }
+    return 1;
+  }
+
   function updateCamera(dtOrInit) {
     const dist = camDist;
     const h = 2.9;
-    targetCam.set(
-      player.position.x + Math.sin(yaw) * dist * Math.cos(pitch),
-      player.position.y + h + Math.sin(pitch) * dist,
-      player.position.z + Math.cos(yaw) * dist * Math.cos(pitch)
-    );
-    if (dtOrInit === 1) camera.position.copy(targetCam);
+    const eyeX = player.position.x, eyeZ = player.position.z;
+    const eyeY = player.position.y + 2.15;
+    let wantX = eyeX + Math.sin(yaw) * dist * Math.cos(pitch);
+    let wantY = player.position.y + h + Math.sin(pitch) * dist;
+    let wantZ = eyeZ + Math.cos(yaw) * dist * Math.cos(pitch);
+    const clear = cameraClearance(eyeX, eyeY, eyeZ, wantX, wantY, wantZ);
+    /* ease in fast, ease out slowly: snapping back out is what makes pull-in feel cheap */
+    const target = Math.max(CAM_MIN, dist * clear);
+    const rate = target < camDist * camClear ? 1 - Math.exp(-26 * (dtOrInit === 1 ? 0.016 : dtOrInit))
+      : 1 - Math.exp(-4 * (dtOrInit === 1 ? 0.016 : dtOrInit));
+    camClear = camClear + (Math.min(1, target / dist) - camClear) * rate;
+    if (camClear < 1) {
+      wantX = eyeX + (wantX - eyeX) * camClear;
+      wantY = eyeY + (wantY - eyeY) * camClear;
+      wantZ = eyeZ + (wantZ - eyeZ) * camClear;
+      const floor = heightAt(wantX, wantZ) + 1.1;
+      if (wantY < floor) wantY = floor;
+    }
+    targetCam.set(wantX, wantY, wantZ);
+    if (dtOrInit === 1) { camera.position.copy(targetCam); camClear = Math.min(1, target / dist); }
     else camera.position.lerp(targetCam, 1 - Math.exp(-9 * dtOrInit));
     /* impact camera shake */
     if (shakeT > 0) {
@@ -3137,6 +3194,12 @@ const WORLD = (function () {
 
     tmpV.set(player.position.x, player.position.y + 1.92, player.position.z);
     camera.lookAt(tmpV);
+    /* When the arm is short enough that the camera sits inside the avatar we
+       render the inside of the coat instead of the world. Fade the avatar out
+       below 2.9 m and back in above 3.2 m (hysteresis stops flicker). */
+    const armNow = Math.hypot(camera.position.x - player.position.x, camera.position.z - player.position.z);
+    if (armNow < 2.9) player.visible = false;
+    else if (armNow > 3.2) player.visible = true;
   }
 
   function updateZoneAndFog(dt) {
@@ -3319,7 +3382,7 @@ const WORLD = (function () {
     const type = weaponGroup.userData.type;
     const blade = type === 'sword' || type === 'great' || type === 'daggers';
     weaponGroup.position.set(-0.01, -0.014, 0.028);
-    weaponGroup.rotation.set(blade ? 2.50 : 0.18, 0, blade ? -0.15 : 0);
+    weaponGroup.rotation.set(blade ? 2.62 : 0.18, 0, blade ? 0.34 : 0);
     weaponGroup.scale.setScalar(type === 'sword' ? 1.14 : 1.05);
     mount.add(weaponGroup);
   }
@@ -3453,75 +3516,192 @@ const WORLD = (function () {
   /* ---- signature gear: each character keeps one unmistakable silhouette
      cue on top of the recoloured outfit (shield, orbs, bow, hood). ---- */
   let charGear = null;
+  /* Every character owns a distinct silhouette: hat, hood, plate, cape, blades.
+     The base body is one merged mesh, so identity comes from this kit of
+     individually-built pieces plus per-character proportions (CHAR_LOOK). */
+  const CHAR_LOOK = {
+    lyra:   { male: false, skirt: true,  scale: [1.00, 1.00, 1.00], torso: 1.00 },
+    kael:   { male: true,  skirt: false, scale: [1.09, 1.05, 1.09], torso: 1.24 },
+    mira:   { male: false, skirt: true,  scale: [1.00, 1.02, 1.00], torso: 1.00 },
+    dorian: { male: true,  skirt: false, scale: [1.03, 1.02, 1.03], torso: 1.10 },
+    vex:    { male: false, skirt: true,  scale: [0.97, 1.00, 0.97], torso: 0.96 },
+    nyx:    { male: false, skirt: true,  scale: [0.99, 1.01, 0.99], torso: 1.04 },
+    orin:   { male: true,  skirt: false, scale: [1.14, 1.07, 1.14], torso: 1.30 }
+  };
+
   function ensureCharGear() {
     if (charGear || !player || !limbs) return charGear;
-    const gear = { kael: new THREE.Group(), mira: new THREE.Group(), dorian: new THREE.Group(), vex: new THREE.Group() };
-    const steel = toonMat(0xb8c6d6, 0x223040);
+    const ids = Object.keys(CHAR_LOOK);
+    const gear = {};
+    ids.forEach(function (k) { gear[k] = new THREE.Group(); });
+
+    const steel = toonMat(0x9fb2c6, 0x1b2836);
     const steelDark = toonMat(0x7d8fa3, 0x141d26);
     const wood = toonMat(0x6d4a2c);
+    const leather = toonMat(0x5a3b26, 0x160d07);
     const cloth = toonMat(0x2a2136, 0x120c1a);
+    const hatMat = toonMat(0x5f3f86, 0x1d1030);      /* Mira: violet hat and robe */
+    const hoodMat = toonMat(0x1b1822, 0x07050b);     /* Vex: near-black hood and cape */
+    const gold = toonMat(0xe8c26a, 0x60460f);
+    const emberGlow = animeToonMaterial({ color: 0xff9a4a, emissive: 0xff4a12, emissiveIntensity: 1.0, rimStrength: 0.4 });
+    const voltGlow = animeToonMaterial({ color: 0xd6e8ff, emissive: 0x4f9cff, emissiveIntensity: 1.3, rimStrength: 0.4 });
+    const tideGlow = animeToonMaterial({ color: 0xbdf2ff, emissive: 0x2f9fd0, emissiveIntensity: 1.1, rimStrength: 0.4 });
+    const shadeGlow = animeToonMaterial({ color: 0xd7b6f0, emissive: 0x7b45b8, emissiveIntensity: 1.1, rimStrength: 0.4 });
 
-    /* Kael — round shield strapped to the left forearm + steel pauldrons */
-    const shieldMount = new THREE.Group();
-    shieldMount.position.set(-0.10, 1.96, -0.36);
-    shieldMount.rotation.set(0.12, Math.PI - 0.22, 0.06);
-    const shield = new THREE.Group();
-    const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.32, 0.055, 18), steel);
-    disc.rotation.x = Math.PI / 2;
-    shield.add(disc);
-    const boss = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 10), steelDark);
-    boss.position.z = 0.045;
-    shield.add(boss);
-    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.305, 0.022, 6, 22), steelDark);
-    shield.add(rim);
-    shield.scale.setScalar(1.45);
-    shieldMount.add(shield);
-    gear.kael.add(shieldMount);
-    [-1, 1].forEach(function (sd) {
-      const p = new THREE.Mesh(new THREE.SphereGeometry(0.13, 12, 9), steel);
-      p.position.set(0.30 * sd, 2.30, 0.0);
-      p.scale.set(1.15, 0.8, 1.05);
-      gear.kael.add(p);
-    });
-
-    /* Mira — three tide orbs circling her */
-    const orbMat = toonMat(0x9ff4ff, 0x1d7fa8);
-    gear.mira.userData.orbs = [];
-    for (let i = 0; i < 3; i++) {
-      const orb = new THREE.Mesh(new THREE.SphereGeometry(0.105, 12, 10), orbMat);
-      gear.mira.add(orb);
-      gear.mira.userData.orbs.push(orb);
+    function add(g, geo, mat, x, y, z, rx, ry, rz, sx, sy, sz) {
+      const m = new THREE.Mesh(geo, mat);
+      m.position.set(x || 0, y || 0, z || 0);
+      m.rotation.set(rx || 0, ry || 0, rz || 0);
+      if (sx !== undefined) m.scale.set(sx, sy === undefined ? sx : sy, sz === undefined ? sx : sz);
+      m.castShadow = true;
+      g.add(m);
+      return m;
     }
 
-    /* Dorian — longbow slung across the back + quiver */
+    /* short hair shells: the long braid is hidden for headgear characters, these keep a hairline.
+       The shell rim MUST sit at or above the hairline (design-space y ~ 2.95). The head is centred
+       at y ~ 2.81 with half-extents (0.25, 0.277, 0.257); eyes are at y ~ 2.87, mouth ~ 2.74.
+       A shell whose rim dips below 2.95 bulges out past the skull and covers the face. */
+    /* A hair shell is a partial sphere centred on the SKULL (y 2.783) whose thetaLength
+       stops the rim at the hairline (y >= 2.93). Centring a hemisphere at the rim height
+       instead makes it hover above the crown like a bowl. */
+    /* The skull is SphereGeometry(0.330) scaled by headGrp (0.79, 0.84, 0.83), so in
+       player space its half-extents are x 0.261, y 0.277, z 0.274, centred at HEAD_Y.
+       Gear lives on `player`, not on headGrp, so these are the numbers to match. */
+    const HEAD_Y = 2.783;
+    const SKULL_X = 0.261, SKULL_Y = 0.277, SKULL_Z = 0.274;
+    /* A shell is a UNIT sphere scaled to the skull times `grow`, cut at `rimY`.
+       Because it shares the skull's proportions its rim always sits on the scalp instead
+       of hanging out past the temples like a brim. `grow` 1.03 = lying on the hair. */
+    function headShell(g, rimY, grow, mat, sy, extraZ) {
+      const k = grow || 1.03;
+      const rx = SKULL_X * k, ry = SKULL_Y * k * (sy || 1.0), rz = SKULL_Z * k;
+      const c = Math.max(-1, Math.min(1, (rimY - HEAD_Y) / ry));
+      const len = Math.acos(c);
+      /* unit sphere -> scale straight to the skull half-extents */
+      add(g, new THREE.SphereGeometry(1, 40, 26, 0, Math.PI * 2, 0, len), mat || charMats.hair,
+        0, HEAD_Y, extraZ || 0, 0, 0, 0, rx, ry, rz);
+      const sr = Math.sin(len);
+      return { rx: rx, rz: rz, ry: ry, rimR: rx * sr, rimZ: rz * sr, rimY: rimY };
+    }
+    function hairCap(g, rimY, sy, grow) {
+      headShell(g, rimY, grow || 1.03, charMats.hair, sy, 0);
+    }
+    /* no hair shell under Kael's helm: the dome sits on the skull directly */
+    hairCap(gear.mira, 2.938, 1.00, 1.030);
+    hairCap(gear.vex, 2.938, 1.00, 1.035);
+    hairCap(gear.nyx, 2.936, 1.00, 1.030);
+
+    /* ---------- Elara · road-worn adventurer: short shoulder cape + braid tie ---------- */
+    add(gear.lyra, new THREE.ConeGeometry(0.42, 0.50, 14, 1, true), cloth, 0, 2.20, 0.035, 0.10, 0, 0, 1.0, 1.0, 0.30);
+    add(gear.lyra, new THREE.TorusGeometry(0.30, 0.055, 6, 16), leather, 0, 2.30, -0.02, Math.PI / 2, 0, 0);
+    add(gear.lyra, new THREE.TorusGeometry(0.052, 0.018, 5, 10), gold, 0, 2.02, -0.34, 0.2, 0, 0);
+    add(gear.lyra, new THREE.BoxGeometry(0.11, 0.58, 0.07), leather, 0.24, 1.86, 0.14, 0, 0, 0.42);
+
+    /* ---------- Kael · vanguard: pauldrons, breastplate, helm dome that starts at the hairline ---------- */
+    [-1, 1].forEach(function (sd) {
+      add(gear.kael, new THREE.SphereGeometry(0.21, 14, 10), steel, 0.31 * sd, 2.31, 0, 0, 0, 0, 1.35, 0.74, 1.15);
+      add(gear.kael, new THREE.SphereGeometry(0.15, 12, 9), steelDark, 0.33 * sd, 2.19, 0.02, 0, 0, 0, 1.30, 0.60, 1.10);
+    });
+    add(gear.kael, new THREE.BoxGeometry(0.56, 0.46, 0.26), steel, 0, 2.03, 0.13);
+    add(gear.kael, new THREE.BoxGeometry(0.42, 0.10, 0.10), gold, 0, 2.10, 0.27);
+    /* helm: a dome seated on the hairline; no nose guard, no brow band */
+    const kaelDom = headShell(gear.kael, 2.952, 1.062, steel, 1.0, 0);
+    /* rim ring follows the dome's ACTUAL rim ellipse (never its widest slice) */
+    add(gear.kael, new THREE.TorusGeometry(kaelDom.rimR, 0.016, 8, 32), steelDark,
+      0, kaelDom.rimY, 0, Math.PI / 2, 0, 0, 1.0, 1.0, kaelDom.rimZ / kaelDom.rimR);
+    add(gear.kael, new THREE.BoxGeometry(0.040, 0.075, 0.34), gold, 0, 3.055, -0.03);
+    /* cheek plates flank the jaw from the outside, they never cross the face silhouette */
+    [-1, 1].forEach(function (sd) {
+      add(gear.kael, new THREE.BoxGeometry(0.050, 0.24, 0.07), steel, 0.288 * sd, 2.700, 0.050, 0, 0.55 * sd, 0.05 * sd);
+    });
+    const kaelShield = new THREE.Group();
+    const kDisc = new THREE.Mesh(new THREE.CylinderGeometry(0.40, 0.42, 0.06, 20), steel);
+    kDisc.rotation.x = Math.PI / 2;
+    kaelShield.add(kDisc);
+    const kBoss = new THREE.Mesh(new THREE.SphereGeometry(0.12, 12, 10), gold);
+    kBoss.position.z = 0.06; kaelShield.add(kBoss);
+    const kRim = new THREE.Mesh(new THREE.TorusGeometry(0.405, 0.028, 6, 24), steelDark);
+    kaelShield.add(kRim);
+    kaelShield.position.set(-0.46, 1.86, 0.16);
+    kaelShield.rotation.set(0.08, 0.52, -0.10);
+    gear.kael.add(kaelShield);
+
+    /* ---------- Mira · arcane caster: wide-brim hat riding above the crown, long robe ---------- */
+    /* brim: 1.25x the head width, tilted slightly so it never reads as a flat disc */
+    add(gear.mira, new THREE.CylinderGeometry(0.316, 0.352, 0.026, 26), hatMat, 0, 3.062, -0.008, 0.075, 0, 0);
+    add(gear.mira, new THREE.CylinderGeometry(0.202, 0.232, 0.10, 20, 1, true), hatMat, 0, 3.118, 0);
+    add(gear.mira, new THREE.TorusGeometry(0.212, 0.016, 6, 22), tideGlow, 0, 3.076, 0, Math.PI / 2, 0, 0);
+    /* pointed crown, three faces of taper so the silhouette reads as cloth, not a cone */
+    add(gear.mira, new THREE.ConeGeometry(0.208, 0.46, 18), hatMat, 0, 3.330, -0.006, 0.06, 0, 0);
+    add(gear.mira, new THREE.SphereGeometry(0.058, 10, 8), tideGlow, 0, 3.556, -0.012);
+    add(gear.mira, new THREE.CylinderGeometry(0.36, 0.70, 1.16, 18, 1, true), hatMat, 0, 1.02, 0);
+    add(gear.mira, new THREE.TorusGeometry(0.37, 0.035, 6, 18), tideGlow, 0, 1.58, 0, Math.PI / 2, 0, 0);
+    gear.mira.userData.orbs = [];
+
+    /* ---------- Dorian · ranger: headband at the hairline, capelet, longbow + quiver ---------- */
+    add(gear.dorian, new THREE.CylinderGeometry(0.300, 0.316, 0.090, 24, 1, true), leather, 0, 3.010, 0);
+    add(gear.dorian, new THREE.ConeGeometry(0.40, 0.56, 14, 1, true), cloth, 0, 2.16, 0.055, 0.10, 0, 0, 1.0, 1.0, 0.28);
+    add(gear.dorian, new THREE.TorusGeometry(0.22, 0.05, 6, 14), leather, 0, 2.30, 0.02, Math.PI / 2, 0, 0);
     const bow = new THREE.Mesh(new THREE.TorusGeometry(0.62, 0.028, 5, 24, Math.PI * 1.08), wood);
-    bow.position.set(0.06, 2.06, -0.40);
-    bow.rotation.set(0.28, 0.45, -0.55);
+    bow.position.set(0.30, 2.10, -0.46); bow.rotation.set(0.24, 0.52, -0.58);
     gear.dorian.add(bow);
     const string = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.006, 1.18, 4), toonMat(0xf0e6cf));
-    string.position.set(0.06, 2.06, -0.40);
-    string.rotation.set(0.28, 0.45, Math.PI / 2 - 0.55);
+    string.position.set(0.30, 2.10, -0.46); string.rotation.set(0.24, 0.52, Math.PI / 2 - 0.58);
     gear.dorian.add(string);
-    const quiver = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.075, 0.52, 10), steelDark);
-    quiver.position.set(-0.26, 2.06, -0.34);
-    quiver.rotation.set(0.30, 0, 0.26);
+    const quiver = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.08, 0.54, 10), leather);
+    quiver.position.set(-0.335, 2.10, -0.42); quiver.rotation.set(0.26, 0, 0.30);
     gear.dorian.add(quiver);
-
-    /* Vex — deep hood + twin daggers */
-    const hood = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.56, 10, 1, true), cloth);
-    hood.position.set(0, 2.86, -0.02);
-    hood.rotation.set(0.14, 0, 0);
-    gear.vex.add(hood);
-    const hoodBack = new THREE.Mesh(new THREE.ConeGeometry(0.36, 0.72, 9, 1, true), cloth);
-    hoodBack.position.set(0, 2.62, -0.20);
-    hoodBack.rotation.set(-0.52, 0, 0);
-    gear.vex.add(hoodBack);
-    [-1, 1].forEach(function (sd) {
-      const blade = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.42, 4), steel);
-      blade.position.set(0.34 * sd, 1.62, 0.06);
-      blade.rotation.set(Math.PI, 0, 0.18 * sd);
-      gear.vex.add(blade);
+    [-0.10, 0.02, 0.12].forEach(function (o, i) {
+      add(gear.dorian, new THREE.CylinderGeometry(0.008, 0.008, 0.34, 4), toonMat(0xe8e0cc), -0.335 + o, 2.38, -0.38, 0.26, 0, 0.30);
     });
+
+    /* ---------- Vex · shadow dancer: low crown hood, back drape, short cape, twin daggers ---------- */
+    /* Hood: a FULL dome seated on the hairline. A partial sphere leaves an open front rim
+       that catches the key light and draws a thin pale wire arc straight across the face. */
+    headShell(gear.vex, 2.934, 1.078, hoodMat, 1.0, -0.006);
+    add(gear.vex, new THREE.ConeGeometry(0.150, 0.42, 10), hoodMat, 0, 3.130, -0.235, -0.55, 0, 0);
+    add(gear.vex, new THREE.ConeGeometry(0.285, 0.74, 12, 1, true), hoodMat, 0, 2.560, -0.330, -0.34, 0, 0);
+    add(gear.vex, new THREE.ConeGeometry(0.47, 1.05, 14, 1, true), hoodMat, 0, 1.80, 0.055, 0.06, 0, 0, 1.0, 1.0, 0.28);
+    [-1, 1].forEach(function (sd) {
+      add(gear.vex, new THREE.ConeGeometry(0.045, 0.44, 4), steel, 0.34 * sd, 1.60, 0.06, Math.PI, 0, 0.18 * sd);
+      add(gear.vex, new THREE.TorusGeometry(0.055, 0.016, 5, 10), shadeGlow, 0.34 * sd, 1.83, 0.06, Math.PI / 2, 0, 0);
+    });
+
+    /* ---------- Nyx · storm duelist: circlet on the hairline, crossed sabers, one shoulder guard ---------- */
+    /* Circlet: a slim solid band hugging the hair (a thin torus half-buried in the hair
+       shell z-fights the scalp and reads as a wire across the brow). */
+    add(gear.nyx, new THREE.CylinderGeometry(0.268, 0.278, 0.042, 26, 1, true), steelDark, 0, 2.958, 0);
+    add(gear.nyx, new THREE.OctahedronGeometry(0.046, 0), voltGlow, 0, 3.010, 0.214);
+    [-1, 1].forEach(function (sd) {
+      add(gear.nyx, new THREE.BoxGeometry(0.055, 1.10, 0.022), steel, 0.20 * sd, 2.10, -0.44, 0.16, 0, 0.46 * sd);
+      add(gear.nyx, new THREE.BoxGeometry(0.075, 0.14, 0.05), leather, 0.20 * sd, 1.60, -0.48, 0.16, 0, 0.46 * sd);
+    });
+    const stormMat = toonMat(0x2b3a5e, 0x0b1222);
+    add(gear.nyx, new THREE.ConeGeometry(0.50, 1.30, 16, 1, true), stormMat, 0, 1.74, 0.055, 0.06, 0, 0, 1.0, 1.0, 0.28);
+    add(gear.nyx, new THREE.SphereGeometry(0.15, 12, 9), stormMat, 0.31, 2.31, 0, 0, 0, 0, 1.05, 0.55, 0.95);
+    add(gear.nyx, new THREE.OctahedronGeometry(0.072, 0), voltGlow, 0, 2.03, 0.23);
+    add(gear.nyx, new THREE.ConeGeometry(0.44, 0.70, 14, 1, true), cloth, 0, 2.14, 0.055, 0.10, 0, 0, 1.0, 1.0, 0.28);
+    add(gear.nyx, new THREE.CylinderGeometry(0.34, 0.39, 0.17, 16, 1, true), cloth, 0, 2.28, -0.01);
+    add(gear.nyx, new THREE.ConeGeometry(0.090, 0.82, 8), charMats.hair, 0.16, 2.10, -0.42, 0.30, 0, -0.16);
+
+    /* ---------- Orin · ember monk: prayer beads, sash, staff, heavy fists, topknot on the crown ---------- */
+    const robeMat = toonMat(0x8a3410, 0x240a03);
+    add(gear.orin, new THREE.CylinderGeometry(0.33, 0.64, 1.42, 18, 1, true), robeMat, 0, 0.92, 0);
+    add(gear.orin, new THREE.CylinderGeometry(0.33, 0.38, 0.19, 16, 1, true), robeMat, 0, 2.33, -0.01, 0, 0, 0, 1.0, 1.0, 0.72);
+    add(gear.orin, new THREE.CylinderGeometry(0.34, 0.30, 0.60, 16, 1, true), robeMat, 0, 2.02, 0.0, 0, 0, 0, 1.0, 1.0, 0.70);
+    add(gear.orin, new THREE.TorusGeometry(0.19, 0.028, 6, 18), gold, 0, 2.29, 0.05, 1.46, 0, 0);
+    add(gear.orin, new THREE.BoxGeometry(0.46, 0.10, 0.32), emberGlow, 0, 1.45, 0.02);
+    [-1, 1].forEach(function (sd) {
+      add(gear.orin, new THREE.TorusGeometry(0.078, 0.024, 6, 12), emberGlow, 0.31 * sd, 1.66, 0.05, Math.PI / 2, 0, 0);
+      add(gear.orin, new THREE.SphereGeometry(0.155, 12, 9), robeMat, 0.31 * sd, 2.26, 0, 0, 0, 0, 1.05, 0.55, 1.0);
+    });
+    add(gear.orin, new THREE.CylinderGeometry(0.045, 0.045, 1.86, 8), wood, -0.43, 2.02, -0.45, 0.14, 0, 0.32);
+    add(gear.orin, new THREE.TorusGeometry(0.13, 0.028, 6, 14), emberGlow, -0.74, 2.94, -0.40, 0.5, 0, 0);
+    /* shaved-cap hair shell on the hairline + topknot on the crown */
+    headShell(gear.orin, 2.940, 1.028, charMats.hair, 1.0, 0);
+    add(gear.orin, new THREE.SphereGeometry(0.076, 10, 8), charMats.hairDark, 0, 3.086, -0.075);
+    add(gear.orin, new THREE.TorusGeometry(0.070, 0.018, 5, 12), gold, 0, 3.055, -0.075, Math.PI / 2, 0, 0);
 
     Object.keys(gear).forEach(function (k) {
       gear[k].visible = false;
@@ -3557,21 +3737,32 @@ const WORLD = (function () {
     tint(charMats.scarf, pal ? pal.scarf : coat);
     tint(charMats.hair, pal ? pal.hair : C.hair);
     tint(charMats.hairDark, darken(pal ? pal.hair : C.hair, 0.7));
-    // male characters: broader frame, no skirt (trousers instead), darker tights
-    const male = C.gender === 'male';
+    /* proportions come from CHAR_LOOK so every character has its own build,
+       not just a different coat colour */
+    const L = CHAR_LOOK[charId] || CHAR_LOOK.lyra;
+    const male = L.male;
+    /* the shared braid is hidden wherever that character wears headgear */
+    const NO_HAIR = { kael: 1, mira: 1, vex: 1, nyx: 1, orin: 1 };
+    const hairMesh = limbs.head && limbs.head.getObjectByName('Elara swept hair and side braid');
+    if (hairMesh) hairMesh.visible = !NO_HAIR[charId];
     limbs.orb.forEach(part => { part.visible = charId !== 'lyra'; });
-    if (skirtGrpRef) skirtGrpRef.visible = !male;
+    if (skirtGrpRef) skirtGrpRef.visible = L.skirt;
     if (charMats.tights) tint(charMats.tights, male ? 0x24303c : (charId === 'lyra' ? 0x382D2D : 0x1B3A46));
-    player.scale.set(male ? 1.06 : 1.0, male ? 1.03 : 1.0, male ? 1.06 : 1.0);
-    if (limbs.torso && !attackAnim) limbs.torso.scale.x = male ? 1.18 : 1.0;
+    player.scale.set(L.scale[0], L.scale[1], L.scale[2]);
+    if (limbs.torso) limbs.torso.scale.x = L.torso;
     /* element aura: a soft halo + a ring at the feet in the character's element
        colour, so who is on the field is readable at a glance */
     const gear = ensureCharGear();
     if (gear) {
-      gear.kael.visible = charId === 'kael';
-      gear.mira.visible = charId === 'mira';
-      gear.dorian.visible = charId === 'dorian';
-      gear.vex.visible = charId === 'vex';
+      Object.keys(gear).forEach(function (k) { gear[k].visible = (k === charId); });
+      if (charId === 'mira' && gear.mira.userData.orbs && !gear.mira.userData.orbs.length) {
+        for (let i = 0; i < 3; i++) {
+          const orb = new THREE.Mesh(new THREE.SphereGeometry(0.105, 12, 10),
+            animeToonMaterial({ color: 0x9ff4ff, emissive: 0x1d7fa8, emissiveIntensity: 1.0 }));
+          gear.mira.add(orb);
+          gear.mira.userData.orbs.push(orb);
+        }
+      }
     }
     const aura = ensureCharacterAura();
     if (aura) {
@@ -3871,6 +4062,8 @@ const WORLD = (function () {
   function spawnEnemies() {
     enemies.forEach(en => { if (en.group.parent) scene.remove(en.group); });
     enemies.length = 0;
+    bossEnemies.length = 0;
+    bossEnemy = null;
     if (!combatEnabled || typeof ENEMY_TYPES === 'undefined') return;
     const zones = Object.keys(ZONES);
     const N = Math.min(COMBAT_RULES.enemyCap, 16);
@@ -3903,6 +4096,9 @@ const WORLD = (function () {
         homeX: x, homeZ: z, state: 'idle', atkCd: 0
       });
     }
+    /* Optional encounters sit far from the academy and never gate chemistry. */
+    spawnBoss('golem');
+    spawnBoss('hydra');
   }
 
   /* ---------- 60-second bond trial ---------- */
@@ -4560,6 +4756,13 @@ const WORLD = (function () {
     function applyDamage(en, amount, kind, knockX, knockZ) {
       if (!en || !en.alive || amount <= 0) return false;
       en.hp -= amount; en.hitFlash = Math.max(en.hitFlash || 0, 0.22);
+      /* Bosses are heavy: a full player knockback (2.2 m on an ionic hit) shoved
+         the boss out of the player's own reach, so the follow-up swing whiffed.
+         Cap boss displacement so the combo can continue. */
+      if (en.boss) {
+        const kLen = Math.hypot(knockX || 0, knockZ || 0);
+        if (kLen > 0.55) { const s = 0.55 / kLen; knockX *= s; knockZ *= s; }
+      }
       if (knockX || knockZ) { en.group.position.x += knockX; en.group.position.z += knockZ; }
       /* Big, readable impact on every hit (scaled by how heavy the swing was). */
       addHitImpact(en.group.position.x, en.group.position.y, en.group.position.z, en.trialColor || arcColor, hitPower);
@@ -4669,9 +4872,14 @@ const WORLD = (function () {
         return;
       }
       const g = en.group; if (en.bindTimer > 0) en.bindTimer = Math.max(0, en.bindTimer - dt);
+      if (en.boss) {
+        if (en.hitFlash > 0) { en.hitFlash -= dt; g.scale.setScalar(en.type.scale * (1 + en.hitFlash * 0.5)); }
+        else g.scale.setScalar(en.type.scale * (en.state === 'telegraph' ? 1.035 : 1));
+        return;
+      }
       const dx = px - g.position.x, dz = pz - g.position.z; const dist = Math.hypot(dx, dz);
       if (townDistance(px, pz) === 0 && !en.trial) en.state = 'idle';
-      else if (dist < COMBAT_RULES.aggroRange && dist > COMBAT_RULES.attackRange) { const slow = en.bindTimer > 0 ? 0.32 : 1; const sp = en.type.speed * slow * dt; const chaseX = g.position.x + (dx / dist) * sp, chaseZ = g.position.z + (dz / dist) * sp; if (en.trial || townDistance(chaseX, chaseZ) > 1) g.position.set(chaseX, g.position.y, chaseZ); /* models face local +Z; atan2(dx,dz) turns the front toward the player (same convention as the player & companions). */ g.rotation.y = Math.atan2(dx, dz); en.state = 'chase'; }
+      else if (dist < COMBAT_RULES.aggroRange && dist > COMBAT_RULES.attackRange) { const slow = en.bindTimer > 0 ? 0.32 : 1; const sp = en.type.speed * slow * dt; const chaseX = g.position.x + (dx / dist) * sp, chaseZ = g.position.z + (dz / dist) * sp; if (en.trial || townDistance(chaseX, chaseZ) > 1) { const safe = moveMob(en, chaseX, chaseZ); g.position.set(safe[0], g.position.y, safe[1]); } /* models face local +Z; atan2(dx,dz) turns the front toward the player (same convention as the player & companions). */ g.rotation.y = Math.atan2(dx, dz); en.state = 'chase'; }
       else if (dist <= COMBAT_RULES.attackRange) {
         en.state = 'attack';
         if (en.telegraph > 0) { en.telegraph = Math.max(0, en.telegraph - dt); const tr = ensureTelegraphRing(g); tr.visible = true; tr.material.opacity = 0.45 + Math.abs(Math.sin(elapsed * 28)) * 0.45; tr.scale.setScalar(1 + (1 - en.telegraph / 0.55) * 0.55); if (en.telegraph <= 0) { tr.visible = false; en.atkCd = 1.45; if (dist <= COMBAT_RULES.attackRange + 0.6 && dashIFrames <= 0 && combatHooks.onHurt) combatHooks.onHurt(en); } }
@@ -5038,59 +5246,113 @@ const WORLD = (function () {
     return g;
   }
 
-  function spawnBoss() {
-    if (bossEnemy) return;
-    const B = (typeof BOSS !== 'undefined') && BOSS;
-    if (!B) return;
-    const group = buildRiftTyrant();
-    group.scale.setScalar(B.scale);
-    const x = B.x, z = B.z;
-    group.position.set(x, heightAt(x, z), z);
-    scene.add(group);
-    bossEnemy = {
-      id: 'boss', boss: true, trialFamily: 'metallic', trialColor: 0xff5b45,
-      type: { id: B.id, name: B.name, hp: B.hp, speed: B.speed, damage: B.damage, score: B.score, gold: B.gold, scale: B.scale },
-      group: group, hp: B.hp, maxHp: B.hp, alive: true, respawn: 0, hitFlash: 0,
-      bob: 0, homeX: x, homeZ: z, state: 'idle', atkCd: 1.2, telegraph: 0, bindTimer: 0
-    };
-    enemies.push(bossEnemy);
+  const BOSS_VARIANTS = {
+    tyrant: { id:'tyrant', name:'Rift Tyrant', hp:420, speed:2.4, damage:22, score:280, gold:180, scale:2.6, color:0xff5b45, x:84, z:70, reach:3.6, range:26 },
+    golem: { id:'golem', name:'Ionic Golem', hp:330, speed:1.8, damage:18, score:180, gold:110, scale:2.05, color:0x72cfff, x:-76, z:82, reach:4.6, range:28 },
+    hydra: { id:'hydra', name:'Covalent Hydra', hp:270, speed:2.7, damage:14, score:200, gold:125, scale:1.75, color:0x66efb2, x:74, z:-92, reach:3.0, range:34 }
+  };
+  function bossMat(color, emissive) {
+    return new THREE.MeshToonMaterial({ color:color, gradientMap:TOON, emissive:emissive || 0x000000, emissiveIntensity:0.55 });
   }
-  function bossAlive() { return !!(bossEnemy && bossEnemy.alive); }
-  function updateBoss(dt) {
-    if (!bossEnemy || !bossEnemy.alive) return;
-    const en = bossEnemy, g = en.group;
-    const px = player.position.x, pz = player.position.z;
-    const dx = px - g.position.x, dz = pz - g.position.z, dist = Math.hypot(dx, dz);
-    if (dist < 26 && dist > COMBAT_RULES.attackRange + 0.8) {
-      const sp = en.type.speed * dt;
-      const nx = g.position.x + (dx / dist) * sp, nz = g.position.z + (dz / dist) * sp;
-      if (townDistance(nx, nz) > 1) { g.position.x = nx; g.position.z = nz; }
-      g.rotation.y = Math.atan2(dx, dz); en.state = 'chase';
-    } else if (dist <= COMBAT_RULES.attackRange + 0.8) {
-      en.state = 'attack';
-      en.atkCd -= dt;
-      if (en.atkCd <= 0) {
-        en.atkCd = 1.6;
-        addFxRing(g.position.x, g.position.y, g.position.z, 0xff5b45, 3.4, 0.42);
-        if (dashIFrames <= 0 && combatHooks.onHurt) combatHooks.onHurt(en);
-      }
-    } else en.state = 'idle';
-    g.position.y = heightAt(g.position.x, g.position.z);
-    /* shard crown orbits, ground rift ring breathes */
-    if (g.userData.shards) { g.userData.shards.rotation.y += dt * 0.9; g.userData.shards.position.y = Math.sin(elapsed * 1.6) * 0.10; }
-    if (g.userData.ring) { g.userData.ring.material.opacity = 0.38 + Math.sin(elapsed * 2.6) * 0.18; g.userData.ring.scale.setScalar(1 + Math.sin(elapsed * 2.6) * 0.05); }
-    /* heavy walk swing on the leg pivots */
-    const moving = en.state === 'chase';
-    (g.userData.parts && g.userData.parts.legs || []).forEach((lg, i) => {
-      lg.rotation.x = moving ? Math.sin(elapsed * 6.4 + i * Math.PI) * 0.42 : lg.rotation.x * 0.88;
+  function buildIonicGolem() {
+    const g = new THREE.Group(), rock=bossMat(0x344b63), edge=bossMat(0x6286a5), glow=bossMat(0x7be5ff,0x237eae), core=bossMat(0xd3f9ff,0x53c9ff);
+    function M(geo,mat,x,y,z){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=true;g.add(m);return m;}
+    M(new THREE.DodecahedronGeometry(.73,0),rock,0,1.45,0);
+    M(new THREE.OctahedronGeometry(.30,0),core,0,1.48,.67);
+    M(new THREE.BoxGeometry(1.08,.17,.77),edge,0,1.87,0);
+    M(new THREE.DodecahedronGeometry(.37,0),edge,0,2.19,0);
+    M(new THREE.BoxGeometry(.42,.075,.045),glow,0,2.20,.32);
+    const parts={legs:[],arms:[]};
+    [-1,1].forEach(sd=>{
+      const leg=new THREE.Group();leg.position.set(sd*.38,.9,0);g.add(leg);parts.legs.push(leg);
+      const shin=new THREE.Mesh(new THREE.DodecahedronGeometry(.30,0),rock);shin.scale.set(.8,1.3,.8);shin.position.y=-.36;leg.add(shin);
+      const foot=new THREE.Mesh(new THREE.BoxGeometry(.52,.25,.72),edge);foot.position.set(0,-.71,.14);leg.add(foot);
+      const arm=new THREE.Group();arm.position.set(sd*.82,1.70,0);g.add(arm);parts.arms.push(arm);
+      const fist=new THREE.Mesh(new THREE.DodecahedronGeometry(.43,0),rock);fist.position.set(sd*.12,-.58,.05);arm.add(fist);
+      const band=new THREE.Mesh(new THREE.TorusGeometry(.30,.07,6,12),glow);band.position.set(sd*.08,-.34,0);band.rotation.x=Math.PI/2;arm.add(band);
+      M(new THREE.OctahedronGeometry(.20,0),glow,sd*.70,1.95,0);
     });
-    if (en.hitFlash > 0) { en.hitFlash -= dt; g.scale.setScalar(en.type.scale * (1 + en.hitFlash * 0.5)); } else g.scale.setScalar(en.type.scale);
+    const orbit=new THREE.Group();
+    for(let i=0;i<4;i++){const m=new THREE.Mesh(new THREE.OctahedronGeometry(.15,0),i%2?core:glow);const a=i*Math.PI/2;m.position.set(Math.cos(a)*1.05,1.42,Math.sin(a)*1.05);orbit.add(m);}g.add(orbit);
+    const ring=new THREE.Mesh(new THREE.RingGeometry(.84,.94,48),new THREE.MeshBasicMaterial({color:0x6fe7ff,transparent:true,opacity:.65,side:THREE.DoubleSide,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.position.y=.05;g.add(ring);
+    g.userData={parts:parts,orbit:orbit,ring:ring,height:2.6};return g;
+  }
+  function buildCovalentHydra() {
+    const g=new THREE.Group(),skin=bossMat(0x255e57),scale=bossMat(0x4ca57d),glow=bossMat(0xa8ffd4,0x35b881),bone=bossMat(0xd2ecc2);
+    function M(geo,mat,x,y,z,parent){const m=new THREE.Mesh(geo,mat);m.position.set(x,y,z);m.castShadow=true;(parent||g).add(m);return m;}
+    const body=M(new THREE.SphereGeometry(.65,12,9),skin,0,.65,0);body.scale.set(1,1,1.5);
+    for(let i=0;i<5;i++)M(new THREE.ConeGeometry(.12,.40,5),scale,0,1.13,-.55+i*.25).rotation.x=-.25;
+    const heads=[];
+    [-1,0,1].forEach((sd,i)=>{
+      const neck=new THREE.Group();neck.position.set(sd*.45,.75,.15);g.add(neck);
+      const n=M(new THREE.CylinderGeometry(.16,.25,.85,7),scale,0,.35,0,neck);n.rotation.z=-sd*.32;
+      const h=M(new THREE.SphereGeometry(.27,10,8),skin,sd*.15,.84,.06,neck);h.scale.set(1,.8,1.2);
+      M(new THREE.BoxGeometry(.26,.12,.30),scale,sd*.15,.78,.25,neck);
+      [-1,1].forEach(eye=>M(new THREE.SphereGeometry(.038,6,5),glow,sd*.15+eye*.115,.90,.23,neck));
+      [-1,1].forEach(sd2=>{const horn=M(new THREE.ConeGeometry(.055,.29,5),bone,sd*.15+sd2*.16,1.04,0,neck);horn.rotation.z=-sd2*.4;});
+      heads.push(neck);
+    });
+    const parts={legs:[]};
+    [-1,1].forEach(sd=>{const leg=new THREE.Group();leg.position.set(sd*.42,.55,.25);g.add(leg);M(new THREE.CylinderGeometry(.12,.18,.55,6),skin,0,-.25,0,leg);M(new THREE.BoxGeometry(.3,.13,.42),scale,0,-.54,.1,leg);parts.legs.push(leg);});
+    const tail=M(new THREE.ConeGeometry(.25,1.25,7),skin,0,.64,-1.0);tail.rotation.x=-Math.PI/2;
+    const ring=new THREE.Mesh(new THREE.RingGeometry(.82,.91,48),new THREE.MeshBasicMaterial({color:0x66efb2,transparent:true,opacity:.55,side:THREE.DoubleSide,depthWrite:false}));ring.rotation.x=-Math.PI/2;ring.position.y=.05;g.add(ring);
+    g.userData={parts:parts,heads:heads,ring:ring,height:2.0};return g;
+  }
+  function spawnBoss(variant, x, z) {
+    const id = variant || 'tyrant';
+    const existing=bossEnemies.find(e=>e.bossId===id);
+    if(existing)return existing;
+    if(id==='tyrant' && bossEnemy && bossEnemy.bossId==='tyrant')return bossEnemy;
+    const D=BOSS_VARIANTS[id]||BOSS_VARIANTS.tyrant;
+    const group=id==='golem'?buildIonicGolem():id==='hydra'?buildCovalentHydra():buildRiftTyrant();
+    group.scale.setScalar(D.scale);
+    const bx=Number.isFinite(x)?x:D.x,bz=Number.isFinite(z)?z:D.z;
+    group.position.set(bx,heightAt(bx,bz),bz);scene.add(group);
+    const en={id:'boss-'+id,boss:true,bossId:id,trialFamily:id==='hydra'?'covalent':id==='golem'?'ionic':'metallic',trialColor:D.color,
+      type:{id:'boss-'+id,name:D.name,hp:D.hp,speed:D.speed,damage:D.damage,score:D.score,gold:D.gold,scale:D.scale},
+      group:group,hp:D.hp,maxHp:D.hp,alive:true,respawn:0,hitFlash:0,bob:Math.random()*6.28,homeX:bx,homeZ:bz,state:'idle',atkCd:1.5,telegraph:0,cast:0,phase:0,bodyRadius:1.15};
+    enemies.push(en);bossEnemies.push(en);if(id==='tyrant'||!bossEnemy)bossEnemy=en;return en;
+  }
+  function spawnBossEncounter(variant,x,z){return spawnBoss(variant,x,z);}
+  function bossAlive() { return bossEnemies.some(e=>e.bossId==='tyrant'&&e.alive); }
+  function updateBoss(dt) {
+    bossEnemies.forEach(en=>{
+      if(!en.alive)return;
+      const g=en.group,D=BOSS_VARIANTS[en.bossId]||BOSS_VARIANTS.tyrant,px=player.position.x,pz=player.position.z;
+      const dx=px-g.position.x,dz=pz-g.position.z,dist=Math.hypot(dx,dz)||.001;
+      if(en.state==='telegraph'){
+        en.cast-=dt;en.phase+=dt;
+        if(g.userData.ring){g.userData.ring.visible=true;g.userData.ring.material.opacity=.35+Math.abs(Math.sin(elapsed*20))*.55;g.userData.ring.scale.setScalar(1+(1-en.cast/en.telegraph)*1.8);}
+        if(en.bossId==='golem'&&g.userData.parts)g.userData.parts.arms.forEach(a=>a.rotation.x=-1.4*Math.min(1,en.phase/.65));
+        if(en.cast<=0){
+          en.state='recover';en.atkCd=en.bossId==='hydra'?1.9:2.4;en.phase=0;
+          const radius=D.reach;
+          addFxRing(g.position.x,g.position.y+.05,g.position.z,D.color,radius,.5);
+          for(let i=0;i<12;i++){const a=i*Math.PI/6;addFxSpark(g.position.x+Math.cos(a)*radius*.55,g.position.y+.35,g.position.z+Math.sin(a)*radius*.55,D.color,1.6);}
+          if(en.bossId==='hydra')for(let i=0;i<3;i++){const a=Math.atan2(dx,dz)+(i-1)*.22;addFxBolt(g.position.x,g.position.y+2.3,g.position.z,g.position.x+Math.sin(a)*dist,g.position.y+1,g.position.z+Math.cos(a)*dist,D.color);}
+          if(dist<=radius&&dashIFrames<=0&&combatHooks.onHurt)combatHooks.onHurt(en);
+          if(g.userData.parts&&g.userData.parts.arms)g.userData.parts.arms.forEach(a=>a.rotation.x=0);
+        }
+      }else if(en.state==='recover'){
+        en.atkCd-=dt;if(en.atkCd<=0)en.state=dist<D.range?'chase':'idle';
+        if(g.userData.ring)g.userData.ring.material.opacity=.16;
+      }else if(dist<D.range){
+        g.rotation.y=Math.atan2(dx,dz);en.atkCd-=dt;
+        if(dist>D.reach*.72){en.state='chase';const sp=D.speed*(en.bindTimer>0?.32:1)*dt;const safe=moveMob(en,g.position.x+dx/dist*sp,g.position.z+dz/dist*sp);if(townDistance(safe[0],safe[1])>1){g.position.x=safe[0];g.position.z=safe[1];}}
+        else {en.state='attack';if(en.atkCd<=0){en.state='telegraph';en.telegraph=en.bossId==='golem'?.95:en.bossId==='hydra'?.72:.82;en.cast=en.telegraph;en.phase=0;addFxRing(g.position.x,g.position.y+.06,g.position.z,D.color,1.2,.3);}}
+      }else en.state='idle';
+      g.position.y=heightAt(g.position.x,g.position.z)+(en.bossId==='hydra'?.18:0);
+      if(g.userData.shards){g.userData.shards.rotation.y+=dt*.9;g.userData.shards.position.y=Math.sin(elapsed*1.6)*.1;}
+      if(g.userData.orbit)g.userData.orbit.rotation.y+=dt*.8;
+      if(g.userData.heads)g.userData.heads.forEach((h,i)=>{h.rotation.z=Math.sin(elapsed*1.8+i*1.9)*.12;h.rotation.x=Math.sin(elapsed*2.1+i)*.08;});
+      const moving=en.state==='chase';(g.userData.parts&&g.userData.parts.legs||[]).forEach((leg,i)=>{leg.rotation.x=moving?Math.sin(elapsed*6+i*Math.PI)*.35:leg.rotation.x*.88;});
+    });
   }
   function bossInfo() {
-    if (!bossEnemy) return null;
-    return { name: bossEnemy.type.name, hp: Math.max(0, bossEnemy.hp), maxHp: bossEnemy.maxHp, alive: bossEnemy.alive, x: bossEnemy.group.position.x, z: bossEnemy.group.position.z };
+    const active=bossEnemy||bossEnemies[0];if(!active)return null;
+    return {name:active.type.name,hp:Math.max(0,active.hp),maxHp:active.maxHp,alive:active.alive,x:active.group.position.x,z:active.group.position.z,state:active.state,variant:active.bossId,total:bossEnemies.length};
   }
-
+  function getBosses(){return bossEnemies.map(e=>({id:e.bossId,name:e.type.name,hp:Math.max(0,e.hp),maxHp:e.maxHp,alive:e.alive,state:e.state,cast:e.cast||0,x:e.group.position.x,z:e.group.position.z}));}
 
   /* ---------- combat public helpers ---------- */
   function setCombatEnabled(enabled) {
@@ -5277,7 +5539,7 @@ const WORLD = (function () {
     setCombatEnabled, setCombatHooks, spawnEnemies, getEnemies,
     performAttack, dashPlayer, equipWeapon, applyCharacterLook, characterSwitchFlare,
     startBondTrial, stopBondTrial, setBondTrialHooks, getBondTrialState,
-    setParty, spawnBoss, bossAlive, bossInfo,
+    setParty, spawnBoss, spawnBossEncounter, bossAlive, bossInfo, getBosses,
     /* debug helper: drop one enemy of a given type in front of the player */
     spawnEnemyOfType: function (typeId, x, z) {
       const type = (typeof ENEMY_TYPES !== 'undefined') && ENEMY_TYPES.find(t => t.id === typeId);
@@ -5306,6 +5568,8 @@ const WORLD = (function () {
     get renderer() { return renderer; },
     get player() { return player; },
     get nodes() { return nodes; },
+    /* debug/QA: lets a probe detect props that overlap each other or a quest node */
+    get colliders() { return colliders; },
     get zoneNow() { return zoneNow; },
     get companions() { return companions; },
     /* debug/QA: lets a probe measure that effects actually spawned */

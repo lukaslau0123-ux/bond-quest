@@ -37,9 +37,10 @@
 
   <!-- Kid-friendly step banner: WALK → PRESS E → done -->
   <div id="bigHint" class="bh">
-    <div class="bhStep">👣 STEP 1</div>
-    <div class="bhText">WALK to the glowing person</div>
-    <div class="bhSub">Follow the green light beam!</div>
+    <div class="bhStep">🎮 TRAINING · STEP 1 OF 5</div>
+    <div class="bhKeys"></div>
+    <div class="bhText">HOLD  W  TO WALK</div>
+    <div class="bhSub">Hold W to walk. The bar fills as you move.</div>
     <div class="bhBar"><i id="bhFill"></i></div>
   </div>
 
@@ -52,6 +53,17 @@
     </div>
     <div id="trialGoal">Run through all 3 electron motes</div>
     <button id="trialContinueBtn" type="button">Enter Chem Lab</button>
+  </div>
+
+  <!-- Boss health readout: only visible while a live boss is nearby. -->
+  <div id="bossHud" aria-live="polite">
+    <div class="bossTop">
+      <span class="bossKicker" id="bossKicker">BOND GUARDIAN</span>
+      <span class="bossFamily" id="bossFamily">IONIC</span>
+    </div>
+    <div class="bossName" id="bossName">Ionic Golem</div>
+    <div class="bossBar"><i id="bossFill"></i><b id="bossCast"></b></div>
+    <div class="bossFoot"><span id="bossHpText">330 / 330</span><span id="bossState">IDLE</span></div>
   </div>
 
   <div id="questPanel">
@@ -96,7 +108,7 @@
   <canvas id="minimap" width="360" height="360"></canvas>
 
   <div id="prompt">Press <kbd>E</kbd> to interact</div>
-  <div id="controlsHint">WASD move · Mouse look · E interact · 1–5 party · C switch · H help</div>
+  <div id="controlsHint">WASD move · Mouse look · E interact · 1–7 party · C switch · H help</div>
   <div id="lockHint">Click to lock mouse</div>
   <div id="skillMeter">
     <span class="skillLabel">SKILL (K)</span>
@@ -129,13 +141,13 @@
     <div class="startScroll">
     <div class="kicker">F4E Interdisciplinary Project</div>
     <h1>Bond Quest</h1>
-    <p class="sub">Start with a fast action level: run through three electron motes, forge your first bond, and unlock the chemistry challenge.</p>
-    <p class="labIntro">60-second Bond Trial first · Ionic cyan · Covalent green · Metallic gold</p>
-    <div class="startMeta"><span>⚡ Instant movement</span><span>◉ Pickup rewards</span><span>✦ First bond celebration</span></div>
+    <p class="sub">A chemistry adventure about <b>chemical bonding</b>. Walk to a glowing spirit, answer a few short questions about its compound, and work out whether the atoms are held by ionic, covalent or metallic bonds.</p>
+    <p class="labIntro">Guided step by step · about 8 minutes · 9 compounds, 3 bond types</p>
+    <div class="startMeta"><span>🎓 Built for F4 chemistry</span><span>🖱️ No reading required to start</span><span>⏱️ Finish in one sitting</span></div>
     </div>
     <div class="startFoot">
-      <button id="startBtn" class="primary">Start 60-Second Bond Trial</button>
-      <button id="exploreBtn" class="ghost">Free roam</button>
+      <button id="startBtn" class="primary">Start — learn by playing</button>
+      <button id="exploreBtn" class="ghost">Free roam (skip tutorial)</button>
     </div>
   </div>
 </div>
@@ -150,8 +162,8 @@
         <p>Use <b>Daily</b> for a 3-question set with double rewards. Open a companion draw from the HUD <b>✦</b> button or the party menu after every 2 challenges.</p>
         <p class="labIntro">In the world, use WASD to move, the mouse to look and E to interact. On touchscreens, use the left stick, drag to look and tap Interact.</p>
         <label class="labToggle"><input id="combatToggle" type="checkbox"> Enable combat while exploring</label>
-        <p class="labIntro">With combat enabled, left-click or press J for a 4-hit combo (the last hit is a finisher), hold <b>F</b> and release for a charged slam, and press <b>K</b> for your element skill. <b>B</b> opens the gear shop, and <b>1</b>-<b>5</b> swaps characters instantly.</p>
-        <p class="labIntro">Your party: press <b>1</b>–<b>5</b> to take control of that companion — whoever you leave behind fights alongside you. <b>C</b> cycles to the next character, <b>Q</b> swaps weapons, and the <b>☻</b> button opens the party list.</p>
+        <p class="labIntro">With combat enabled, left-click or press J for a 4-hit combo (the last hit is a finisher), hold <b>F</b> and release for a charged slam, and press <b>K</b> for your element skill. <b>B</b> opens the gear shop, and <b>1</b>-<b>7</b> swaps characters instantly.</p>
+        <p class="labIntro">Your party: press <b>1</b>–<b>7</b> to take control of that companion — whoever you leave behind fights alongside you. <b>C</b> cycles to the next character, <b>Q</b> swaps weapons, and the <b>☻</b> button opens the party list.</p>
       </div>
     <div class="modalFoot">
       <button class="ghost" id="helpCoachBtn">Replay text guide</button>

@@ -78,6 +78,17 @@ body{-webkit-user-select:none;user-select:none}
 #bigHint.bh.s2{border-color:#ffd86a;box-shadow:0 14px 44px rgba(0,0,0,.55),0 0 34px rgba(255,216,106,.3)}
 #bigHint.bh.s2 .bhStep{color:#ffd86a}
 #bigHint.bh.s3 .bhStep{color:#8ff0c8}
+#bigHint.bh.s4 .bhStep{color:#76d9ff}
+#bigHint.bh.s5 .bhStep{color:#ffb0d8}
+/* Keycap row: the prompt shows the physical control, not just words.
+   Bigger and brighter than body text so the eye lands on it first. */
+#bigHint .bhKeys{display:flex;gap:6px;justify-content:center;align-items:center;min-height:0}
+#bigHint .bhKeys:empty{display:none}
+#bigHint kbd{display:inline-block;min-width:30px;padding:5px 9px;border-radius:7px;
+  font:800 14px/1.1 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;letter-spacing:.5px;
+  color:#0b1a18;background:linear-gradient(180deg,#eafff6,#a9e6cd);
+  border:1px solid rgba(0,0,0,.35);box-shadow:0 2px 0 rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.85)}
+#bigHint .bhLive{color:#ffd86a;font-weight:800;font-variant-numeric:tabular-nums}
 
 /* ---------- simplified intro typography ---------- */
 .qsBig{font-size:19px;line-height:1.7;color:#eafaf4}
@@ -132,7 +143,7 @@ body{-webkit-user-select:none;user-select:none}
 .qZh{font-size:12.5px;color:#88a89c;margin-bottom:16px}
 .options{display:flex;flex-direction:column;gap:9px}
 .options[hidden]{display:none}
-.opt{pointer-events:auto;text-align:left;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.12);border-radius:11px;padding:12px 15px;font-size:13.5px;color:#dcece7;cursor:pointer;transition:.14s;font-family:inherit;line-height:1.5}
+.opt{position:relative;pointer-events:auto;text-align:left;background:rgba(255,255,255,.045);border:1px solid rgba(255,255,255,.12);border-radius:11px;padding:12px 15px;font-size:13.5px;color:#dcece7;cursor:pointer;transition:.14s;font-family:inherit;line-height:1.5}
 .opt:hover{background:rgba(140,240,200,.1);border-color:rgba(140,240,200,.4)}
 .opt.correct{background:rgba(80,220,160,.18);border-color:#4fd6a4;color:#c9ffe8}
 .opt.wrong{background:rgba(240,90,90,.16);border-color:#e05a5a;color:#ffd0d0}
@@ -153,6 +164,92 @@ body{-webkit-user-select:none;user-select:none}
 .answerMiss span{color:#ffb6ae}
 .answerKey strong,.answerMiss strong{display:block;margin:2px 0}
 .answerKey p,.answerMiss p{line-height:1.5}
+/* F4E chemistry lab: visual evidence beside each short decision. */
+#dialogModal .modalCard{width:min(1050px,96vw);max-height:94vh;padding:20px 24px;background:linear-gradient(145deg,rgba(12,29,33,.985),rgba(10,16,25,.985));border-color:rgba(143,240,200,.34)}
+#dialogModal .modalHead{margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,.08)}
+#dialogModal .npcName{font-size:20px;font-weight:750;letter-spacing:.01em}
+#dialogModal .npcLine{font-size:13px;color:#b1cdc4}
+#dialogModal .stepDots{gap:5px;margin-bottom:14px}
+#dialogModal .stepDots .d{height:34px;display:flex;align-items:center;gap:7px;padding:0 10px;border:1px solid rgba(255,255,255,.09);border-radius:8px;background:rgba(255,255,255,.025);color:#729087;font-size:11px;white-space:nowrap;overflow:hidden}
+#dialogModal .stepDots .d i{display:grid;place-items:center;width:18px;height:18px;flex:0 0 18px;border-radius:50%;background:rgba(255,255,255,.08);font-style:normal;font-size:10px}
+#dialogModal .stepDots .d.on{color:#e7fff6;background:rgba(95,208,168,.12);border-color:#5fd0a8;box-shadow:0 0 18px rgba(95,208,168,.08)}
+#dialogModal .stepDots .d.on i{background:#5fd0a8;color:#082018}
+#dialogModal .stepDots .d.done{color:#a9d9c9;background:rgba(63,143,118,.10)}
+#dialogModal .stepDots .d.done i{background:#3f8f76;color:white}
+.lessonObjective{display:flex;align-items:center;gap:12px;margin:0 0 12px}
+.lessonObjective span{padding:4px 8px;border-radius:5px;background:#5fd0a8;color:#09231a;font-size:10px;font-weight:850;letter-spacing:.09em}
+.lessonObjective b{font-size:12px;letter-spacing:.08em;color:#b5d9ce;font-weight:650}
+.chemLessonGrid{display:grid;grid-template-columns:minmax(280px,.88fr) minmax(350px,1.12fr);gap:24px;align-items:start}
+.chemVisual{position:sticky;top:0;padding:16px;border:1px solid rgba(125,211,203,.2);border-radius:16px;background:linear-gradient(160deg,rgba(21,46,50,.78),rgba(8,22,29,.78));overflow:hidden}
+.chemVisual:after{content:"";position:absolute;inset:auto -40px -70px auto;width:170px;height:170px;border-radius:50%;background:rgba(95,208,168,.055);pointer-events:none}
+.chemFormula{text-align:center;font-size:45px;line-height:1.1;font-weight:750;letter-spacing:.02em;color:#f0fff9;margin:1px 0 14px;text-shadow:0 0 24px rgba(143,240,200,.20)}
+.chemArt{display:grid;place-items:center;min-height:150px}
+.chemArt svg{display:block;width:100%;height:auto;max-height:190px}
+.chemCaption{margin-top:12px;font-size:13px;line-height:1.5;color:#b4d1c8;text-align:center}
+.chemKey{display:flex;gap:13px;justify-content:center;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.07);font-size:10px;color:#74988e}
+.chemKey span{display:flex;align-items:center;gap:5px}
+.chemKey i{display:inline-block;width:7px;height:7px;border-radius:50%}
+.dotGold{background:#ffd86a}.dotBlue{background:#76cfff}
+.elementCards{display:flex;align-items:center;justify-content:center;gap:14px;width:100%;min-height:150px}
+.elementCards>div{display:flex;flex-direction:column;align-items:center;justify-content:center;width:116px;height:116px;border-radius:20px;background:linear-gradient(145deg,#254c51,#172c38);border:1px solid #559b95;box-shadow:inset 0 0 30px rgba(109,217,197,.05)}
+.elementCards b{font-size:34px;color:#effff9}.elementCards span{margin-top:8px;font-size:9px;letter-spacing:.12em;color:#9dc8bb;font-weight:700}
+.elementCards>i{font-size:25px;font-style:normal;color:#749d93}
+.chemQuestion .qBlock{font-size:21px;line-height:1.42;font-weight:680;margin:2px 0 7px;color:#f0faf6}
+.chemQuestion .qZh{font-size:13px;line-height:1.5;margin-bottom:14px;color:#94b5aa}
+.chemQuestion .options{gap:10px}
+.chemQuestion .opt{display:grid;grid-template-columns:30px 1fr 20px;align-items:center;gap:10px;min-height:57px;padding:10px 12px;font-size:15px;border-color:rgba(163,205,194,.18);background:rgba(255,255,255,.037)}
+.optLetter{display:grid;place-items:center;width:29px;height:29px;border:1px solid rgba(255,255,255,.18);border-radius:8px;color:#9fbcb2;font-size:12px;font-weight:750}
+.optText{min-width:0}.optArrow{color:#577a70;font-size:17px;transition:.15s}
+.chemQuestion .opt:hover .optArrow,.chemQuestion .opt.kbdFocus .optArrow{color:#8ff0c8;transform:translateX(2px)}
+.chemQuestion .opt:hover,.chemQuestion .opt.kbdFocus{border-color:#72c9ac;background:rgba(95,208,168,.09);outline:none}
+.options.answered .opt{opacity:.58}.options.answered .opt.correct{opacity:1}.options.answered .opt.wrong{opacity:1}
+.chemQuestion .fb{font-size:13px;line-height:1.55;max-height:300px;overflow:auto}
+.answerKey,.answerMiss{padding:11px 13px}.answerKey p,.answerMiss p{margin:5px 0 0;font-size:13px}.answerKey strong,.answerMiss strong{font-size:14px;margin-top:5px}
+.misconceptionRepair{margin-top:0;margin-bottom:8px}.misconceptionRepair>span{letter-spacing:.07em;font-size:11px!important}
+#dialogModal .modalFoot{margin-top:12px;padding-top:12px;align-items:center}
+#dialogModal #dialogHintBtn{margin-right:auto}
+#dialogModal .modalFoot .primary{font-size:14px;padding:11px 20px}
+#dialogModal .kbdHint{margin-top:10px;color:#6e9186;font-size:11px;text-align:right}
+/* Pair counter is a scaffold, never a memory-only blank. */
+.pairsAsk{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:9px 0}
+.pairsAsk label{gap:8px;padding:12px;border:1px solid rgba(255,255,255,.11);border-radius:12px;background:rgba(255,255,255,.025)}
+.pairsAsk label>span{font-size:11px;font-weight:750;letter-spacing:.04em;color:#d5eae3}
+.pairsAsk label small{display:block;margin-top:3px;font-size:10px;font-weight:400;letter-spacing:0;color:#789c90}
+.numberStepper{display:grid;grid-template-columns:38px 1fr 38px;gap:5px}
+.numberStepper button{height:43px;border:1px solid rgba(143,240,200,.25);border-radius:8px;background:rgba(95,208,168,.09);color:#caffeb;font-size:22px;cursor:pointer}
+.numberStepper button:hover{background:rgba(95,208,168,.20);border-color:#8ff0c8}
+.pairsAsk .numberStepper input{width:100%;min-width:0;height:43px;font-size:21px;padding:0 4px}
+.electronTotal{padding:9px 12px;border-radius:8px;background:rgba(118,207,255,.07);color:#9fcbe0;font-size:12px;text-align:center;margin:7px 0 11px}
+.pairCheck{margin-top:0!important;padding:11px 18px!important}
+.challengeComplete{padding:18px;border:1px solid rgba(143,240,200,.35);border-radius:14px;background:linear-gradient(110deg,rgba(58,149,116,.16),rgba(61,116,155,.10));text-align:center}
+.challengeComplete>span{font-size:12px;font-weight:800;letter-spacing:.11em;color:#9ff0cb}.challengeComplete h2{margin:6px 0;font-size:29px;color:#f0fff8}.challengeComplete p{margin:0;color:#96b9ad;font-size:13px}
+.reasonRecap{margin:13px 0;display:grid;gap:8px}
+.recapStep{display:grid;grid-template-columns:28px 1fr;gap:10px;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.035);border-left:2px solid #579d88}
+.recapStep>i{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#315e50;color:#c9f6e3;font-size:12px;font-style:normal}
+.recapStep b{font-size:14px;color:#dcf6ec}.recapStep p{margin:3px 0 0;font-size:12px;line-height:1.48;color:#9cbcb0}
+.recapProgress{text-align:center;color:#8fb2a6;font-size:12px;margin-top:11px}
+/* A quiet action prompt, not another blocking tutorial window. */
+#bigHint.bh{max-width:min(690px,88vw);border-width:1px;background:linear-gradient(105deg,rgba(11,28,30,.96),rgba(13,25,36,.96));box-shadow:0 12px 45px rgba(0,0,0,.34),0 0 30px rgba(95,208,168,.08)}
+#bigHint .bhText{font-size:24px;letter-spacing:.025em}#bigHint .bhSub{max-width:610px;line-height:1.5}
+@media(max-width:800px){
+ #dialogModal .modalCard{padding:16px;max-height:96vh}.chemLessonGrid{grid-template-columns:1fr;gap:14px}.chemVisual{position:static;padding:11px}.chemFormula{font-size:32px;margin-bottom:8px}.chemArt{min-height:100px}.chemArt svg{max-height:130px}.chemCaption{font-size:11px;margin-top:7px}.chemKey{display:none}.chemQuestion .qBlock{font-size:18px}
+ #dialogModal .stepDots .d{padding:0 6px;justify-content:center}#dialogModal .stepDots .d span{display:none}
+ .elementCards{min-height:100px}.elementCards>div{width:85px;height:85px}.elementCards b{font-size:27px}
+ #dialogModal .npcLine{font-size:11px}.lessonObjective{margin-bottom:9px}.chemQuestion .opt{min-height:51px;font-size:14px}
+}
+@media(max-height:720px) and (min-width:801px){.chemFormula{font-size:34px}.chemArt{min-height:115px}.chemArt svg{max-height:130px}.chemCaption{margin-top:8px}.chemKey{margin-top:7px;padding-top:7px}.chemVisual{padding:12px}.chemQuestion .opt{min-height:48px}.chemQuestion .qBlock{font-size:19px}}
+
+/* Electron counting: the two boxes the F4E brief asks for */
+.pairsAsk{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end;margin:14px 0 6px}
+.pairsAsk label{display:flex;flex-direction:column;gap:7px;font-size:12.5px;color:#a9c9bf;flex:0 0 auto}
+.pairsAsk label span{letter-spacing:.01em}
+.pairsAsk input{width:104px;height:46px;padding:0 12px;border-radius:10px;border:1px solid rgba(140,240,200,.32);
+  background:rgba(6,14,16,.85);color:#eafff6;font:700 22px/1 var(--uiFont,'inherit');text-align:center;
+  transition:border-color .14s,box-shadow .14s;font-family:inherit}
+.pairsAsk input:focus{outline:none;border-color:#8ff0c8;box-shadow:0 0 0 3px rgba(143,240,200,.18)}
+.pairsAsk input::-webkit-outer-spin-button,.pairsAsk input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.pairsAsk input[type=number]{-moz-appearance:textfield;appearance:textfield}
+.pairsAsk #pairGo{height:46px;padding:0 22px;align-self:flex-end}
 #dialogModal .modalFoot{flex-wrap:wrap}
 #dialogActions{justify-content:flex-end;margin-top:0}
 #dialogActions:empty{display:none}
@@ -1140,6 +1237,50 @@ body.intro-trial #questPanel{opacity:.35;pointer-events:none}
 
 body.intro-trial #minimap,body.intro-trial .qpTab{display:none!important}
 
+/* ============================================================
+   Boss health readout
+   Shown only while a living boss is within 26 m. Sits under the
+   trial panel slot so the two never overlap.
+   ============================================================ */
+#bossHud{position:fixed;left:50%;top:78px;transform:translate(-50%,-10px) scale(.98);z-index:10;
+  width:min(560px,calc(100vw - 32px));display:none;opacity:0;pointer-events:none;
+  transition:opacity .2s,transform .26s cubic-bezier(.2,.9,.3,1);
+  background:linear-gradient(180deg,rgba(20,10,12,.95),rgba(9,6,8,.95));
+  border:1px solid rgba(255,120,96,.45);border-radius:14px;padding:10px 15px 11px;
+  box-shadow:0 16px 42px rgba(0,0,0,.55),0 0 30px rgba(255,90,70,.14);backdrop-filter:blur(12px)}
+#bossHud.show{display:block;opacity:1;transform:translate(-50%,0) scale(1)}
+#bossHud.hurt{border-color:rgba(255,220,120,.85)}
+.bossTop{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.bossKicker{font-size:9.5px;font-weight:800;letter-spacing:2.4px;color:#ff9d86}
+.bossFamily{font-size:9.5px;font-weight:800;letter-spacing:1.6px;padding:2px 8px;border-radius:999px;
+  border:1px solid currentColor}
+.bossFamily.ionic{color:#3fd8ff}
+.bossFamily.covalent{color:#5fd0a8}
+.bossFamily.metallic{color:#ffc85f}
+.bossName{font-size:15px;font-weight:800;letter-spacing:.6px;color:#ffe9e2;margin:3px 0 7px;
+  text-shadow:0 2px 8px rgba(0,0,0,.7)}
+.bossBar{position:relative;height:11px;border-radius:999px;overflow:hidden;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,140,110,.3)}
+.bossBar i{display:block;height:100%;width:100%;border-radius:999px;
+  background:linear-gradient(90deg,#ff8a5c,#ff5b45 58%,#ff3d5e);
+  box-shadow:0 0 14px rgba(255,90,70,.55);transition:width .18s ease-out}
+/* Charge window: fills while the boss is winding up an attack, so the player
+   reads the telegraph from the HUD as well as from the ground ring. */
+.bossBar b{position:absolute;inset:0;width:0%;display:block;
+  background:linear-gradient(90deg,rgba(255,240,170,.15),rgba(255,240,170,.6));
+  transition:width .08s linear}
+.bossFoot{display:flex;align-items:center;justify-content:space-between;margin-top:5px;
+  font-size:10.5px;letter-spacing:.7px;color:#c9b3ad;font-variant-numeric:tabular-nums}
+#bossState{font-weight:800;letter-spacing:1.4px;color:#ffb9a6}
+#bossHud.casting .bossBar{border-color:rgba(255,225,140,.75)}
+#bossHud.casting #bossState{color:#ffe08a}
+@media (max-width:900px){
+  #bossHud{top:64px;width:calc(100vw - 24px);padding:8px 12px 9px}
+  .bossName{font-size:13px;margin:2px 0 5px}
+  .bossBar{height:9px}
+  .bossFoot{font-size:9.5px}
+}
+
 /* ---------- region-change pulse on the HUD pill (replaces the old centre toast) ---------- */
 @keyframes zonePulseAnim {
   0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(143,240,200,0);   color: #a8e6d0; }
@@ -1151,7 +1292,10 @@ body.intro-trial #minimap,body.intro-trial .qpTab{display:none!important}
 
 .kbdHint{margin-top:10px;font-size:10.5px;color:#7fa094;letter-spacing:.4px;text-align:right}
 .opt.kbdFocus{background:rgba(95,208,168,.12);border-color:#8ff0c8;box-shadow:0 0 0 1px rgba(143,240,200,.28),0 0 16px rgba(143,240,200,.12)}
-.opt.kbdFocus::before{content:'›';display:inline-block;margin-right:8px;color:#8ff0c8;font-weight:800}
+/* The focused-option caret must NOT be a grid item: .opt is a 3-column grid
+   (letter | text | arrow), so an in-flow ::before became a 4th item and shoved
+   .optText into the 20px arrow column, wrapping it one word per line. */
+.opt.kbdFocus::before{content:'›';position:absolute;left:5px;top:50%;transform:translateY(-50%);color:#8ff0c8;font-weight:800;pointer-events:none}
 
 body.is-touch .kbdHint{display:none}
 

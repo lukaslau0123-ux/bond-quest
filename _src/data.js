@@ -22,18 +22,18 @@ const ZONES = {
 */
 const COMPOUNDS = [
   { id:'nacl', f:'NaCl', zh:'氯化鈉', comp:1, ebeh:1, bond:1, tier:1,
-    trap:{ step:1, en:'NaCl is made of molecules, so it is covalent.', zh:'NaCl 由分子組成，所以係共價鍵。',
+    trap:{ step:3, en:'Covalent — NaCl is made of small molecules.', zh:'共價鍵 — NaCl 由細小分子組成。',
       why:{ en:'NaCl is not molecular — it is a giant ionic lattice of Na⁺ and Cl⁻ ions. The formula only shows the ratio 1:1, not a molecule.',
             zh:'NaCl 唔係分子，而係 Na⁺ 同 Cl⁻ 組成嘅巨型離子晶格。化學式只表示 1:1 比例，唔係一個分子。' } } },
 
   { id:'na2o', f:'Na₂O', zh:'氧化鈉', comp:1, ebeh:1, bond:1, tier:1 },
 
-  { id:'h2', f:'H₂', zh:'氫氣', comp:2, ebeh:2, bond:2, tier:1 },
+  { id:'h2', f:'H₂', zh:'氫氣', comp:2, ebeh:2, bond:2, pairs:{sym:'H', lone:0, bond:1}, tier:1 },
 
   { id:'fe', f:'Fe', zh:'鐵', comp:3, ebeh:3, bond:3, tier:1 },
 
-  { id:'o2', f:'O₂', zh:'氧氣', comp:2, ebeh:2, bond:2, tier:2,
-    trap:{ step:3, en:'O₂ has two separate weak single bonds.', zh:'O₂ 有兩條分開嘅弱單鍵。',
+  { id:'o2', f:'O₂', zh:'氧氣', comp:2, ebeh:2, bond:2, pairs:{sym:'O', lone:2, bond:2}, tier:2,
+    trap:{ step:3, en:'Covalent — but as two separate single bonds.', zh:'共價鍵 — 但係兩條分開嘅單鍵。',
       why:{ en:'O=O is ONE double bond — a single region of shared electron density. A double bond is shorter and stronger than a single bond, not two weak bonds.',
             zh:'O=O 係一條雙鍵，即一處共用電子密度。雙鍵比單鍵更短更強，唔係兩條弱單鍵。' } } },
 
@@ -43,18 +43,18 @@ const COMPOUNDS = [
 
   { id:'cao', f:'CaO', zh:'氧化鈣', comp:1, ebeh:1, bond:1, tier:2 },
 
-  { id:'h2o', f:'H₂O', zh:'水', comp:2, ebeh:2, bond:2, tier:2 },
+  { id:'h2o', f:'H₂O', zh:'水', comp:2, ebeh:2, bond:2, pairs:{sym:'O', lone:2, bond:2}, tier:2 },
 
-  { id:'co2', f:'CO₂', zh:'二氧化碳', comp:2, ebeh:2, bond:2, tier:2,
-    trap:{ step:2, en:'CO₂ conducts electricity because it has shared electrons.', zh:'CO₂ 有共用電子，所以導電。',
+  { id:'co2', f:'CO₂', zh:'二氧化碳', comp:2, ebeh:2, bond:2, pairs:{sym:'C', lone:0, bond:4}, tier:2,
+    trap:{ step:2, en:'The electrons are delocalised, which is why CO₂ conducts.', zh:'電子離域，所以 CO₂ 導電。',
       why:{ en:'Shared electrons in a covalent bond are localised between the two atoms. CO₂ has no free electrons and no ions, so it does NOT conduct.',
             zh:'共價鍵嘅共用電子被局限喺兩粒原子之間。CO₂ 冇自由電子亦冇離子，所以唔導電。' } } },
 
-  { id:'ch4', f:'CH₄', zh:'甲烷', comp:2, ebeh:2, bond:2, tier:2 },
+  { id:'ch4', f:'CH₄', zh:'甲烷', comp:2, ebeh:2, bond:2, pairs:{sym:'C', lone:0, bond:4}, tier:2 },
 
-  { id:'cl2', f:'Cl₂', zh:'氯氣', comp:2, ebeh:2, bond:2, tier:2 },
+  { id:'cl2', f:'Cl₂', zh:'氯氣', comp:2, ebeh:2, bond:2, pairs:{sym:'Cl', lone:3, bond:1}, tier:2 },
 
-  { id:'hcl', f:'HCl', zh:'氯化氫', comp:2, ebeh:2, bond:2, tier:2 },
+  { id:'hcl', f:'HCl', zh:'氯化氫', comp:2, ebeh:2, bond:2, pairs:{sym:'Cl', lone:3, bond:1}, tier:2 },
 
   { id:'cu', f:'Cu', zh:'銅', comp:3, ebeh:3, bond:3, tier:2,
     trap:{ step:2, en:'Electrons are transferred from Cu atoms to other atoms.', zh:'電子由 Cu 原子轉移去其他原子。',
@@ -65,21 +65,21 @@ const COMPOUNDS = [
 
   { id:'zn', f:'Zn', zh:'鋅', comp:3, ebeh:3, bond:3, tier:2 },
 
-  { id:'nh3', f:'NH₃', zh:'氨', comp:2, ebeh:2, bond:2, tier:3,
+  { id:'nh3', f:'NH₃', zh:'氨', comp:2, ebeh:2, bond:2, pairs:{sym:'N', lone:1, bond:3}, tier:3,
     trap:{ step:2, en:'The lone pair on N is shared with the three H atoms.', zh:'N 上面嘅孤對電子同 3 個 H 共用。',
       why:{ en:'A lone pair belongs to ONE atom only and is not shared. Only a bond pair is shared between two atoms. In NH₃, N has 3 bond pairs and 1 lone pair.',
             zh:'孤對電子只屬於一粒原子，唔會共用。只有鍵對先係兩粒原子共用。NH₃ 入面 N 有 3 對鍵對同 1 對孤對。' } } },
 
-  { id:'bf3', f:'BF₃', zh:'三氟化硼', comp:2, ebeh:2, bond:2, tier:3,
+  { id:'bf3', f:'BF₃', zh:'三氟化硼', comp:2, ebeh:2, bond:2, pairs:{sym:'B', lone:0, bond:3}, tier:3,
     trap:{ step:3, en:'B in BF₃ has a full octet and one lone pair.', zh:'BF₃ 入面 B 有完整八隅體同一對孤對電子。',
       why:{ en:'Boron has only 3 valence electrons. In BF₃ it forms 3 bond pairs (6 electrons) and has NO lone pair — it is electron-deficient.',
             zh:'硼只有 3 粒價電子。BF₃ 入面 B 形成 3 對鍵對（6 粒電子），冇孤對電子，屬缺電子。' } } },
 
-  { id:'bcl3', f:'BCl₃', zh:'三氯化硼', comp:2, ebeh:2, bond:2, tier:3 },
+  { id:'bcl3', f:'BCl₃', zh:'三氯化硼', comp:2, ebeh:2, bond:2, pairs:{sym:'B', lone:0, bond:3}, tier:3 },
 
   { id:'so2', f:'SO₂', zh:'二氧化硫', comp:2, ebeh:2, bond:2, tier:3 },
 
-  { id:'ph3', f:'PH₃', zh:'磷化氫', comp:2, ebeh:2, bond:2, tier:3 },
+  { id:'ph3', f:'PH₃', zh:'磷化氫', comp:2, ebeh:2, bond:2, pairs:{sym:'P', lone:1, bond:3}, tier:3 },
 
   { id:'mg3n2', f:'Mg₃N₂', zh:'氮化鎂', comp:1, ebeh:1, bond:1, tier:3 },
 
@@ -87,7 +87,7 @@ const COMPOUNDS = [
     note:{ en:'NH₄Cl is ionic even though all its elements are non-metals. The NH₄⁺ ion contains covalent N–H bonds. Attraction between NH₄⁺ and Cl⁻ holds the lattice together.',
            zh:'陷阱題：全部元素都係非金屬，但 NH₄Cl 係離子化合物。NH₄⁺ 係多原子陽離子，電子轉移發生喺 NH₄⁺ 同 Cl⁻ 之間。' } },
 
-  { id:'diamond', f:'diamond', zh:'鑽石', comp:2, ebeh:2, bond:2, tier:3,
+  { id:'diamond', f:'diamond', zh:'鑽石', comp:2, ebeh:2, bond:2, pairs:{sym:'C', lone:0, bond:4}, tier:3,
     note:{ en:'Giant covalent structure: each C atom shares 4 pairs with 4 neighbours — very high melting point, does not conduct.',
            zh:'巨型共價結構：每粒 C 同 4 個鄰居共用 4 對電子 — 熔點極高、唔導電。' } },
 
@@ -231,7 +231,7 @@ const GLOSSARY = [
 const NODES = [
   { id:'n1', type:'npc',     zone:'A', x:0, z:-31, compound:'nacl', main:1, label:{en:'Ion Sage', zh:'離子智者'} },
   { id:'n2', type:'chest',   zone:'A', x:-40, z:-40, dc:'dc-nacl', main:1, label:{en:'Salt Chest', zh:'鹽之寶箱'} },
-  { id:'n3', type:'npc',     zone:'B', x: 18, z:-16, compound:'h2',   main:1, label:{en:'Gas Spirit', zh:'氣體精靈'} },
+  { id:'n3', type:'npc',     zone:'B', x: 18, z:-18, compound:'h2',   main:1, label:{en:'Gas Spirit', zh:'氣體精靈'} },
   { id:'n4', type:'npc',     zone:'C', x:-20, z: 16, compound:'fe',   main:1, label:{en:'Forge Keeper', zh:'鍛造守衛'} },
   { id:'n5', type:'npc',     zone:'B', x: 45, z:-35, compound:'h2o',  main:1, label:{en:'Water Nymph', zh:'水之精靈'} },
   { id:'n6', type:'chest',   zone:'B', x: 60, z:-55, dc:'dc-hcl',     main:1, label:{en:'Acid Chest', zh:'酸之寶箱'} },
@@ -308,7 +308,9 @@ const CHARACTERS = [
   { id:'kael',   name:'Kael',       gender:'male',   role:'Vanguard',      color:0x6f9fd8, hair:0x2e2a2c, speed:0.92, bonus:0.15, scoreReq:0,   rarity:3, element:'terra', desc:'Burly shield-bearer. Slower, but hits harder.' },
   { id:'mira',   name:'Mira',       gender:'female', role:'Arcane Caster', color:0xb9a7f0, hair:0x8a5a9a, speed:1.05, bonus:-0.05,scoreReq:60,  rarity:5, element:'tide',  desc:'Ranged orbital mage. Quick and nimble.' },
   { id:'dorian', name:'Dorian',     gender:'male',   role:'Ranger',        color:0x8fd8b0, hair:0x7a5230, speed:1.08, bonus:0.05, scoreReq:140, rarity:4, element:'volt',  desc:'Keen-eyed archer. Fast footwork.' },
-  { id:'vex',    name:'Vex',        gender:'female', role:'Shadow Dancer', color:0xe08fb8, hair:0x3a2a44, speed:1.12, bonus:0.10, scoreReq:240, rarity:5, element:'shade', desc:'Twin-blade whirlwind. Dangerous up close.' }
+  { id:'vex',    name:'Vex',        gender:'female', role:'Shadow Dancer', color:0xe08fb8, hair:0x3a2a44, speed:1.12, bonus:0.10, scoreReq:240, rarity:5, element:'shade', desc:'Twin-blade whirlwind. Dangerous up close.' },
+  { id:'nyx',    name:'Nyx',        gender:'female', role:'Storm Duelist', color:0x44557f, hair:0x8b96c4, speed:1.14, bonus:0.12, scoreReq:320, rarity:5, element:'volt',  desc:'Lightning duelist. Arcs jump between whoever she hits.' },
+  { id:'orin',   name:'Orin',       gender:'male',   role:'Ember Monk',    color:0xc4763a, hair:0x2a1a14, speed:0.94, bonus:0.24, scoreReq:400, rarity:5, element:'ember', desc:'Furnace-fisted monk. Slow, heavy, and unstoppable up close.' }
 ];
 
 /* Elemental skills — one per character, bound to the burst (K) button.

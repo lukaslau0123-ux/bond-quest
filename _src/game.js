@@ -265,7 +265,13 @@
         addScore(s); addGold(g);
         if (Math.random() < 0.45) { SFX.coin(); floatReward('+' + s + '  +' + g + 'g', enemy.group.position); }
       },
-      onDamage: function (enemy, dmg, kind) { showDamageNumber(enemy.group.position, dmg, kind); },
+      onDamage: function (enemy, dmg, kind) {
+        showDamageNumber(enemy.group.position, dmg, kind);
+        if (enemy.boss) {
+          const bh = $('bossHud');
+          if (bh) { bh.classList.add('hurt'); setTimeout(function () { bh.classList.remove('hurt'); }, 130); }
+        }
+      },
       onReaction: function (info) { showBondReaction(info); },
       onKill: function (enemy) {
         SFX.kill();
@@ -275,8 +281,8 @@
         toast('⚔ ' + enemy.type.name + ' defeated! <b>+' + enemy.type.score + ' XP</b> · <b>+' + enemy.type.gold + ' gold</b>', 1800);
         floatReward('+' + enemy.type.score + '  +' + enemy.type.gold + 'g', enemy.group.position, true);
         if (enemy.boss) {
-          showBanner('REALM SAVED', bi('The Rift Tyrant is undone — every bond it frayed now holds. Champion of Windvale!', '裂隙暴君已被擊敗——所有被撕裂嘅化學鍵重新鞏固。風谷英雄！'));
-          try { localStorage.setItem('bq_boss_down_v1', '1'); } catch (e) { }
+          showBanner(enemy.type.name.toUpperCase() + ' DEFEATED', bi('Bond encounter cleared. Two other optional bosses wait in the outer regions.', 'Boss 已擊敗，外圍地區仲有其他可選挑戰。'));
+          try { localStorage.setItem('bq_boss_down_' + (enemy.bossId || 'tyrant'), '1'); } catch (e) { }
         }
         if (enemy.trial && introTrial && !introTrial.firstKill) {
           introTrial.firstKill = true;
@@ -345,31 +351,55 @@
        done   — celebration, combat unlocked, bonus hint
      Progress bar fills as the player performs each real action.
      ================================================================ */
-  const TUT_KEY = 'bq_tut_v1';
-  let tutStep = 0;            // 0 not started · 1 move · 2 approach · 3 pressE · 4 answer · 5 done
+  const TUT_KEY = 'bq_tut_v2';
+  let tutStep = 0;            // 0 idle · 1 move · 2 look · 3 approach · 4 pressE · 5 answer · 6 done
   let tutMoved = 0;           // metres actually walked in step 1
   let tutLastPos = null;      // last player position for move measuring
+  let tutLook = 0;            // radians the camera has been turned in step 2
+  let tutYaw = 0;             // last yaw sample for look measuring
   let tutCelebrate = 0;
   let introTrial = null;
   let introTrialTicker = 0;
   const TUT_MOVE_GOAL = 8;
+  const TUT_LOOK_GOAL = 1.9;  // ~110 degrees of camera turn proves mouse-look
 
   function tutSeen() { try { return !!localStorage.getItem(TUT_KEY); } catch (e) { return false; } }
 
+  /* Genshin-style guidance. Every step is ONE verb, the key that does it, a bar
+     that fills as you actually do it, and a line that removes the fear of
+     failing. No paragraph of instructions, no modal, nothing to dismiss. */
   function tutShow(step) {
     tutStep = step;
     const bh = $('bigHint'); if (!bh) return;
     const touch = WORLD.isTouchMode();
-    const txt = {
-      1: ['🎮 TRAINING · STEP 1 OF 3', touch ? 'DRAG THE LEFT STICK TO WALK' : 'HOLD  W  TO WALK', touch ? 'Push the stick — walk 8 m to continue.' : 'Keep holding until the bar is full.'],
-      2: ['🎮 TRAINING · STEP 2 OF 3', 'WALK TO THE GLOWING PERSON', 'Follow the green light beam!'],
-      3: ['🎮 TRAINING · STEP 3 OF 3', touch ? 'TAP  THE  E  BUTTON' : 'PRESS  E', touch ? 'You are close — tap Interact!' : 'You are close — press E to talk!'],
-      4: ['🎯', 'PICK AN ANSWER', 'Any answer works — you are learning!']
+    const S = {
+      1: { step: bi('TRAINING · STEP 1 OF 5', '新手教學 · 第 1 / 5 步'),
+           keys: touch ? [bi('LEFT STICK', '左搖桿')] : ['W', 'A', 'S', 'D'],
+           text: touch ? bi('DRAG THE STICK TO WALK', '拖動搖桿行路') : bi('HOLD  W  TO WALK', '按住 W 行路'),
+           sub: bi('Walk 8 m and the bar fills. Nothing here can hurt you.', '行 8 米條就會滿。呢度無嘢會傷到你。') },
+      2: { step: bi('TRAINING · STEP 2 OF 5', '新手教學 · 第 2 / 5 步'),
+           keys: touch ? [bi('RIGHT SIDE', '右邊畫面')] : [bi('MOUSE', '滑鼠')],
+           text: touch ? bi('SWIPE TO LOOK AROUND', '滑動畫面環視') : bi('MOVE THE MOUSE TO LOOK', '移動滑鼠環視四周'),
+           sub: bi('Sweep about a quarter turn. This is how you spot the green beam.', '轉大約四分之一圈。之後就係靠呢樣揀綠色光柱。') },
+      3: { step: bi('TRAINING · STEP 3 OF 5', '新手教學 · 第 3 / 5 步'),
+           keys: touch ? [bi('WALK', '行過去')] : ['W', bi('SHIFT', 'SHIFT')],
+           text: bi('FOLLOW THE GREEN BEAM', '跟住綠色光柱行'),
+           sub: dlgGoalSub() },
+      4: { step: bi('TRAINING · STEP 4 OF 5', '新手教學 · 第 4 / 5 步'),
+           keys: ['E'],
+           text: touch ? bi('TAP  THE  E  BUTTON', '撐 E 掉') : bi('PRESS  E  TO TALK', '按 E 開始對話'),
+           sub: bi('Close enough. E opens the chemistry question.', '已經夠近，按 E 就會開化學題。') },
+      5: { step: bi('TRAINING · STEP 5 OF 5', '新手教學 · 第 5 / 5 步'),
+           keys: touch ? [bi('TAP', '點選')] : [bi('CLICK', '點擊'), '↑ ↓'],
+           text: bi('READ THE CLUE, THEN PICK', '睇線索，再揀答案'),
+           sub: bi('Elements → electrons → bond type. A wrong pick costs nothing in training.', '元素 → 電子 → 鍵型。絃習中答錯唔會扣任何嘢。') }
     }[step];
-    if (!txt) return;
-    bh.querySelector('.bhStep').textContent = txt[0];
-    bh.querySelector('.bhText').textContent = txt[1];
-    bh.querySelector('.bhSub').textContent = txt[2];
+    if (!S) return;
+    bh.querySelector('.bhStep').textContent = S.step;
+    bh.querySelector('.bhText').textContent = S.text;
+    const keys = bh.querySelector('.bhKeys');
+    if (keys) keys.innerHTML = S.keys.map(function (k) { return '<kbd>' + k + '</kbd>'; }).join('');
+    bh.querySelector('.bhSub').innerHTML = S.sub + '<b class="bhLive" id="bhLive"></b>';
     bh.className = 'bh show s' + step;
   }
   function tutHide() { const bh = $('bigHint'); if (bh) bh.className = 'bh'; }
@@ -377,27 +407,60 @@
   function tutProgress(k) {
     const el = $('bhFill'); if (el) el.style.width = Math.round(Math.max(0, Math.min(1, k)) * 100) + '%';
   }
+  /* Live readout inside the banner: metres walked, degrees turned, metres left.
+     Seeing the number move is what makes a prompt feel responsive rather than
+     decorative - it proves the game noticed you. */
+  function tutLive(msg) {
+    const el = $('bhLive'); if (el) el.textContent = msg ? ' ' + msg : '';
+  }
+
+  /* The sub-line for step 2 names the actual compound the player is walking to,
+     so a first-timer knows what the glowing figure is for. */
+  function dlgGoalSub() {
+    const t = trackedNode();
+    if (!t) return 'Follow the green light beam!';
+    if (t.type === 'chest') return 'Open the chest, then place electrons on the dot-and-cross diagram.';
+    if (t.type === 'crystal') return 'Collect the crystal to unlock a chemistry word.';
+    const c = COMP[t.compound];
+    if (!c) return 'Talk to them — classify the compound.';
+    return 'Talk to them: classify ' + c.f + ' in ' + dialogKinds(c).length + ' questions.';
+  }
 
   function tutStart() {
     if (tutSeen() || mainDone()) return;
     setTimeout(() => {
       if (guided || state !== STATE.WORLD) return;
-      tutShow(1); tutProgress(0); SFX.click();
+      tutShow(1); tutProgress(0); tutLive('');
+      tutLastPos = null; tutMoved = 0; tutLook = 0; tutYaw = WORLD.yaw || 0;
+      SFX.click();
     }, 700);
+  }
+  /* Called after the 60-second Bond Trial ends: the fight has taught the combat
+     controls, so now teach the chemistry loop the same way — by doing. */
+  function tutStartAfterTrial() {
+    if (tutSeen() || mainDone()) return;
+    tutStep = 0; tutMoved = 0; tutLook = 0; tutLastPos = null;
+    setTimeout(() => { if (state === STATE.WORLD) tutStart(); }, 400);
   }
   function tutAdvance(next) {
     SFX.coin();
     tutShow(next);
+    if (next === 2) { tutLook = 0; tutYaw = WORLD.yaw || 0; }
+    if (next === 3) { tutMoved = 0; tutLastPos = null; }
   }
   function tutComplete() {
-    tutShow(5);
-    const bh = $('bigHint'); if (bh) bh.className = 'bh show s3 done';
-    bh.querySelector('.bhStep').textContent = '🎉';
-    bh.querySelector('.bhText').textContent = 'TRAINING COMPLETE!';
-    bh.querySelector('.bhSub').textContent = 'You are ready — the world is yours!';
-    tutProgress(1);
+    tutStep = 6;
+    const bh = $('bigHint'); if (!bh) return;
+    bh.className = 'bh show s3 done';
+    bh.querySelector('.bhStep').textContent = '\ud83c\udf89 ' + bi('TRAINING COMPLETE', '新手教學完成');
+    bh.querySelector('.bhText').textContent = bi('YOU CAN READ A BOND', '你已經識睇化學鍵');
+    bh.querySelector('.bhSub').innerHTML = bi(
+      'Element types → electron behaviour → bond name → electron pairs.<br>That is every question in this game. Open a dot-and-cross chest next.',
+      '元素種類 → 電子行為 → 鍵名 → 電子對。<br>全遊戲每一條題目都係呢條路。下一步去開 dot-and-cross 寶箱。');
+    const keys = bh.querySelector('.bhKeys'); if (keys) keys.innerHTML = '';
+    tutProgress(1); tutLive('');
     SFX.unlock();
-    tutCelebrate = performance.now() + 2600;
+    tutCelebrate = performance.now() + 6400;
     try { localStorage.setItem(TUT_KEY, '1'); } catch (e) { }
   }
   function formatTrialTime(sec) {
@@ -436,13 +499,18 @@
   }
   function finishIntroTrial() {
     if (!introTrial || !introTrial.done) return;
-    clearInterval(introTrialTicker); introTrialTicker = 0; WORLD.stopBondTrial(); WORLD.setBondTrialHooks(null); introTrial = null; document.body.classList.remove('intro-trial'); $('trialHud').classList.remove('show', 'complete', 'celebrating'); setQuestCollapsed(false); openNextLab();
+    clearInterval(introTrialTicker); introTrialTicker = 0; WORLD.stopBondTrial(); WORLD.setBondTrialHooks(null); introTrial = null; document.body.classList.remove('intro-trial'); $('trialHud').classList.remove('show', 'complete', 'celebrating'); setQuestCollapsed(false);
+    /* First run: walk the player through the chemistry loop before throwing a
+       lab challenge at them. openNextLab() would teleport straight into a
+       question with no explanation. */
+    if (!tutSeen() && !mainDone()) { tutStartAfterTrial(); return; }
+    openNextLab();
   }
 
   function tickTutorial() {
     if (tutCelebrate && performance.now() > tutCelebrate) { tutCelebrate = 0; tutHide(); return; }
     if (tutCelebrate) return;
-    if (tutStep === 0 || tutStep >= 5) return;
+    if (tutStep === 0 || tutStep >= 6) return;
     if (state !== STATE.WORLD || !started) return;
     /* re-show the banner after closing a modal */
     const bhEl = $('bigHint');
@@ -452,18 +520,32 @@
       if (tutLastPos) tutMoved += Math.hypot(p.x - tutLastPos.x, p.z - tutLastPos.z);
       tutLastPos = { x: p.x, z: p.z };
       tutProgress(tutMoved / TUT_MOVE_GOAL);
+      tutLive(tutMoved.toFixed(1) + ' / ' + TUT_MOVE_GOAL + ' m');
       if (tutMoved >= TUT_MOVE_GOAL) tutAdvance(2);
+      return;
+    }
+    if (tutStep === 2) {
+      /* accumulate absolute yaw change, so sweeping back and forth still counts */
+      const now = WORLD.yaw || 0;
+      let dy = now - tutYaw;
+      while (dy > Math.PI) dy -= Math.PI * 2;
+      while (dy < -Math.PI) dy += Math.PI * 2;
+      tutLook += Math.abs(dy); tutYaw = now;
+      tutProgress(tutLook / TUT_LOOK_GOAL);
+      tutLive(Math.round(Math.min(360, tutLook * 180 / Math.PI)) + '\u00b0');
+      if (tutLook >= TUT_LOOK_GOAL) tutAdvance(3);
       return;
     }
     const t = trackedNode();
     if (!t) return;
     const d = Math.hypot(t.x - p.x, t.z - p.z);
-    if (tutStep === 2) {
+    if (tutStep === 3) {
       tutProgress(1 - d / 26);
-      if (d < 7) tutAdvance(3);
+      tutLive(Math.max(0, Math.round(d - 4)) + ' m');
+      if (d < 7) tutAdvance(4);
       return;
     }
-    if (tutStep === 3) {
+    if (tutStep === 4) {
       tutProgress(Math.max(0, 1 - Math.max(0, d - 4) / 4));
     }
   }
@@ -656,7 +738,9 @@
     applyWaypoints();
     /* returning save with all main objectives already done → boss is present */
     const mains = NODES.filter(n => n.main);
-    if (mains.length && mains.every(n => done.has(n.id)) && typeof BOSS !== 'undefined' && WORLD.spawnBoss) WORLD.spawnBoss();
+    if (mains.length && mains.every(n => done.has(n.id)) && typeof BOSS !== 'undefined' && WORLD.spawnBoss) {
+      WORLD.spawnBoss('tyrant'); WORLD.spawnBoss('golem'); WORLD.spawnBoss('hydra');
+    }
     syncParty();
   }
 
@@ -841,8 +925,60 @@
     const cp = $('charPill'); if (cp) cp.title = 'Active character · press C to switch';
   }
 
-  /* ---------------- language toggle ---------------- */
-  function syncLanguageUI() {
+  /* ---------------- boss health readout ---------------- */
+  /* The world module owns the boss state machine; the HUD only reads it.
+     Keeping the readout here means a designer can retune BOSS_VARIANTS in
+     _src/world.js without touching any UI code. */
+  const BOSS_HUD_RANGE = 34;      /* metres: hide the bar beyond this */
+  let bossHudEl = null;
+
+  function updateBossHUD() {
+    if (!bossHudEl) bossHudEl = $('bossHud');
+    const el = bossHudEl;
+    if (!el) return;
+    let list = null;
+    try { list = WORLD.getBosses ? WORLD.getBosses() : null; } catch (e) { list = null; }
+    const p = WORLD.player ? WORLD.player.position : null;
+    let near = null, nearD = 1e9;
+    if (list && p) {
+      list.forEach(function (b) {
+        if (!b.alive) return;
+        const d = Math.hypot(b.x - p.x, b.z - p.z);
+        if (d < nearD) { nearD = d; near = b; }
+      });
+    }
+    const inFight = !!near && nearD <= BOSS_HUD_RANGE && state === STATE.WORLD;
+    if (!inFight) { el.classList.remove('show', 'casting', 'hurt'); return; }
+    const pct = Math.max(0, Math.min(1, near.hp / Math.max(1, near.maxHp)));
+    el.classList.add('show');
+    const nm = $('bossName'); if (nm) nm.textContent = near.name;
+    const fam = $('bossFamily');
+    if (fam) {
+      const family = near.id === 'hydra' ? 'covalent' : near.id === 'golem' ? 'ionic' : 'metallic';
+      fam.className = 'bossFamily ' + family;
+      fam.textContent = family.toUpperCase();
+    }
+    const fill = $('bossFill'); if (fill) fill.style.width = (pct * 100).toFixed(1) + '%';
+    const hpTx = $('bossHpText');
+    if (hpTx) hpTx.textContent = Math.round(near.hp) + ' / ' + near.maxHp;
+    const casting = near.state === 'telegraph' && near.cast > 0;
+    el.classList.toggle('casting', casting);
+    const cast = $('bossCast');
+    if (cast) {
+      const win = near.id === 'golem' ? 0.95 : near.id === 'hydra' ? 0.72 : 0.82;
+      cast.style.width = casting ? Math.max(0, Math.min(1, near.cast / win)) * 100 + '%' : '0%';
+    }
+    const stEl = $('bossState');
+    if (stEl) stEl.textContent = casting ? 'CHARGING'
+      : near.state === 'attack' ? 'STRIKING'
+      : near.state === 'recover' ? 'RECOVER'
+      : near.state === 'chase' ? 'HUNTING'
+      : near.state === 'telegraph' ? 'CHARGING' : 'HOLDING';
+    const kick = $('bossKicker');
+    if (kick) kick.textContent = nearD < 12 ? 'BOND GUARDIAN · IN RANGE' : 'BOND GUARDIAN';
+  }
+
+  /* ---------------- language toggle ---------------- */  function syncLanguageUI() {
     document.body.classList.toggle('lang-zh', isZh());
     const lb = $('langBtn'); if (lb) lb.textContent = isZh() ? '中文' : 'EN';
     document.querySelectorAll('[data-lang-toggle]').forEach(b => { b.textContent = isZh() ? '中文 / EN' : 'EN / 中文'; });
@@ -901,7 +1037,7 @@
     if (lock.locked) {
       p.innerHTML = '🔒 Unlocks after ' + lock.need + ' correct answers (you have ' + correctCount + ')';
     } else if (n.type === 'npc') {
-      p.innerHTML = 'Press <kbd>E</kbd> to talk to ' + n.label.en + ' — answer 3 questions';
+      p.innerHTML = 'Press <kbd>E</kbd> to talk to ' + n.label.en + ' — classify the compound';
     } else if (n.type === 'chest') {
       p.innerHTML = 'Press <kbd>E</kbd> to open ' + n.label.en + ' — draw the diagram';
     } else if (n.type === 'guild') {
@@ -1022,9 +1158,13 @@
     lastFrame = performance.now();
     SESSION.startTime = Date.now();
     logEvent({ type: 'start', mode: introLevel ? 'bond_trial' : openLab ? 'lab' : 'explore' });
-    if (introLevel) { WORLD.requestLock(); startIntroTrial(); }
-    else if (openLab) openNextLab();
-    else { WORLD.requestLock(); tutStart(); }
+    const beginPending = () => {
+      if (openLab) openNextLab();
+      else { WORLD.requestLock(); tutStart(); }
+    };
+    /* Contextual, do-one-action teaching starts in the world. The seven long
+       coach slides remain available from Help as an optional reference tour. */
+    beginPending();
     if (!storeOk) toast('Browser storage is blocked. Use Export data to keep a copy of your session.', 5000);
   }
 
@@ -1206,45 +1346,121 @@
   function openDialog(node) {
     releasePointerForModal();
     const c = COMP[node.compound];
-    dlg = { node, c, step: 0, picks: [], hintUsed: false, wrongSteps: 0, lastAnswer: null };
-    if (tutStep === 3) tutAdvance(4);   // training: the player actually pressed E!
+    const kinds = dialogKinds(c);
+    if (node.id === 'n9') kinds.push('structure');
+    /* Genshin-style safe practice: the training question is a rehearsal, so a wrong
+       pick costs nothing - no streak break, no score loss. Without this the very
+       first question a new player ever sees punishes them for exploring, which is
+       exactly what makes a tutorial feel hostile.
+       NOTE: computed BEFORE tutAdvance(), because pressing E at step 4 moves the
+       tutorial to step 5 in the same call. */
+    const trainingRun = (tutStep === 4 || tutStep === 5);
+    dlg = { node, c, step: 0, picks: [], hintUsed: false, wrongSteps: 0, lastAnswer: null, kinds,
+      practice: trainingRun };
+    if (tutStep === 4) tutAdvance(5);   // training: the player actually pressed E!
     $('npcName').textContent = node.label.en + ' · ' + c.f;
     $('npcAvatar').textContent = c.f.replace(/[₀-₉]/g, '').slice(0, 2);
     const mission = NODES.filter(n => n.main).indexOf(node) + 1;
     const story = (window.Story && node.main) ? window.Story.forNode(node.id) : null;
-    $('npcLine').textContent = story ? story.intro : (guided
-      ? bi('Challenge ' + mission + ' of ' + MAIN_TOTAL + ' · Classify ' + c.f, '第 ' + mission + ' / ' + MAIN_TOTAL + ' 題 · 分類 ' + c.f)
-      : bi('Classify ' + c.f + ' in three steps.', '用三個步驟分類 ' + c.f + '。'));
+    $('npcLine').textContent = bi(
+      'Goal: explain why ' + c.f + ' has this bond type — not just guess its name.',
+      '目標：解釋 ' + c.f + ' 點解屬於呢種鍵，而唔只係估名。');
     setState(STATE.DIALOG);
     openModal('dialogModal');
     renderDialogStep();
+  }
+
+  /* The question sequence. The F4E brief asks for three questions and then, for a
+     COVALENT compound, "___ lone pair(s), ___ bond pair(s)". So a covalent
+     compound gets a counting step, and the final node also gets the structure
+     question. Ionic and metallic compounds stay at three questions. */
+  function dialogKinds(c) {
+    const kinds = ['comp', 'ebeh', 'bond'];
+    /* Counting pairs only makes sense for a simple molecule. Diamond, graphite and
+       C60 are giant covalent structures, so they keep the three-question flow. */
+    const GIANT = { diamond: 1, graphite: 1, c60: 1 };
+    if (c.pairs && c.bond === 2 && !GIANT[c.id]) kinds.push('pairs');
+    return kinds;
+  }
+
+  function chemistryDiagram(c, kind) {
+    const f = c.f;
+    const formula = '<div class="chemFormula">' + f + '</div>';
+    let art = '', caption = '';
+    if (kind === 'comp') {
+      const labels = c.comp === 1 ? ['METAL', 'NON-METAL'] : c.comp === 2 ? ['NON-METAL', 'NON-METAL'] : ['METAL IONS', 'METAL IONS'];
+      const syms = c.id === 'nacl' ? ['Na', 'Cl'] : c.id === 'h2o' ? ['O', 'H'] : c.id === 'co2' ? ['C', 'O'] : c.id === 'ch4' ? ['C', 'H'] : c.id === 'nh3' ? ['N', 'H'] : c.id === 'bf3' || c.id === 'bcl3' ? ['B', c.id === 'bf3' ? 'F' : 'Cl'] : c.id === 'o2' ? ['O', 'O'] : c.id === 'h2' ? ['H', 'H'] : [f, f];
+      art = '<div class="elementCards"><div><b>' + syms[0] + '</b><span>' + labels[0] + '</span></div><i>+</i><div><b>' + syms[1] + '</b><span>' + labels[1] + '</span></div></div>';
+      caption = bi('Identify the particles before choosing a bond.', '先認清粒子，再判斷化學鍵。');
+    } else if (kind === 'pairs') {
+      const p = c.pairs || { sym: '?', lone: 0, bond: 0 };
+      const links = { h2: ['H', 'H', 1], o2: ['O', 'O', 2], h2o: ['O', 'H', 2], co2: ['C', 'O', 2], ch4: ['C', 'H', 4], cl2: ['Cl', 'Cl', 1], hcl: ['Cl', 'H', 1], nh3: ['N', 'H', 3], bf3: ['B', 'F', 3], bcl3: ['B', 'Cl', 3], ph3: ['P', 'H', 3] }[c.id] || [p.sym, 'X', Math.min(4, p.bond)];
+      const around = [];
+      for (let i = 0; i < links[2]; i++) { const a = i * Math.PI * 2 / links[2] - Math.PI / 2; around.push([50 + Math.cos(a) * 31, 51 + Math.sin(a) * 29]); }
+      art = '<svg class="moleculeSvg" viewBox="0 0 420 180" role="img" aria-label="Electron pair scaffold"><rect width="420" height="180" rx="16" fill="#0c2026"/>';
+      around.forEach((q, i) => {
+        const x = 130 + q[0] * 1.1, y = 28 + q[1] * 1.05;
+        art += '<line x1="185" y1="82" x2="' + x + '" y2="' + y + '" stroke="#70d8c0" stroke-width="5"/>';
+        art += '<circle cx="' + x + '" cy="' + y + '" r="20" fill="#243c54" stroke="#8bded1" stroke-width="2"/><text x="' + x + '" y="' + (y + 6) + '" text-anchor="middle" fill="#efffff" font-size="18">' + links[1] + '</text>';
+        const mx = (185 + x) / 2, my = (82 + y) / 2;
+        art += '<circle cx="' + (mx - 4) + '" cy="' + my + '" r="3.5" fill="#ffd86a"/><circle cx="' + (mx + 4) + '" cy="' + my + '" r="3.5" fill="#77cfff"/>';
+      });
+      art += '<circle cx="185" cy="82" r="29" fill="#245849" stroke="#a5f5d5" stroke-width="3"/><text x="185" y="89" text-anchor="middle" fill="white" font-weight="700" font-size="24">' + links[0] + '</text>';
+      art += '<text x="276" y="48" fill="#ffd86a" font-size="17">● lone pair = 2</text><text x="276" y="82" fill="#a9d9ff" font-size="17">● ● bond pair</text><text x="276" y="119" fill="#a9c9bf" font-size="14">shared between atoms</text><text x="276" y="144" fill="#a9c9bf" font-size="14">double bond = 2 pairs</text></svg>';
+      caption = bi('Scaffold only: count every shared region once. A double bond contains TWO bond pairs.', '計數支架：每個共用區域要數；雙鍵含兩對鍵對。');
+    } else if (c.bond === 1) {
+      art = '<svg class="bondSvg" viewBox="0 0 420 150"><defs><marker id="arrI" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#ffd86a"/></marker></defs><rect width="420" height="150" rx="16" fill="#0c2026"/><circle cx="102" cy="70" r="42" fill="#285276" stroke="#82c8ff" stroke-width="3"/><circle cx="318" cy="70" r="48" fill="#285a47" stroke="#91e9c4" stroke-width="3"/><text x="102" y="78" text-anchor="middle" fill="white" font-size="27">M⁺</text><text x="318" y="78" text-anchor="middle" fill="white" font-size="27">X⁻</text><line x1="157" y1="68" x2="250" y2="68" stroke="#ffd86a" stroke-width="4" marker-end="url(#arrI)"/><text x="204" y="48" text-anchor="middle" fill="#ffd86a" font-size="15">e⁻ transfer</text><text x="210" y="127" text-anchor="middle" fill="#c0d5d0" font-size="14">opposite charges attract in a giant lattice</text></svg>';
+      caption = bi('Electrons transfer; the bond is electrostatic attraction between ions.', '電子轉移；離子鍵是正負離子之間的靜電吸引。');
+    } else if (c.bond === 3) {
+      art = '<svg class="bondSvg" viewBox="0 0 420 150"><rect width="420" height="150" rx="16" fill="#0c2026"/>';
+      [[105,48],[210,48],[315,48],[105,105],[210,105],[315,105]].forEach(q => { art += '<circle cx="'+q[0]+'" cy="'+q[1]+'" r="23" fill="#665633" stroke="#ffd86a" stroke-width="2"/><text x="'+q[0]+'" y="'+(q[1]+7)+'" text-anchor="middle" fill="#fff3c2" font-size="20">M⁺</text>'; });
+      [[158,48],[263,48],[158,105],[263,105],[60,76],[365,76]].forEach(q => { art += '<circle cx="'+q[0]+'" cy="'+q[1]+'" r="6" fill="#76d9ff"/><text x="'+(q[0]+11)+'" y="'+(q[1]+5)+'" fill="#76d9ff" font-size="13">e⁻</text>'; });
+      art += '</svg>'; caption = bi('Positive metal ions sit in a sea of delocalised electrons.', '正金屬離子處於離域電子海中。');
+    } else {
+      art = '<svg class="bondSvg" viewBox="0 0 420 150"><rect width="420" height="150" rx="16" fill="#0c2026"/><circle cx="128" cy="73" r="45" fill="#244d5a" stroke="#7bdddc" stroke-width="3"/><circle cx="292" cy="73" r="45" fill="#244d5a" stroke="#7bdddc" stroke-width="3"/><text x="128" y="81" text-anchor="middle" fill="white" font-size="24">A</text><text x="292" y="81" text-anchor="middle" fill="white" font-size="24">B</text><ellipse cx="210" cy="73" rx="55" ry="27" fill="#5fd0a833" stroke="#8ff0c8" stroke-width="2"/><circle cx="198" cy="73" r="7" fill="#ffd86a"/><circle cx="222" cy="73" r="7" fill="#76cfff"/><text x="210" y="130" text-anchor="middle" fill="#c0d5d0" font-size="14">one shared pair · one electron from each atom</text></svg>';
+      caption = bi('Atoms share pairs; shared electrons are attracted to both nuclei.', '原子共用電子對；共用電子同時受兩個原子核吸引。');
+    }
+    return '<aside class="chemVisual ' + (kind === 'comp' ? 'isElements' : '') + '">' + formula + '<div class="chemArt">' + art + '</div><div class="chemCaption">' + caption + '</div><div class="chemKey"><span><i class="dotGold"></i> electron</span><span><i class="dotBlue"></i> electron from another atom</span></div></aside>';
+  }
+
+  function questionShell(c, kind, content) {
+    const total = dlg.kinds.length;
+    const objective = { comp: 'LOOK · Identify the elements', ebeh: 'TRACE · Follow the outer electrons', bond: 'CONCLUDE · Name the attraction', pairs: 'COUNT · Account for electron pairs', structure: 'COMPARE · Molecule or giant structure?' }[kind];
+    return '<div class="lessonObjective"><span>STEP ' + (dlg.step + 1) + ' / ' + total + '</span><b>' + objective + '</b></div>' +
+      '<div class="chemLessonGrid">' + chemistryDiagram(c, kind) + '<section class="chemQuestion">' + content + '</section></div>';
   }
 
   function renderDialogStep() {
     const c = dlg.c;
     $('dialogActions').replaceChildren();
     const sets = optionSets(c);
-    const structure = dlg.step === 3;
-    const total = dlg.node.id === 'n9' ? 4 : 3;
-    const stepLabel = isZh() ? [
-      c.f + ' 含有哪類元素？',
-      c.id === 'nh4cl' ? '固體 NH₄Cl 中的 ions 靠什麼互相吸引？' : c.f + ' 的外層電子 (outer electrons) 會怎樣？',
-      '什麼 bond 把 ' + c.f + ' 結合在一起？',
-      'BF₃ 與 diamond 都有 covalent bonds。兩者結構有何分別？'
-    ][dlg.step] : [
-      'What types of elements are in ' + c.f + '?',
-      c.id === 'nh4cl' ? 'What holds the ions in solid NH₄Cl together?' : 'What happens to the outer electrons in ' + c.f + '?',
-      'What type of bond holds ' + c.f + ' together?',
-      'BF₃ and diamond both have covalent bonds. What is the difference in structure?'
-    ][dlg.step];
+    const kinds = dlg.kinds;
+    const kind = kinds[dlg.step];
+    const structure = kind === 'structure';
+    const pairsStep = kind === 'pairs';
+    const total = kinds.length;
+    const sym = (c.pairs && c.pairs.sym) || '';
+    const stepLabel = isZh() ? ({
+      comp: c.f + ' 含有哪類元素？',
+      ebeh: c.id === 'nh4cl' ? '固體 NH₄Cl 中的 ions 靠什麼互相吸引？' : c.f + ' 的外層電子 (outer electrons) 會怎樣？',
+      bond: '什麼 bond 把 ' + c.f + ' 結合在一起？',
+      pairs: '數一數 ' + c.f + ' 一個分子中，' + sym + ' 原子外圍有多少 lone pair(s)、多少 bond pair(s)？',
+      structure: 'BF₃ 與 diamond 都有 covalent bonds。兩者結構有何分別？'
+    })[kind] : ({
+      comp: 'What types of elements are in ' + c.f + '?',
+      ebeh: c.id === 'nh4cl' ? 'What holds the ions in solid NH₄Cl together?' : 'What happens to the outer electrons in ' + c.f + '?',
+      bond: 'What type of bond holds ' + c.f + ' together?',
+      pairs: 'In one molecule of ' + c.f + ', how many lone pairs and bond pairs are around the ' + sym + ' atom?',
+      structure: 'BF₃ and diamond both have covalent bonds. What is the difference in structure?'
+    })[kind];
 
     const opts = structure ? [
       { v: 1, en: 'BF₃ forms separate molecules. Diamond is a giant network.', zh: 'BF₃ 形成獨立分子 (separate molecules)；diamond 是 giant covalent network。' },
       { v: 2, en: 'Both form separate molecules because both are covalent.', zh: '兩者都是 covalent，所以都形成獨立分子 (separate molecules)。' },
       { v: 3, en: 'Diamond is a metallic lattice because its structure is giant.', zh: 'Diamond 是 giant structure，所以是 metallic lattice。' }
-    ] : sets[dlg.step].slice();
-    const expected = [c.comp, c.ebeh, c.bond, 1][dlg.step];
-    if (c.trap && c.trap.step === dlg.step + 1) {
+    ] : pairsStep ? [] : sets[{ comp: 0, ebeh: 1, bond: 2 }[kind]].slice();
+    const expected = structure ? 1 : pairsStep ? null : { comp: c.comp, ebeh: c.ebeh, bond: c.bond }[kind];
+    if (!pairsStep && c.trap && c.trap.step === dlg.step + 1) {
       opts.push({ v: -1, en: c.trap.en, zh: c.trap.zh, trap: true });
     }
     if (dlg.shuffleSeed === undefined) dlg.shuffleSeed = Math.floor(Math.random() * 999);
@@ -1258,17 +1474,59 @@
     }
     const shuffled = order.map(i => opts[i]);
 
-    $('stepDots').innerHTML = Array.from({ length: total }, (_, i) => i).map(i =>
-      '<div class="d ' + (i < dlg.step ? 'done' : i === dlg.step ? 'on' : '') + '"></div>').join('');
+    $('stepDots').innerHTML = kinds.map((k, i) =>
+      '<div class="d ' + (i < dlg.step ? 'done' : i === dlg.step ? 'on' : '') + '">' +
+      '<i>' + (i + 1) + '</i><span>' + ({ comp: bi('Elements', '元素'), ebeh: bi('Electrons', '電子'), bond: bi('Bond type', '鍵型'), pairs: bi('Electron pairs', '電子對'), structure: bi('Structure', '結構') })[k] + '</span></div>').join('');
 
-    $('dialogBody').innerHTML =
-      '<div class="qBlock">' + stepLabel + '</div>' +
-      '<div class="qZh">' + bi('Question ' + (dlg.step + 1) + ' of ' + total + ' · Choose one answer.', '第 ' + (dlg.step + 1) + ' / ' + total + ' 題 · 選一個答案。') + '</div>' +
+    if (pairsStep) {
+      /* Electron counting: the player types the two numbers the brief asks for. */
+      const pairContent = '<div class="qBlock">' + stepLabel + '</div>' +
+        '<div class="qZh">' + bi('Use − / + or type. Then check both counts together.', '用 − / + 或直接輸入，再一次過檢查兩個數目。') + '</div>' +
+        '<div class="pairsAsk">' +
+        '<label><span>' + bi('LONE PAIRS on ' + sym, sym + ' 的孤對電子') + '<small>not shared</small></span><div class="numberStepper"><button type="button" data-step="pairLone:-1" aria-label="Decrease lone pairs">−</button>' +
+        '<input type="number" id="pairLone" min="0" max="8" step="1" inputmode="numeric" autocomplete="off" value="0"><button type="button" data-step="pairLone:1" aria-label="Increase lone pairs">+</button></div></label>' +
+        '<label><span>' + bi('BOND PAIRS around ' + sym, sym + ' 周圍的鍵對') + '<small>shared between atoms</small></span><div class="numberStepper"><button type="button" data-step="pairBond:-1" aria-label="Decrease bond pairs">−</button>' +
+        '<input type="number" id="pairBond" min="0" max="8" step="1" inputmode="numeric" autocomplete="off" value="0"><button type="button" data-step="pairBond:1" aria-label="Increase bond pairs">+</button></div></label>' +
+        '</div><div class="electronTotal" id="electronTotal">0 electrons counted around ' + sym + '</div>' +
+        '<button class="primary pairCheck" id="pairGo">' + bi('Check electron count', '檢查電子數目') + '</button>' +
+        '<div class="fb" id="dlgFb" role="status" aria-live="polite"></div>';
+      $('dialogBody').innerHTML = questionShell(c, kind, pairContent);
+      const syncElectronTotal = () => {
+        const l = Math.max(0, Number($('pairLone').value) || 0), b = Math.max(0, Number($('pairBond').value) || 0);
+        $('electronTotal').textContent = bi((l * 2 + b * 2) + ' electrons around ' + sym + '  =  ' + l + '×2 lone  +  ' + b + '×2 bond', sym + ' 周圍共 ' + (l * 2 + b * 2) + ' 粒電子 ＝ 孤對 ' + l + '×2 ＋ 鍵對 ' + b + '×2');
+      };
+      $('dialogBody').querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
+        const parts = b.dataset.step.split(':'), inp = $(parts[0]);
+        inp.value = Math.max(0, Math.min(8, (Number(inp.value) || 0) + Number(parts[1]))); syncElectronTotal();
+      }));
+      ['pairLone','pairBond'].forEach(id => $(id).addEventListener('input', syncElectronTotal));
+      syncElectronTotal();
+      const go = $('pairGo');
+      go.addEventListener('click', () => checkPairs(c, kinds, total));
+      ['pairLone', 'pairBond'].forEach(id => {
+        const inp = $(id);
+        if (!inp) return;
+        inp.addEventListener('keydown', ev => {
+          if (ev.key === 'Enter') { ev.preventDefault(); go.click(); }
+        });
+      });
+      $('dialogBody').insertAdjacentHTML('beforeend', '<div class="kbdHint">' + bi('Tab moves between the boxes · Enter checks', 'Tab 切換輸入格 · Enter 檢查') + '</div>');
+      $('dialogHintBtn').style.display = dlg.hintUsed ? 'none' : '';
+      $('dialogHintBtn').textContent = bi('Hint', '提示');
+      dlg.keyIndex = 0;
+      try { $('pairLone').focus({ preventScroll: true }); } catch (e) { }
+      $('dialogBody').closest('.modalBody').scrollTop = 0;
+      return;
+    }
+
+    const questionContent = '<div class="qBlock">' + stepLabel + '</div>' +
+      '<div class="qZh">' + bi('Choose the best answer. You will see the reason immediately.', '選最佳答案，之後會即時見到原因。') + '</div>' +
       '<div class="options" id="dlgOpts">' +
       shuffled.map((o, i) =>
-        '<button class="opt" data-v="' + o.v + '" data-i="' + i + '">' + textOf(o) + '</button>').join('') +
+        '<button class="opt" data-v="' + o.v + '" data-i="' + i + '"><span class="optLetter">' + String.fromCharCode(65 + i) + '</span><span class="optText">' + textOf(o) + '</span><span class="optArrow">→</span></button>').join('') +
       '</div>' +
       '<div class="fb" id="dlgFb" role="status" aria-live="polite"></div>';
+    $('dialogBody').innerHTML = questionShell(c, kind, questionContent);
 
     $('dlgOpts').querySelectorAll('.opt').forEach(btn => {
       btn.addEventListener('click', () => pickOption(btn, expected, opts));
@@ -1306,6 +1564,10 @@
       const next = document.querySelector('#dialogActions .primary');
       if (next && !next.disabled) { next.click(); return true; }
       return false;
+    }
+    if (dlg.kinds[dlg.step] === 'pairs' && !dlg.lastAnswer) {
+      const go = $('pairGo');
+      if (go) { go.click(); return true; }
     }
     const selected = document.querySelector('#dlgOpts .opt.kbdFocus') || document.querySelector('#dlgOpts .opt');
     if (selected && !selected.disabled) { selected.click(); return true; }
@@ -1372,20 +1634,25 @@
 
   function pickOption(btn, expected, opts) {
     const v = Number(btn.dataset.v);
-    if (tutStep === 4) tutComplete();   // training: the player actually answered!
     const c = dlg.c;
     const ok = v === expected;
     const fb = $('dlgFb');
     const optionList = $('dlgOpts');
     optionList.querySelectorAll('.opt').forEach(b => { b.disabled = true; });
-    optionList.hidden = true;
-    $('dialogBody').querySelector('.qZh').textContent = bi('Question ' + (dlg.step + 1) + ' review', '第 ' + (dlg.step + 1) + ' 題回顧');
+    optionList.classList.add('answered');
+    optionList.querySelectorAll('.opt').forEach(b => {
+      if (Number(b.dataset.v) === expected) b.classList.add('correct');
+      else if (b === btn) b.classList.add('wrong');
+      else b.classList.add('dim');
+    });
+    $('dialogBody').querySelector('.qZh').textContent = bi('Answer review · read the reason, then continue.', '答案回顧 · 看懂原因，再繼續。');
 
-    const structure = dlg.step === 3;
-    const ex = structure ? structureExplanation() : explain(c, dlg.step + 1);
+    const kind = dlg.kinds[dlg.step];
+    const structure = kind === 'structure';
+    const ex = structure ? structureExplanation() : explain(c, { comp: 1, ebeh: 2, bond: 3 }[kind]);
     const correctOption = opts.find(o => o.v === expected);
     const chosenOpt = opts.find(o => o.v === v) || { en: '—', zh: '—' };
-    const why = structure ? ex : (v === -1 && c.trap) ? c.trap.why : stepWhy(c, dlg.step + 1, v);
+    const why = structure ? ex : (v === -1 && c.trap) ? c.trap.why : stepWhy(c, { comp: 1, ebeh: 2, bond: 3 }[kind], v);
     if (ok) {
       const reward = awardCorrectStep(REWARD_RULES.stepXp, REWARD_RULES.stepGold);
       SFX.correct();
@@ -1394,17 +1661,17 @@
     } else {
       SFX.bad();
       dlg.wrongSteps++;
-      breakStreak();
-      dlg.lastAnswer = { ok, v, expected, opts, ex, why, correctOption, chosenOpt, structure, reward: null };
+      if (!dlg.practice) breakStreak();
+      dlg.lastAnswer = { ok, v, expected, opts, ex, why, correctOption, chosenOpt, structure, reward: null, practice: !!dlg.practice };
     }
     renderDialogFeedback();
 
     dlg.tries = (dlg.tries || 0) + 1;
     attempts.push({
-      type: 'classify', compound: c.f, step: dlg.step + 1,
+      type: 'classify', compound: c.f, step: dlg.step + 1, kind,
       chosen: v, correct: ok, hintUsed: dlg.hintUsed, attempt: dlg.tries
     });
-    logEvent({ type: 'classify', compound: c.f, step: dlg.step + 1, chosen: v, correct: ok, hintUsed: dlg.hintUsed });
+    logEvent({ type: 'classify', compound: c.f, step: dlg.step + 1, kind, chosen: v, correct: ok, hintUsed: dlg.hintUsed });
 
     const foot = $('dialogActions');
     foot.replaceChildren();
@@ -1422,7 +1689,98 @@
     const nb = document.createElement('button');
     nb.className = 'primary';
     nb.style.width = 'auto';
-    const hasNext = dlg.step < (dlg.node.id === 'n9' ? 3 : 2);
+    const hasNext = dlg.step < dlg.kinds.length - 1;
+    nb.textContent = hasNext ? bi('Next question', '下一題') : bi('Finish challenge', '完成挑戰');
+    nb.addEventListener('click', () => {
+      if (hasNext) { dlg.step++; dlg.tries = 0; renderDialogStep(); }
+      else finishDialog();
+    });
+    foot.appendChild(nb);
+    nb.focus({ preventScroll: true });
+  }
+
+  /* Outer-shell electron counts (period 2 and 3 main-group atoms only, which is
+     all this game asks about). Used to show the arithmetic in the counting step. */
+  const OUTER_SHELL = { H: 1, B: 3, C: 4, N: 5, O: 6, F: 7, Si: 4, P: 5, S: 6, Cl: 7, Br: 7, I: 7, Mg: 2, Na: 1, Ca: 2, Al: 3, Li: 1, K: 1, Be: 2 };
+
+  /* Shared text so the counting question and the dot-and-cross puzzle agree.
+     The electron accounting that matters: the central atom's own outer electrons
+     split into lone-pair electrons (2 per pair, kept) and bond-pair contributions
+     (1 per pair, shared with the other atom). Counting AROUND the atom gives 2 per
+     lone pair plus 2 per bond pair. Both numbers are stated so the player can see
+     the octet check as well as the accounting. */
+  function pairsExplanation(c) {
+    const p = c.pairs || { sym: '', lone: 0, bond: 0 };
+    const around = p.lone * 2 + p.bond * 2;
+    const name = p.sym;
+    const outer = OUTER_SHELL[name] === undefined ? null : OUTER_SHELL[name];
+    const octet = around === 8 ? ' — a full octet.'
+      : around === 6 ? ' — only 6, an incomplete octet. That is why this molecule is unusual.'
+        : around === 2 ? ' — a full outer shell for hydrogen, which needs only 2.'
+          : '.';
+    const en = name + ' has ' + p.lone + ' lone pair(s) and ' + p.bond + ' bond pair(s). ' +
+      (outer !== null
+        ? 'Account for the ' + outer + ' outer electrons of ' + name + ': ' + (p.lone * 2) + ' stay on ' + name + ' as ' + p.lone + ' lone pair' + (p.lone === 1 ? '' : 's') + ', and ' + p.bond + (p.bond === 1 ? ' electron goes' : ' electrons go') + ' into shared bonds (one per bond) — ' + (p.lone * 2) + ' + ' + p.bond + ' = ' + outer + '. '
+        : '') +
+      'Counting around ' + name + ': ' + (p.lone * 2) + ' + ' + (p.bond * 2) + ' = ' + around + ' electrons' + octet +
+      ' A lone pair is not shared; a bond pair is shared, one dot from each atom.';
+    const zh = name + ' 有 ' + p.lone + ' 對 lone pair(s)、' + p.bond + ' 對 bond pair(s)。' +
+      (outer !== null
+        ? '數一數 ' + name + ' 的 ' + outer + ' 粒外層電子：' + (p.lone * 2) + ' 粒成為 lone-pair 電子，' + p.bond + ' 粒用於共用（每條 bond 出一粒）—— ' + (p.lone * 2) + ' + ' + p.bond + ' = ' + outer + '。'
+        : '') +
+      '圍繞 ' + name + ' 計算：' + (p.lone * 2) + ' + ' + (p.bond * 2) + ' = ' + around + ' 粒電子' +
+      (around === 8 ? '，達到完整 octet。' : around === 6 ? '，只有 6 粒，是 incomplete octet，所以這個分子較特別。' : around === 2 ? '，氫只需 2 粒就滿殼。' : '。') +
+      'Lone pair 不共用；bond pair 由兩個原子共用 —— 一邊一點。';
+    return { en, zh };
+  }
+
+  function checkPairs(c, kinds, total) {
+    const p = c.pairs;
+    const gotLone = Number(($('pairLone') || {}).value);
+    const gotBond = Number(($('pairBond') || {}).value);
+    if (!isFinite(gotLone) || !isFinite(gotBond) || ($('pairLone').value === '') || ($('pairBond').value === '')) {
+      toast(bi('Type a number in both boxes.', '兩格都要填數字。'), 1800);
+      return;
+    }
+    const ok = gotLone === p.lone && gotBond === p.bond;
+    const ex = pairsExplanation(c);
+    const correctOption = { en: p.lone + ' lone pair(s) · ' + p.bond + ' bond pair(s)', zh: p.lone + ' 對 lone pair(s) · ' + p.bond + ' 對 bond pair(s)' };
+    const chosenOpt = { en: gotLone + ' lone pair(s) · ' + gotBond + ' bond pair(s)', zh: gotLone + ' 對 lone pair(s) · ' + gotBond + ' 對 bond pair(s)' };
+    let why;
+    if (ok) why = ex;
+    else if (gotLone === p.lone) why = { en: 'The lone pairs are right, but re-count the shared pairs: every bond is one shared pair, and each shared pair counts once.', zh: 'Lone pairs 對了，但要重數共用電子對：每條 bond 就是 one shared pair，只計一次。' };
+    else if (gotBond === p.bond) why = { en: 'The bond pairs are right, but the lone pairs are not: a lone pair is a pair that is NOT shared — it stays on ' + p.sym + ' only.', zh: 'Bond pairs 對了，但 lone pairs 不對：lone pair 是沒有共用的電子對，只留在 ' + p.sym + ' 上。' };
+    else why = { en: 'Count the outer electrons on ' + p.sym + ', then split them: pairs that are shared are bond pairs, the rest are lone pairs. Total must be ' + (p.lone * 2 + p.bond * 2) + '.', zh: '先數 ' + p.sym + ' 的外層電子，再分開：有共用的就是 bond pair，其餘是 lone pair。總數必須是 ' + (p.lone * 2 + p.bond * 2) + '。' };
+    const opts = [];
+    if (ok) {
+      const reward = awardCorrectStep(REWARD_RULES.stepXp, REWARD_RULES.stepGold);
+      SFX.correct();
+      dlg.lastAnswer = { ok, v: 1, expected: 1, opts, ex, why, correctOption, chosenOpt, structure: false, reward };
+    } else {
+      SFX.bad();
+      dlg.wrongSteps++;
+      breakStreak();
+      dlg.lastAnswer = { ok, v: 0, expected: 1, opts, ex, why, correctOption, chosenOpt, structure: false, reward: null };
+    }
+    renderDialogFeedback();
+    dlg.tries = (dlg.tries || 0) + 1;
+    attempts.push({ type: 'pairs', compound: c.f, step: dlg.step + 1, chosen: gotLone * 10 + gotBond, correct: ok, hintUsed: dlg.hintUsed, attempt: dlg.tries });
+    logEvent({ type: 'pairs', compound: c.f, lone: gotLone, bond: gotBond, correct: ok });
+
+    const foot = $('dialogActions');
+    foot.replaceChildren();
+    $('dialogHintBtn').style.display = 'none';
+    if (!ok) {
+      const retry = document.createElement('button');
+      retry.className = 'ghost';
+      retry.textContent = bi('Try again', '再試一次');
+      retry.addEventListener('click', () => { renderDialogStep(); });
+      foot.appendChild(retry);
+    }
+    const nb = document.createElement('button');
+    nb.className = 'primary';
+    nb.style.width = 'auto';
+    const hasNext = dlg.step < kinds.length - 1;
     nb.textContent = hasNext ? bi('Next question', '下一題') : bi('Finish challenge', '完成挑戰');
     nb.addEventListener('click', () => {
       if (hasNext) { dlg.step++; dlg.tries = 0; renderDialogStep(); }
@@ -1443,12 +1801,11 @@
       ? '<div class="rewardChip">+' + a.reward.xp + ' XP · +' + a.reward.gold + ' gold' + (a.reward.streak >= REWARD_RULES.streakAt ? ' · STREAK ×' + a.reward.mult.toFixed(1) : '') + '</div>'
       : '';
     fb.className = 'fb show answerFeedback ' + (a.ok ? 'isCorrect' : 'isWrong');
-    fb.innerHTML = '<div class="answerKey"><span>' + (a.ok ? bi('✓ Correct', '✓ 正確') : bi('✓ Correct answer', '✓ 正確答案')) + '</span><strong>' +
-      textOf(a.correctOption) + '</strong><p>' + exText + '</p>' + rewardHtml + '</div>';
-    if (!a.ok) {
-      fb.innerHTML += '<div class="answerMiss"><span>' + bi('× Your answer', '× 你的答案') + '</span><strong>' + textOf(a.chosenOpt) + '</strong>' + detail + '</div>';
-    }
-    if (dlg.c.note && dlg.step === 2) {
+    fb.innerHTML = a.ok
+      ? '<div class="answerKey"><span>' + bi('✓ REASONING LOCKED IN', '✓ 推理正確') + '</span><strong>' + textOf(a.correctOption) + '</strong><p>' + exText + '</p>' + rewardHtml + '</div>'
+      : '<div class="answerMiss misconceptionRepair"><span>' + bi('MISCONCEPTION REPAIR', '錯誤觀念修正') + '</span><strong>' + textOf(a.chosenOpt) + '</strong>' + detail + '</div>' +
+        '<div class="answerKey"><span>' + bi('✓ THE WORKING RULE', '✓ 正確規則') + '</span><strong>' + textOf(a.correctOption) + '</strong><p>' + exText + '</p></div>';
+    if (dlg.c.note && dlg.kinds[dlg.step] === 'bond') {
       fb.innerHTML += '<span class="fbZh" style="margin-top:8px">💡 ' + textOf(dlg.c.note) + '</span>';
     }
   }
@@ -1468,16 +1825,19 @@
       SFX.perfect();
       showPerfectBond(bi('All steps clean · bonus secured', '全部一次答對 · 完美獎勵已取得'));
     }
+    if (tutStep === 5) tutComplete();   // training: the player finished a whole challenge
     done.add(dlg.node.id); questCelebrate();
     WORLD.setNodeState(dlg.node.id, 'done');
+    const bondName = ['', 'IONIC', 'COVALENT', 'METALLIC'][c.bond];
+    const pairRecap = dlg.kinds.includes('pairs') && c.pairs ? '<div class="recapStep"><i>4</i><div><b>' + c.pairs.lone + ' lone pair(s) · ' + c.pairs.bond + ' bond pair(s)</b><p>' + textOf(pairsExplanation(c)) + '</p></div></div>' : '';
     $('dialogBody').innerHTML =
-      '<div class="fb show ok ' + (perfect ? 'perfectResult' : '') + '" style="margin-top:0">' +
-      (perfect ? bi('★ PERFECT BOND — ' + c.f + ' classified correctly at every step.', '★ PERFECT BOND — 你每一步都正確分類 ' + c.f + '。')
-               : clean ? bi('✓ ' + c.f + ' classified. You used a hint — try explaining the reasoning again yourself.', '✓ 已分類 ' + c.f + '。你使用了提示，試著自己再解釋一次。')
-                       : bi('✓ ' + c.f + ' classified. Review the rule below.', '✓ 已分類 ' + c.f + '。請重溫下方規則。')) +
-      '<p>' + textOf(explain(c, 3)) + '</p>' +
+      '<div class="challengeComplete"><span>' + (perfect ? '★ PERFECT BOND' : '✓ CHALLENGE COMPLETE') + '</span><h2>' + c.f + ' = ' + bondName + '</h2><p>' + bi('Here is your full reasoning chain:', '你已完成以下完整推理：') + '</p></div>' +
+      '<div class="reasonRecap">' +
+      '<div class="recapStep"><i>1</i><div><b>' + textOf(optionSets(c)[0].find(o => o.v === c.comp)) + '</b><p>' + textOf(explain(c, 1)) + '</p></div></div>' +
+      '<div class="recapStep"><i>2</i><div><b>' + textOf(optionSets(c)[1].find(o => o.v === c.ebeh)) + '</b><p>' + textOf(explain(c, 2)) + '</p></div></div>' +
+      '<div class="recapStep"><i>3</i><div><b>' + bondName + ' BOND</b><p>' + textOf(explain(c, 3)) + '</p></div></div>' + pairRecap + '</div>' +
       (bonus ? '<div class="rewardChip perfect">+' + bonus.xp + ' XP · +' + bonus.gold + ' gold · +' + bonus.crystals + ' crystal</div>' : '') +
-      '<span class="fbZh">' + bi('Main progress: ' + mainDone() + ' / ' + MAIN_TOTAL, '主線進度：' + mainDone() + ' / ' + MAIN_TOTAL) + '</span></div>';
+      '<div class="recapProgress">' + bi('Main progress: ' + mainDone() + ' / ' + MAIN_TOTAL + ' · Keep this chain for revision.', '主線進度：' + mainDone() + ' / ' + MAIN_TOTAL + ' · 保留呢條推理鏈作複習。') + '</div>';
     $('dialogHintBtn').style.display = 'none';
     $('dialogActions').replaceChildren();
     $('dialogCloseBtn').textContent = bi('Back to world', '返回世界');
@@ -1509,7 +1869,10 @@
     dlg.hintUsed = true;
     $('dialogHintBtn').style.display = 'none';
     const c = dlg.c;
-    const ex = dlg.step === 3 ? structureExplanation() : explain(c, dlg.step + 1);
+    const hk = dlg.kinds[dlg.step];
+    const ex = hk === 'structure' ? structureExplanation()
+      : hk === 'pairs' ? pairsExplanation(c)
+      : explain(c, { comp: 1, ebeh: 2, bond: 3 }[hk]);
     const fb = $('dlgFb');
     fb.className = 'fb show no';
     fb.innerHTML = bi('Hint: ', '提示：') + textOf(ex);
@@ -1971,7 +2334,7 @@
 
     if (ok) {
       dcq.solved = true;
-      if (tutStep === 4) tutComplete();   // training via a chest works too
+      if (tutStep === 5) tutComplete();   // training via a chest works too
       const perfect = dcq.tries === 1 && !dcq.hintUsed;
       const stepReward = awardCorrectStep(REWARD_RULES.stepXp, REWARD_RULES.stepGold);
       let bonus = null;
@@ -2127,7 +2490,7 @@
   $('vocabCollectBtn').addEventListener('click', () => {
     if (!vocabNode) return;
     done.add(vocabNode.id); questCelebrate();
-    if (tutStep === 4) tutComplete();   // training via a crystal works too
+    if (tutStep === 5) tutComplete();   // training via a crystal works too
     WORLD.setNodeState(vocabNode.id, 'done');
     logEvent({ type: 'vocab', term: vocabNode.term });
     closeModal('vocabModal');
@@ -2143,13 +2506,18 @@
   /* ================= SUMMARY ================= */
   function computeSummary() {
     const byType = { ionic: { c: 0, t: 0 }, covalent: { c: 0, t: 0 }, metallic: { c: 0, t: 0 } };
+    /* Electron accounting is scored separately because it is a different skill:
+       counting lone and bond pairs, not naming a bond type. */
+    const pairs = { c: 0, t: 0 };
     attempts.forEach(a => {
       const c = COMPOUNDS.find(x => x.f === a.compound);
       if (!c) return;
+      if (a.type === 'pairs') { pairs.t++; if (a.correct) pairs.c++; return; }
       const t = c.bond === 1 ? 'ionic' : c.bond === 2 ? 'covalent' : 'metallic';
       byType[t].t++;
       if (a.correct) byType[t].c++;
     });
+    byType.pairs = pairs;
     return byType;
   }
 
@@ -2169,7 +2537,8 @@
     const rows = [
       ['ionic', 'Ionic', '#6fb8e8'],
       ['covalent', 'Covalent', '#5fd0a8'],
-      ['metallic', 'Metallic', '#c9b36a']
+      ['metallic', 'Metallic', '#c9b36a'],
+      ['pairs', 'Lone / bond pairs', '#d6a0e8']
     ];
     $('sumBars').innerHTML = rows.map(([k, label, col]) => {
       const d = by[k];
@@ -2182,6 +2551,7 @@
     if (by.ionic.t && by.ionic.c / by.ionic.t < 0.75) weak.push('Ionic bonding (remember square brackets and charges — electrons are transferred completely)');
     if (by.covalent.t && by.covalent.c / by.covalent.t < 0.75) weak.push('Covalent bonding (bond pairs = 1 dot + 1 cross; lone pairs are not shared)');
     if (by.metallic.t && by.metallic.c / by.metallic.t < 0.75) weak.push('Metallic bonding (electrons are delocalised, not transferred)');
+    if (by.pairs.t && by.pairs.c / by.pairs.t < 0.75) weak.push('Electron accounting (lone pairs stay on one atom; bond pairs are shared, one electron from each)');
     $('sumWeak').innerHTML = weak.length
       ? '<b>Review:</b> ' + weak.join('; ') + '. Open the glossary to check the definitions.'
       : '<b>Review the three bonding models below.</b> The bars show answers from this session.';
@@ -2309,14 +2679,22 @@
 
   /* ================= COACH (first-run guide) ================= */
   const COACH_STEPS = [
-    { sel: null, title: '① Welcome to Bond Quest', text: 'Your mission: explore 4 regions and complete 9 quests about chemical bonding. This quick tour shows you exactly how to play.' },
-    { sel: '#questPanel', title: '② Follow your CURRENT OBJECTIVE', text: 'This panel tells you what to do next, the distance in metres, and a compass direction. Follow the white arrow and you will get there.' },
-    { sel: '#minimap', title: '③ Use the maps', text: 'Top right is the mini-map: the white arrow is you, the green ring is your target. Press M any time for the big map — drag to pan, scroll to zoom, click a marker to make it your objective.' },
-    { sel: null, title: '④ Get close, then press E', text: 'Walk up to a glowing NPC, chest or crystal. When you are close enough, a prompt appears — press E. If a quest says LOCKED, answer a few questions first or buy a Guild Pass.' },
-    { sel: '#topbar', title: '⑤ Answer or draw — then repeat', text: 'Talk to an NPC and answer 3 questions, or open a chest and place electrons on the dotted slots then press Check. Each finished quest adds +1 to the counter above.' },
-    { sel: '#scorePill', title: '⑥ Fight enemies & earn rewards', text: 'Wild enemies roam the fields. Left-click chains a 4-hit combo (the 4th is a finisher), hold F and release for a charged ground slam, Shift dashes through attacks, and K casts your element burst. Every hit gives XP and Gold — B opens the Shop, C swaps character, 1-5 swaps instantly.' }
+    { sel: null, title: '\u2460 What you are playing',
+      text: 'Bond Quest is a chemistry game about CHEMICAL BONDING. You are a Bond Smith in a town of glowing spirits. You finish a quest by classifying a compound correctly. That is the whole game.' },
+    { sel: '#questPanel', title: '\u2461 ONE goal at a time',
+      text: 'This panel is your only instruction: CURRENT OBJECTIVE names the compound, the arrow points where to walk, and the number is the distance in metres. Do what it says and it moves on by itself.' },
+    { sel: '#minimap', title: '\u2462 Use the maps',
+      text: 'Top right is the mini-map: the white arrow is you, the green ring is your target. Press M for the big map \u2014 drag to pan, scroll to zoom, click any pin to make it your objective.' },
+    { sel: null, title: '\u2463 The loop: walk, press E, answer',
+      text: 'Walk to a glowing NPC or chest. A prompt appears when you are close \u2014 press E. You then answer three or four questions about the compound: what elements it has, what its electrons do, what bond holds it together, and for molecules how many lone and bond pairs there are. Read the reason after each answer; that is the chemistry lesson.' },
+    { sel: '#topbar', title: '\u2464 Every correct answer pays',
+      text: 'Correct steps give XP and gold, a clean run pays a PERFECT BOND bonus, and the counter at the top shows how many of the 9 quests you have finished. Spend gold in the Chem Supply Shop (B) on hints and gear.' },
+    { sel: '#scorePill', title: '\u2465 Fighting is optional practice',
+      text: 'Left-click chains a 4-hit combo (the 4th is a finisher), hold F and release for a charged slam, Shift dashes, K casts your element burst. C swaps character, 1-7 picks one directly. You never have to fight to finish a chemistry quest.' },
+    { sel: null, title: '\u2466 Stuck? Press H',
+      text: 'H opens the full guide at any time, and it has a button to replay this tour. That is everything \u2014 start walking and the first objective will guide you.' }
   ];
-  let coachOn = false, coachIdx = 0;
+  let coachOn = false, coachIdx = 0, coachAfterStart = null;
 
   function coachShow(i) {
     coachIdx = Math.max(0, Math.min(COACH_STEPS.length - 1, i));
@@ -2359,9 +2737,13 @@
     syncPaused();
     if (state === STATE.WORLD) { WORLD.setLocked(false); WORLD.relock(); }
     try { localStorage.setItem('bq_coach_v2', '1'); } catch (e) { }
-   // (training mission is started from startBtn now)
     try { CLOUD.save(); } catch (e) { }
+    /* If the tour was opened by startSession, begin play once it closes. */
+    const next = coachAfterStart;
+    coachAfterStart = null;
+    if (next) setTimeout(next, 120);
   }
+  function coachSeen() { try { return !!localStorage.getItem('bq_coach_v2'); } catch (e) { return true; } }
 
   $('coachNext').addEventListener('click', () => {
     if (coachIdx >= COACH_STEPS.length - 1) coachEnd();
@@ -3465,11 +3847,16 @@
     saveCombat(); updateCombatHUD();
     /* visible confirmation: element-coloured burst + ring at the player's feet */
     if (WORLD.characterSwitchFlare) WORLD.characterSwitchFlare(true);
-    screenPunch(1.1, (typeof ELEMENTS !== 'undefined' && ELEMENTS[c.element]) ? ELEMENTS[c.element].color : null);
+    screenPunch(0.9, (typeof ELEMENTS !== 'undefined' && ELEMENTS[c.element]) ? ELEMENTS[c.element].color : null);
     if (window.SFX && SFX.skill) SFX.skill();
-    showBanner(c.name.toUpperCase(), bi('Now playing · ' + c.role, '現在操作 · ' + c.role));
-    const EL = (typeof ELEMENTS !== 'undefined') && ELEMENTS[c.element];
-    toast('☻ Now playing as <b>' + c.name + '</b> — ' + c.role + (EL ? ' · ' + EL.name : ''), 1400);
+    /* no banner and no toast: switching is meant to be silent and instant —
+       the light beam, the element tint and the HUD chip pulse are the feedback */
+    const cp = $('charPill');
+    if (cp) {
+      cp.classList.remove('mo-pop');
+      void cp.offsetWidth;
+      cp.classList.add('mo-pop');
+    }
   }
   function syncParty() {
     /* companions = every owned character except the active one */
@@ -3778,14 +4165,14 @@
     if (k === 'c') { cycleCharacter(); return; }
     if (k === 'q') { cycleWeapon(); return; }
     if (k === 'b') { openShop(); return; }
-    if (k >= '1' && k <= '5') {
+    if (k >= '1' && k <= '7') {
       /* party slot: switch control to the Nth owned character */
       const idx = Number(k) - 1;
       const roster = COMBAT.characters;
       const c = roster[idx];
+      /* Switching is silent by design: the beam, the element tint and the HUD
+         chip pulse are the feedback. No pop-ups (also no "slot empty" nag). */
       if (c && c !== COMBAT.character) switchToCharacter(c);
-      else if (c) toast('Already playing as <b>' + CHR[c].name + '</b>');
-      else toast('Party slot ' + k + ' is empty — unlock more companions to fill it');
     }
   });
 
@@ -3900,7 +4287,8 @@
 
     lastFrame = performance.now();
     window.__world = WORLD;
-    window.__bq = { openDialog, openDotCross, openVocab, showSummary, interact, state: () => state, DC, COMP, TERM, NODES, attempts, openBigMap, openGacha, drawGacha, openDaily, toggleLanguage, startIntroTrial, completeIntroTrial, finishIntroTrial, attack: playerAttack, dash: () => WORLD.dashPlayer(), combat: () => COMBAT, getState: () => ({ state, helpOpen, mapOpen, wpOpen }), wp: { list: () => [...unlockedWp], open: openWpList, tp: doTeleport, pop: showTpPop, all: WAYPOINTS, dbg: () => { const c = BM.canvas, r = c.getBoundingClientRect(), wr = $('mapWrap').getBoundingClientRect(); return { cw: c.width, ch: c.height, rw: r.width, rh: r.height, rl: r.left - wr.left, rt: r.top - wr.top, s: bmScale(), zoom: BM.zoom, cx: BM.cx, cz: BM.cz }; } } };
+    window.__bq = { openDialog, openDotCross, openVocab, showSummary, interact, state: () => state, DC, COMP, TERM, NODES, attempts, dialogKinds, openBigMap, openGacha, drawGacha, openDaily, toggleLanguage, startIntroTrial, completeIntroTrial, finishIntroTrial, attack: playerAttack, dash: () => WORLD.dashPlayer(), combat: () => COMBAT, updateBossHUD,
+      tut: { show: tutShow, advance: tutAdvance, complete: tutComplete, step: () => tutStep, hide: tutHide, seen: tutSeen, tick: tickTutorial, look: () => tutLook, moved: () => tutMoved, reset: () => { try { localStorage.removeItem(TUT_KEY); } catch (e) {} } }, getState: () => ({ state, helpOpen, mapOpen, wpOpen }), wp: { list: () => [...unlockedWp], open: openWpList, tp: doTeleport, pop: showTpPop, all: WAYPOINTS, dbg: () => { const c = BM.canvas, r = c.getBoundingClientRect(), wr = $('mapWrap').getBoundingClientRect(); return { cw: c.width, ch: c.height, rw: r.width, rh: r.height, rl: r.left - wr.left, rt: r.top - wr.top, s: bmScale(), zoom: BM.zoom, cx: BM.cx, cz: BM.cz }; } } };
     requestAnimationFrame(loop);
   }
 
@@ -3938,6 +4326,7 @@
     if (++mapTick % 4 === 0) {
       WORLD.drawMinimap(WORLD.player.position, WORLD.yaw, NODES, done, trackedNode(), unlockedWp);
       updateHUD();
+      updateBossHUD();
       refreshPrompt();
     }
   }
